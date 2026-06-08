@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CRM Dashboard MVP — Panel de control de ventas para responsables de equipo. KPIs calculados en tiempo real, gráficos de pipeline, y gestión de oportunidades.">
+  <title>CRM Dashboard · Sales Manager</title>
+
+  <!-- Google Fonts — Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       APP SHELL
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="app-shell">
+
+    <!-- ─── SIDEBAR ─────────────────────────────────────────── -->
+    <aside class="sidebar">
+
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">CRM</div>
+        <div class="sidebar-brand-name">
+          NexusCRM
+          <span>Sales Manager v2.0</span>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+
+        <span class="nav-section-title">Principal</span>
+
+        <a href="#" class="nav-item active" data-view="dashboard" id="nav-dashboard">
+          <i class="fas fa-th-large"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <a href="#" class="nav-item" data-view="pipeline" id="nav-pipeline">
+          <i class="fas fa-filter"></i>
+          <span>Pipeline</span>
+        </a>
+
+        <span class="nav-section-title">Ventas</span>
+
+        <a href="#" class="nav-item" data-view="deals" id="nav-deals">
+          <i class="fas fa-handshake"></i>
+          <span>Oportunidades</span>
+          <span class="nav-badge" id="open-count">0</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-users"></i>
+          <span>Clientes</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-user-tie"></i>
+          <span>Equipo</span>
+        </a>
+
+        <span class="nav-section-title">Analytics</span>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-chart-line"></i>
+          <span>Reportes</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-bullseye"></i>
+          <span>Objetivos</span>
+        </a>
+
+        <span class="nav-section-title">Sistema</span>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-cog"></i>
+          <span>Configuración</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-question-circle"></i>
+          <span>Ayuda</span>
+        </a>
+
+      </nav>
+
+      <!-- Footer (User) -->
+      <div class="sidebar-footer">
+        <img src="https://i.pravatar.cc/150?u=rafael" alt="Rafael Herrera">
+        <div class="sidebar-footer-info">
+          <div class="sidebar-footer-name">Rafael Herrera</div>
+          <div class="sidebar-footer-role">Sales Manager</div>
+        </div>
+        <i class="fas fa-sign-out-alt logout-btn" title="Cerrar sesión"></i>
+      </div>
+
+    </aside>
+    <!-- end sidebar -->
+
+    <!-- ─── MAIN WRAPPER ──────────────────────────────────── -->
+    <div class="main-wrapper">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <h1 class="topbar-title" id="page-title">Dashboard</h1>
+
+        <div class="topbar-date">
+          <span class="topbar-date-val" id="current-date">—</span>
+          <span class="topbar-time" id="current-time">--:--:--</span>
+        </div>
+
+        <button class="topbar-btn btn-outline" id="btn-export">
+          <i class="fas fa-file-export"></i> Exportar CSV
+        </button>
+        <button class="topbar-btn btn-primary" id="btn-add-deal">
+          <i class="fas fa-plus"></i> Nueva Oportunidad
+        </button>
+      </header>
+
+      <!-- PAGE CONTENT -->
+      <main class="page-content">
+
+        <!-- ════════════════════════════════════════════════════
+             VIEW: DASHBOARD
+        ════════════════════════════════════════════════════ -->
+        <section class="view-section active" id="view-dashboard">
+
+          <!-- KPI Row -->
+          <p class="section-label">Resumen de rendimiento</p>
+          <div class="kpis-row">
+
+            <!-- KPI 1: Total Revenue -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">Ingresos Totales</span>
+                <i class="fas fa-coins" style="color:var(--accent-coral);font-size:16px;"></i>
+              </div>
+              <div class="kpi-value" id="kpi-revenue">€0</div>
+              <div class="kpi-footer">
+                <span class="kpi-trend positive" id="kpi-revenue-trend">
+                  <i class="fas fa-arrow-up"></i> —
+                </span>
+                <span class="kpi-sub">vs. mes anterior</span>
+              </div>
+            </div>
+
+            <!-- KPI 2: Active Deals -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">Deals Activos</span>
+                <i class="fas fa-fire" style="color:var(--accent-blue);font-size:16px;"></i>
+              </div>
+              <div class="kpi-value" id="kpi-active">0</div>
+              <div class="kpi-footer">
+                <span class="kpi-sub">oportunidades abiertas en pipeline</span>
+              </div>
+            </div>
+
+            <!-- KPI 3: Win Rate -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">Win Rate</span>
+                <i class="fas fa-trophy" style="color:var(--accent-green);font-size:16px;"></i>
+              </div>
+              <div class="kpi-value" id="kpi-winrate">0%</div>
+              <div class="kpi-footer">
+                <span class="kpi-sub">ganados / total cerrados</span>
+              </div>
+            </div>
+
+            <!-- KPI 4: Avg Deal Size -->
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-label">Ticket Promedio</span>
+                <i class="fas fa-chart-bar" style="color:var(--accent-purple);font-size:16px;"></i>
+              </div>
+              <div class="kpi-value" id="kpi-avgsize">€0</div>
+              <div class="kpi-footer">
+                <span class="kpi-sub">promedio por deal ganado</span>
+              </div>
+            </div>
+
+          </div>
+          <!-- end KPI row -->
+
+          <!-- Main dashboard grid -->
+          <div class="dashboard-grid">
+
+            <!-- LEFT: Charts + Table -->
+            <div class="dashboard-main">
+
+              <!-- Charts Row: Pipeline Bar + Trend Line -->
+              <div class="charts-row">
+
+                <!-- Pipeline Bar Chart -->
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <div class="card-title">
+                        <span class="card-title-dot" style="background:var(--accent-orange);"></span>
+                        Valor por Etapa del Pipeline
+                      </div>
+                      <div class="card-subtitle">Suma de importe por etapa (€)</div>
+                    </div>
+                    <button class="card-menu-btn"><i class="fas fa-ellipsis-h"></i></button>
+                  </div>
+                  <div class="chart-wrap">
+                    <div class="chart-lg">
+                      <canvas id="pipelineChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Trend Line Chart -->
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <div class="card-title">
+                        <span class="card-title-dot" style="background:var(--accent-coral);"></span>
+                        Evolución de Ingresos
+                      </div>
+                      <div class="card-subtitle">Ingresos ganados por mes (€)</div>
+                    </div>
+                    <button class="card-menu-btn"><i class="fas fa-ellipsis-h"></i></button>
+                  </div>
+                  <div class="chart-wrap">
+                    <div class="chart-lg">
+                      <canvas id="trendChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              <!-- end charts row -->
+
+              <!-- Deals Table -->
+              <div class="card table-card">
+                <div class="table-card-header">
+                  <div class="card-title">
+                    <i class="fas fa-list" style="color:var(--accent-blue);"></i>
+                    Gestor de Oportunidades
+                    <span style="font-size:10px;font-weight:500;color:var(--text-muted);">· edita y los KPIs se actualizan al momento</span>
+                  </div>
+                  <div class="table-controls">
+                    <div class="search-wrap">
+                      <i class="fas fa-search"></i>
+                      <input type="text" class="search-input" id="table-search" placeholder="Buscar oportunidad...">
+                    </div>
+                    <select class="select-filter" id="filter-status">
+                      <option value="all">Todos los estados</option>
+                      <option value="open">Abiertos</option>
+                      <option value="won">Ganados</option>
+                      <option value="lost">Perdidos</option>
+                    </select>
+                    <select class="select-filter" id="filter-stage">
+                      <option value="all">Todas las etapas</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="deals-table" role="grid" aria-label="Tabla de oportunidades">
+                    <thead>
+                      <tr>
+                        <th scope="col">Oportunidad</th>
+                        <th scope="col">Responsable</th>
+                        <th scope="col">Etapa</th>
+                        <th scope="col">Importe</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="deals-tbody">
+                      <!-- Populated by app.js -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <!-- end table card -->
+
+            </div>
+            <!-- end dashboard main -->
+
+            <!-- RIGHT SIDEBAR -->
+            <div class="dashboard-sidebar">
+
+              <!-- Win Rate Donut -->
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <div class="card-title">
+                      <span class="card-title-dot" style="background:var(--accent-green);"></span>
+                      Estado del Pipeline
+                    </div>
+                    <div class="card-subtitle">Distribución de deals</div>
+                  </div>
+                </div>
+                <div class="chart-wrap">
+                  <div class="chart-md donut-center-wrap">
+                    <canvas id="donutChart"></canvas>
+                    <span class="donut-center-label" id="donut-center">—</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Top Deals -->
+              <div class="card">
+                <div class="card-header" style="padding-bottom:12px;">
+                  <div class="card-title">
+                    <i class="fas fa-star" style="color:var(--accent-orange);font-size:12px;"></i>
+                    Top Deals Ganados
+                  </div>
+                </div>
+                <div id="top-deals-list">
+                  <!-- Populated by app.js -->
+                </div>
+              </div>
+
+              <!-- Recent Leads -->
+              <div class="card">
+                <div class="card-header" style="padding-bottom:12px;">
+                  <div class="card-title">
+                    <i class="fas fa-user-plus" style="color:var(--accent-blue);font-size:12px;"></i>
+                    Leads Recientes
+                  </div>
+                </div>
+                <div id="recent-leads-list">
+                  <!-- Populated by app.js -->
+                </div>
+              </div>
+
+              <!-- Team Performance -->
+              <div class="card">
+                <div class="card-header" style="padding-bottom:12px;">
+                  <div class="card-title">
+                    <i class="fas fa-users" style="color:var(--accent-purple);font-size:12px;"></i>
+                    Rendimiento del Equipo
+                  </div>
+                </div>
+                <div id="team-performance-list">
+                  <!-- Populated by app.js -->
+                </div>
+              </div>
+
+            </div>
+            <!-- end sidebar -->
+
+          </div>
+          <!-- end dashboard grid -->
+
+        </section>
+        <!-- end view-dashboard -->
+
+        <!-- ════════════════════════════════════════════════════
+             VIEW: PIPELINE (Kanban-style summary cards)
+        ════════════════════════════════════════════════════ -->
+        <section class="view-section" id="view-pipeline">
+          <p class="section-label">Vista del Pipeline por Etapa</p>
+
+          <!-- Pipeline Kanban -->
+          <div id="pipeline-kanban" style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;align-items:start;"></div>
+
+          <!-- Pipeline chart big -->
+          <div class="card" style="margin-top:20px;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Valor Total del Pipeline por Etapa</div>
+                <div class="card-subtitle">Suma de todos los deals en cada etapa</div>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <div style="height:280px;"><canvas id="pipelineChartBig"></canvas></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════
+             VIEW: DEALS (full table)
+        ════════════════════════════════════════════════════ -->
+        <section class="view-section" id="view-deals">
+          <p class="section-label">Todas las oportunidades</p>
+          <div class="card table-card">
+            <div class="table-card-header">
+              <div class="card-title" style="font-size:14px;">
+                <i class="fas fa-handshake" style="color:var(--accent-coral);"></i>
+                Gestión Completa de Oportunidades
+              </div>
+              <div class="table-controls">
+                <div class="search-wrap">
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="search-input" id="table-search-2" placeholder="Buscar...">
+                </div>
+                <select class="select-filter" id="filter-status-2">
+                  <option value="all">Todos los estados</option>
+                  <option value="open">Abiertos</option>
+                  <option value="won">Ganados</option>
+                  <option value="lost">Perdidos</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="deals-table">
+                <thead>
+                  <tr>
+                    <th>Oportunidad</th>
+                    <th>Responsable</th>
+                    <th>Etapa</th>
+                    <th>Importe</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="deals-tbody-2">
+                  <!-- Populated by app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+      <!-- end page-content -->
+
+    </div>
+    <!-- end main-wrapper -->
+
+  </div>
+  <!-- end app-shell -->
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MODAL: Add / Edit Deal
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="deal-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+
+      <div class="modal-head">
+        <h3 id="modal-title">Nueva Oportunidad</h3>
+        <button class="modal-close" id="btn-close-modal" aria-label="Cerrar modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form id="deal-form" novalidate>
+        <div class="modal-body">
+
+          <div class="form-group">
+            <label class="form-label" for="modal-title-input">Título de la Oportunidad</label>
+            <input type="text" id="modal-title-input" class="form-control"
+                   placeholder="Ej: Renovación Anual Licencias" required>
+          </div>
+
+          <div class="modal-row">
+            <div class="form-group">
+              <label class="form-label" for="modal-customer">Empresa Cliente</label>
+              <select id="modal-customer" class="form-control" required></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="modal-owner">Responsable</label>
+              <select id="modal-owner" class="form-control" required></select>
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="form-group">
+              <label class="form-label" for="modal-stage">Etapa del Pipeline</label>
+              <select id="modal-stage" class="form-control" required></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="modal-status">Estado</label>
+              <select id="modal-status" class="form-control" required>
+                <option value="open">Abierto</option>
+                <option value="won">Ganado (Closed Won)</option>
+                <option value="lost">Perdido (Closed Lost)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="modal-amount">Importe (€)</label>
+            <input type="number" id="modal-amount" class="form-control"
+                   placeholder="Ej: 25000" min="1" step="any" required>
+          </div>
+
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="topbar-btn btn-outline" id="btn-cancel-modal">Cancelar</button>
+          <button type="submit" class="topbar-btn btn-primary" id="btn-save-deal">
+            <i class="fas fa-save"></i> Guardar
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       TOAST CONTAINER
+  ═══════════════════════════════════════════════════════════ -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SCRIPTS
+  ═══════════════════════════════════════════════════════════ -->
+  <script src="mockData.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
