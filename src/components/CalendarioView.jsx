@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
+const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
+
 // Initial mock events (some pre-loaded to look natural)
 const INITIAL_EVENTS = [
   { id: 'ev1', fecha: '2026-06-02', titulo: 'Entrega Medallas Ciclismo', hora: '10:00', prioridad: 'Alta', descripcion: 'Despacho de medallas personalizadas para competencia en Quetzaltenango.', tienda: 'CB', creadoPor: 'margarita.cb@tuempresa.com', replicarGlobal: false },
@@ -25,10 +27,12 @@ export default function CalendarioView({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDayForEvent, setSelectedDayForEvent] = useState(null); // Date object for clicked day
   const [events, setEvents] = useState(INITIAL_EVENTS);
+  const [editingEventId, setEditingEventId] = useState(null); // ID of the event being edited
+  const [calendarStoreFilter, setCalendarStoreFilter] = useState('Todos'); // Local store filter dropdown
   
   // Modal states
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [eventForm, setEventForm] = useState({ titulo: '', hora: '12:00', prioridad: 'Media', descripcion: '', replicarGlobal: false });
+  const [eventForm, setEventForm] = useState({ titulo: '', hora: '12:00', prioridad: 'Media', descripcion: '', tienda: 'CB', replicarGlobal: false });
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertDismissedToday, setAlertDismissedToday] = useState(false);
   
@@ -170,16 +174,41 @@ export default function CalendarioView({
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  // Click on calendar day cell
+  // Click on calendar day cell (Create mode)
   const handleDayClick = (day) => {
     if (!day) return;
     const clickedDate = new Date(currentYear, currentMonth, day);
     setSelectedDayForEvent(clickedDate);
-    setEventForm({ titulo: '', hora: '12:00', prioridad: 'Media', descripcion: '', replicarGlobal: false });
+    setEditingEventId(null); // Reset edit state
+    setEventForm({ 
+      titulo: '', 
+      hora: '12:00', 
+      prioridad: 'Media', 
+      descripcion: '', 
+      tienda: storeCode, // Default to logged-in store or CB
+      replicarGlobal: false 
+    });
     setIsEventModalOpen(true);
   };
 
-  // Save calendar event
+  // Click on event item (Edit mode)
+  const handleEventClick = (e, evt) => {
+    e.stopPropagation(); // Prevent opening the day creation modal
+    const eventDate = new Date(evt.fecha + 'T12:00:00');
+    setSelectedDayForEvent(eventDate);
+    setEditingEventId(evt.id);
+    setEventForm({
+      titulo: evt.titulo,
+      hora: evt.hora,
+      prioridad: evt.prioridad,
+      descripcion: evt.descripcion || '',
+      tienda: evt.replicarGlobal ? 'CB' : evt.tienda,
+      replicarGlobal: evt.replicarGlobal || false
+    });
+    setIsEventModalOpen(true);
+  };
+
+  // Save/Update calendar event
   const handleSaveEvent = (e) => {
     e.preventDefault();
     if (!eventForm.titulo.trim()) {
@@ -188,26 +217,47 @@ export default function CalendarioView({
     }
 
     const isoDateStr = selectedDayForEvent.toISOString().slice(0, 10);
-    const newEvent = {
-      id: 'ev' + Date.now(),
-      fecha: isoDateStr,
-      titulo: eventForm.titulo,
-      hora: eventForm.hora,
-      prioridad: eventForm.prioridad,
-      descripcion: eventForm.descripcion,
-      tienda: eventForm.replicarGlobal && userRole === 'admin' ? 'Todos' : storeCode,
-      creadoPor: userRole === 'admin' ? 'admin@tuempresa.com' : `${storeCode.toLowerCase()}@tuempresa.com`,
-      replicarGlobal: eventForm.replicarGlobal && userRole === 'admin'
-    };
-
-    setEvents(prev => [...prev, newEvent]);
-    setIsEventModalOpen(false);
     
-    // Simulate App Script call
-    alert(`Evento registrado exitosamente en la base de datos de Google Sheets (BD_Calendario_Eventos). ${newEvent.replicarGlobal ? 'Replicado en las 14 tiendas.' : ''}`);
+    if (editingEventId !== null) {
+      // Edit Mode
+      setEvents(prev => prev.map(evt => {
+        if (evt.id === editingEventId) {
+          return {
+            ...evt,
+            titulo: eventForm.titulo,
+            hora: eventForm.hora,
+            prioridad: eventForm.prioridad,
+            descripcion: eventForm.descripcion,
+            tienda: eventForm.replicarGlobal && userRole === 'admin' ? 'Todos' : eventForm.tienda,
+            replicarGlobal: eventForm.replicarGlobal && userRole === 'admin'
+          };
+        }
+        return evt;
+      }));
+      alert('Evento actualizado exitosamente en la base de datos (BD_Calendario_Eventos).');
+    } else {
+      // Create Mode
+      const newEvent = {
+        id: 'ev' + Date.now(),
+        fecha: isoDateStr,
+        titulo: eventForm.titulo,
+        hora: eventForm.hora,
+        prioridad: eventForm.prioridad,
+        descripcion: eventForm.descripcion,
+        tienda: eventForm.replicarGlobal && userRole === 'admin' ? 'Todos' : eventForm.tienda,
+        creadoPor: userRole === 'admin' ? 'admin@tuempresa.com' : `${storeCode.toLowerCase()}@tuempresa.com`,
+        replicarGlobal: eventForm.replicarGlobal && userRole === 'admin'
+      };
+
+      setEvents(prev => [...prev, newEvent]);
+      alert(`Evento registrado exitosamente en la base de datos de Google Sheets (BD_Calendario_Eventos). ${newEvent.replicarGlobal ? 'Replicado en las 14 tiendas.' : ''}`);
+    }
+
+    setIsEventModalOpen(false);
+    setEditingEventId(null);
   };
 
-  // Filter events to render in calendar cells
+  // Filter events by global activeStore for data access
   const filteredEvents = useMemo(() => {
     return events.filter(evt => {
       if (activeStore === 'Todos') return true;
@@ -546,6 +596,29 @@ export default function CalendarioView({
             <p className="card-subtitle">Haz clic en cualquier día para registrar un nuevo evento en Sheets</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Local Store Filter Dropdown */}
+            <select
+              value={calendarStoreFilter}
+              onChange={(e) => setCalendarStoreFilter(e.target.value)}
+              className="select-filter"
+              style={{ 
+                padding: '6px 12px', 
+                fontSize: '12px', 
+                fontWeight: '700',
+                borderColor: 'var(--border-light)',
+                background: 'var(--bg-body)',
+                color: 'var(--text-primary)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                marginRight: '8px'
+              }}
+            >
+              <option value="Todos">Todas las Tiendas</option>
+              {STORES.map(store => (
+                <option key={store} value={store}>{store}</option>
+              ))}
+            </select>
+
             <button className="topbar-btn btn-outline" style={{ padding: '6px 10px' }} onClick={handlePrevMonth}>
               <i className="fas fa-chevron-left"></i>
             </button>
@@ -636,6 +709,18 @@ export default function CalendarioView({
                         priorityBg = 'rgba(245, 158, 11, 0.08)';
                       }
 
+                      // Focus Opacity calculation
+                      const isMatched = calendarStoreFilter === 'Todos' || 
+                                        evt.tienda === calendarStoreFilter || 
+                                        evt.tienda === 'Todos' || 
+                                        evt.replicarGlobal;
+                      const eventOpacity = isMatched ? 1 : 0.2;
+
+                      // Display Label with bracketed store code
+                      const displayTitle = evt.replicarGlobal || evt.tienda === 'Todos'
+                        ? `[GLOBAL] ${evt.titulo}`
+                        : `[${evt.tienda || 'CB'}] ${evt.titulo}`;
+
                       return (
                         <div 
                           key={eIdx}
@@ -650,15 +735,14 @@ export default function CalendarioView({
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            borderLeft: `2.5px solid ${priorityColor}`
+                            borderLeft: `2.5px solid ${priorityColor}`,
+                            opacity: eventOpacity,
+                            transition: 'opacity 0.2s ease'
                           }}
-                          title={`${evt.titulo} (${evt.hora}) - ${evt.descripcion}`}
-                          onClick={(e) => {
-                            e.stopPropagation(); // prevent modal opening
-                            alert(`Evento: ${evt.titulo}\nHora: ${evt.hora}\nPrioridad: ${evt.prioridad}\n\nDescripción: ${evt.descripcion}\nCreado por: ${evt.creadoPor}`);
-                          }}
+                          title={`${displayTitle} (${evt.hora}) - ${evt.descripcion}`}
+                          onClick={(e) => handleEventClick(e, evt)}
                         >
-                          {evt.titulo}
+                          {displayTitle}
                         </div>
                       );
                     })}
@@ -670,13 +754,13 @@ export default function CalendarioView({
         </div>
       </div>
 
-      {/* 4. MODAL: Event Creator Modal */}
+      {/* 4. MODAL: Event Creator / Editor Modal */}
       {isEventModalOpen && (
         <div className="modal-overlay active" style={{ zIndex: 10000 }}>
           <div className="modal-box" style={{ maxWidth: '460px', padding: '28px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>
-                📅 Registrar Nuevo Evento para {selectedDayForEvent?.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                {editingEventId !== null ? '📝 Editar Evento' : `📅 Registrar Nuevo Evento para ${selectedDayForEvent?.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}`}
               </h3>
               <i className="fas fa-times" style={{ cursor: 'pointer', color: 'var(--text-muted)' }} onClick={() => setIsEventModalOpen(false)}></i>
             </div>
@@ -694,7 +778,7 @@ export default function CalendarioView({
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>Hora Programada</label>
                   <input 
@@ -704,6 +788,20 @@ export default function CalendarioView({
                     onChange={(e) => setEventForm(prev => ({ ...prev, hora: e.target.value }))}
                     required
                   />
+                </div>
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '10.5px' }}>Tienda</label>
+                  <select 
+                    className="select-filter" 
+                    value={eventForm.tienda || storeCode}
+                    onChange={(e) => setEventForm(prev => ({ ...prev, tienda: e.target.value }))}
+                    style={{ width: '100%', padding: '10px' }}
+                    disabled={eventForm.replicarGlobal && userRole === 'admin'}
+                  >
+                    {STORES.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>Prioridad</label>
@@ -758,7 +856,9 @@ export default function CalendarioView({
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button type="button" className="topbar-btn btn-outline" onClick={() => setIsEventModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="topbar-btn btn-primary">Registrar Evento</button>
+                <button type="submit" className="topbar-btn btn-primary">
+                  {editingEventId !== null ? 'Guardar Cambios' : 'Registrar Evento'}
+                </button>
               </div>
             </form>
           </div>
