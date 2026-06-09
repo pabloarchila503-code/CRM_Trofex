@@ -5,6 +5,7 @@ import Topbar from './components/Topbar';
 import DashboardView from './components/DashboardView';
 import TareasView from './components/TareasView';
 import CalendarioView from './components/CalendarioView';
+import RendimientoProgramadoView from './components/RendimientoProgramadoView';
 import VentasView from './components/VentasView';
 import DealModal from './components/DealModal';
 import StoreEditorModal from './components/StoreEditorModal';
@@ -76,6 +77,58 @@ export default function App() {
   // Venta/Meta state
   const [salesTargetData, setSalesTargetData] = useState(getInitialSalesTargetData());
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
+
+  // Lifted Cronograma states
+  const [weeklyTasks, setWeeklyTasks] = useState({
+    Lun: [
+      { id: 1, name: 'Revisión y gestión de órdenes para la semana', icon: '📋', desc: 'Revisión y gestión de órdenes', obligatoria: true },
+      { id: 2, name: 'Seguimiento a órdenes de Ruta de Camión', icon: '🚚', desc: 'Seguimiento a órdenes', obligatoria: true },
+      { id: 3, name: 'Ejecución y contacto a clientes del 80/20', icon: '🎯', desc: 'Contacto a clientes', obligatoria: true },
+      { id: 4, name: 'Ejecución y contacto a Clientes del Proyecto', icon: '🚀', desc: 'Contacto a clientes del proyecto', obligatoria: true },
+      { id: 5, name: 'Ejecución de Seguimiento de Cartera o Cartera Muerta', icon: '👤', desc: 'Seguimiento de cartera muerta', obligatoria: true }
+    ],
+    Mar: [
+      { id: 1, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true },
+      { id: 2, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true },
+      { id: 3, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true },
+      { id: 4, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true }
+    ],
+    Mie: [
+      { id: 1, name: 'Creación de órdenes para llenado de Sala', icon: '🏠', desc: 'Creación de órdenes', obligatoria: true },
+      { id: 2, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true },
+      { id: 3, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true },
+      { id: 4, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true },
+      { id: 5, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true }
+    ],
+    Jue: [
+      { id: 1, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true },
+      { id: 2, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true },
+      { id: 3, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true },
+      { id: 4, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true }
+    ],
+    Vie: [
+      { id: 1, name: 'Cierre de todas las actividades', icon: '🔒', desc: 'Cierre', obligatoria: true },
+      { id: 2, name: 'Enviar los cierres al Grupo de Supervisores', icon: '📤', desc: 'Enviar cierres', obligatoria: true }
+    ],
+    Sab: [
+      { id: 1, name: 'Recopilación de información de clientes a contactar semana Siguiente', icon: '📂', desc: 'Recopilación', obligatoria: true },
+      { id: 2, name: 'Segmentación de Clientes a contactar semana Siguiente', icon: '📊', desc: 'Segmentación', obligatoria: true },
+      { id: 3, name: 'Presentar Proyecto', icon: '🚀', desc: 'Presentar Proyecto', obligatoria: true },
+      { id: 4, name: 'Presentar 80/20', icon: '🎯', desc: 'Presentar 80/20', obligatoria: true },
+      { id: 5, name: 'Prospección de Clientes', icon: '🔍', desc: 'Prospección', obligatoria: true }
+    ]
+  });
+  const [checkedTasks, setCheckedTasks] = useState({
+    Lun: { 1: false, 2: false, 3: false, 4: false, 5: false },
+    Mar: { 1: false, 2: false, 3: false, 4: false },
+    Mie: { 1: false, 2: false, 3: false, 4: false, 5: false },
+    Jue: { 1: false, 2: false, 3: false, 4: false },
+    Vie: { 1: false, 2: false },
+    Sab: { 1: false, 2: false, 3: false, 4: false, 5: false }
+  });
+  const [savedDays, setSavedDays] = useState({
+    Lun: false, Mar: false, Mie: false, Jue: false, Vie: false, Sab: false
+  });
 
   // Auth handlers
   const handleLogin = (role, store) => {
@@ -172,6 +225,7 @@ export default function App() {
     dashboard: 'Dashboard',
     tareas: 'Checklist y Bloques Horarios',
     calendario: 'Calendario de Operaciones',
+    'rendimiento-programado': 'Rendimiento Programado',
     prospecciones: 'Prospecciones Comerciales',
     '80-20': 'Análisis de Red 80/20',
     proyecto: 'Proyectos Corporativos',
@@ -357,6 +411,21 @@ export default function App() {
             <CalendarioView
               activeStore={activeStore}
               userRole={userRole}
+              checkedTasks={checkedTasks}
+              setCheckedTasks={setCheckedTasks}
+              savedDays={savedDays}
+              setSavedDays={setSavedDays}
+              weeklyTasks={weeklyTasks}
+              setWeeklyTasks={setWeeklyTasks}
+            />
+          )}
+
+          {currentView === 'rendimiento-programado' && (
+            <RendimientoProgramadoView
+              activeStore={activeStore}
+              userRole={userRole}
+              checkedTasks={checkedTasks}
+              weeklyTasks={weeklyTasks}
             />
           )}
 

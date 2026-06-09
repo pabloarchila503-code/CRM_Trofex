@@ -5,6 +5,7 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
     { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-th-large', section: 'Principal' },
     { id: 'tareas', label: 'Tareas', icon: 'fas fa-tasks', section: 'Principal' },
     { id: 'calendario', label: 'Calendario', icon: 'fas fa-calendar-alt', section: 'Operaciones Administrativas' },
+    { id: 'rendimiento-programado', label: 'Rendimiento Programado', icon: 'fas fa-chart-line', section: 'Operaciones Administrativas' },
     { id: 'prospecciones', label: 'Prospecciones', icon: 'fas fa-handshake', section: 'Ventas', badge: true },
     { id: '80-20', label: '80/20', icon: 'fas fa-percentage', section: 'Ventas' },
     { id: 'proyecto', label: 'Proyecto', icon: 'fas fa-project-diagram', section: 'Ventas' },

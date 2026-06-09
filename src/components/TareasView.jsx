@@ -375,7 +375,7 @@ export default function TareasView({
     <div className="view-section active">
       
       {/* Simulation Header Clock control */}
-      <div className="card" style={{ marginBottom: '20px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+      <div className="card" style={{ display: 'none', marginBottom: '20px', padding: '16px 20px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ fontSize: '20px' }}>⏱️</div>
           <div>
