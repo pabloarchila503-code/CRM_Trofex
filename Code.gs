@@ -91,6 +91,23 @@ function setupDatabase() {
     histSheet.appendRow([todayStr, "CHM", "TX.CHM", 13, 10, 0.77, "ACEPTABLE", "{}"]);
     histSheet.appendRow([todayStr, "CHQ", "TX.CHQ", 13, 3, 0.23, "CRÍTICO", "{}"]);
   }
+
+  // Configurar hoja Prospecciones si no existe
+  let prospeccionesSheet = ss.getSheetByName("Prospecciones");
+  if (!prospeccionesSheet) {
+    prospeccionesSheet = ss.insertSheet("Prospecciones");
+    prospeccionesSheet.appendRow([
+      "Numeración", 
+      "Empresa", 
+      "Cliente", 
+      "Teléfono", 
+      "Email", 
+      "Etapa", 
+      "Monto", 
+      "Fecha"
+    ]);
+    prospeccionesSheet.getRange("A1:H1").setFontWeight("bold").setBackground("#f1f5f9");
+  }
   
   return sheet;
 }
@@ -470,3 +487,176 @@ function guardarProgresoCronograma(progreso) {
   
   return { status: "success", message: "Progreso de cronograma registrado exitosamente." };
 }
+
+/**
+ * Obtiene todas las prospecciones registradas en la hoja 'Prospecciones'.
+ * Cada registro incluye su número de fila como 'id' único para facilitar
+ * las operaciones de actualización y eliminación.
+ */
+function obtenerProspecciones() {
+  setupDatabase();
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName("Prospecciones");
+  if (!sheet) return [];
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return []; // Solo encabezados o vacía
+  
+  const headers = data[0];
+  const records = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const obj = { id: i + 1 }; // El ID es el número de fila física (1-indexed, fila 2 es id 2)
+    
+    headers.forEach((header, index) => {
+      let val = row[index];
+      // Si la fecha es objeto Date, formatear a string ISO corto yyyy-MM-dd
+      if (header === "Fecha" && val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
+      }
+      obj[header] = val;
+    });
+    records.push(obj);
+  }
+  
+  return records;
+}
+
+/**
+ * Agrega una nueva prospección a la hoja 'Prospecciones'.
+ * Escribe en la primera columna la fórmula de Sheets '=FILA()-1' para autoincremento.
+ */
+function agregarProspeccion(prospecto) {
+  try {
+    setupDatabase();
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName("Prospecciones");
+    if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
+    
+    // Validaciones básicas en el servidor
+    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa || !prospecto.monto || !prospecto.fecha) {
+      throw new Error("Faltan campos obligatorios para guardar la prospección.");
+    }
+    
+    // Insertar nueva fila al final
+    sheet.appendRow([
+      "=ROW()-1", // Numeración automática basada en fila
+      prospecto.empresa,
+      prospecto.cliente,
+      prospecto.telefono || "",
+      prospecto.email || "",
+      prospecto.etapa,
+      parseFloat(prospecto.monto) || 0,
+      prospecto.fecha
+    ]);
+    
+    return {
+      status: "success",
+      message: "Guardado exitoso.",
+      data: obtenerProspecciones()
+    };
+  } catch (e) {
+    return {
+      status: "error",
+      message: "Error al guardar: " + e.toString()
+    };
+  }
+}
+
+/**
+ * Sobrescribe una prospección existente identificada por su ID (número de fila).
+ */
+function editarProspeccion(id, prospecto) {
+  try {
+    setupDatabase();
+    const rowNum = parseInt(id);
+    if (isNaN(rowNum) || rowNum < 2) {
+      throw new Error("ID de prospección inválido.");
+    }
+    
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName("Prospecciones");
+    if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
+    
+    // Validaciones básicas en el servidor
+    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa || !prospecto.monto || !prospecto.fecha) {
+      throw new Error("Faltan campos obligatorios para actualizar la prospección.");
+    }
+    
+    // Sobrescribir los datos de la fila (de la columna 2 a la 8 para mantener la numeración en col 1)
+    const values = [[
+      prospecto.empresa,
+      prospecto.cliente,
+      prospecto.telefono || "",
+      prospecto.email || "",
+      prospecto.etapa,
+      parseFloat(prospecto.monto) || 0,
+      prospecto.fecha
+    ]];
+    
+    sheet.getRange(rowNum, 2, 1, 7).setValues(values);
+    
+    return {
+      status: "success",
+      message: "Guardado exitoso.",
+      data: obtenerProspecciones()
+    };
+  } catch (e) {
+    return {
+      status: "error",
+      message: "Error al guardar: " + e.toString()
+    };
+  }
+}
+
+/**
+ * Elimina una prospección de la hoja 'Prospecciones' dado su ID (número de fila).
+ */
+function eliminarProspeccion(id) {
+  try {
+    setupDatabase();
+    const rowNum = parseInt(id);
+    if (isNaN(rowNum) || rowNum < 2) {
+      throw new Error("ID de prospección inválido.");
+    }
+    
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName("Prospecciones");
+    if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
+    
+    // Eliminar la fila
+    sheet.deleteRow(rowNum);
+    
+    return {
+      status: "success",
+      message: "Prospección eliminada exitosamente.",
+      data: obtenerProspecciones()
+    };
+  } catch (e) {
+    return {
+      status: "error",
+      message: "Error al eliminar la prospección: " + e.toString()
+    };
+  }
+}
+
+/**
+ * INSTRUCCIONES DE CONFIGURACIÓN Y DESPLIEGUE EN GOOGLE APPS SCRIPT:
+ * =================================================================
+ * Para asegurar una auditoría clara y registrar qué asesor (CB, CHQ, JT, etc.) realiza cada cambio:
+ * 
+ * 1. En el editor de Google Apps Script, haz clic en "Implementar" (Deploy) > "Nueva implementación" (New deployment).
+ * 2. Selecciona el tipo de implementación "Aplicación web" (Web app) haciendo clic en el engranaje.
+ * 3. En la configuración:
+ *    - Ejecutar como (Execute as): Selecciona "El usuario que accede a la aplicación web" (User accessing the web app).
+ *    - Quién tiene acceso (Who has access): Selecciona "Cualquiera con cuenta de Google" (Anyone with Google account).
+ * 4. Haz clic en "Implementar".
+ * 5. Google solicitará otorgar permisos de acceso a la hoja de cálculo.
+ * 
+ * Al ejecutar la aplicación de esta manera:
+ * - Cada llamada a `google.script.run` se ejecutará utilizando la identidad de Google del usuario logueado en su navegador.
+ * - En el historial de revisiones de Google Sheets, cada celda modificada o fila agregada mostrará el correo
+ *   electrónico real del vendedor que realizó la acción, en lugar de la cuenta del creador/desarrollador.
+ */
+
