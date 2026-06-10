@@ -104,9 +104,10 @@ function setupDatabase() {
       "Email", 
       "Etapa", 
       "Monto", 
-      "Fecha"
+      "Fecha",
+      "Tienda"
     ]);
-    prospeccionesSheet.getRange("A1:H1").setFontWeight("bold").setBackground("#f1f5f9");
+    prospeccionesSheet.getRange("A1:I1").setFontWeight("bold").setBackground("#f1f5f9");
   }
   
   return sheet;
@@ -489,26 +490,71 @@ function guardarProgresoCronograma(progreso) {
 }
 
 /**
- * Obtiene todas las prospecciones registradas en la hoja 'Prospecciones'.
- * Cada registro incluye su número de fila como 'id' único para facilitar
- * las operaciones de actualización y eliminación.
+ * Obtiene el rol comercial y el código de tienda a partir del correo activo.
+ */
+function getUsuarioRolYTienda() {
+  let email = "";
+  try {
+    email = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+  } catch (e) {
+    email = "admin@trofex.com"; // Fallback para desarrollo local
+  }
+  
+  if (!email) {
+    return { rol: "Administrador", tienda: "Todos", email: "local-guest" };
+  }
+  
+  const normalizedEmail = email.trim().toLowerCase();
+  
+  // Buscar en USUARIOS_CONFIG
+  let configVal = USUARIOS_CONFIG[email] || USUARIOS_CONFIG[normalizedEmail];
+  if (!configVal) {
+    // Buscar en EMAIL_TO_STORE
+    configVal = EMAIL_TO_STORE[normalizedEmail];
+  }
+  
+  if (configVal === "Admin" || configVal === "admin" || normalizedEmail.includes("admin")) {
+    return { rol: "Administrador", tienda: "Todos", email: email };
+  } else if (configVal) {
+    return { rol: "Vendedor", tienda: configVal, email: email };
+  } else {
+    // Fallback si el email tiene formato de tienda
+    const match = normalizedEmail.match(/^([a-z0-9]+)@/);
+    if (match && EMAIL_TO_STORE[match[1] + "@trofex.com"]) {
+      return { rol: "Vendedor", tienda: EMAIL_TO_STORE[match[1] + "@trofex.com"], email: email };
+    }
+    return { rol: "Administrador", tienda: "Todos", email: email };
+  }
+}
+
+/**
+ * Obtiene todas las prospecciones registradas en la hoja 'Prospecciones' con filtrado de seguridad por rol.
+ * Si es Administrador, envía todos los registros. Si es vendedor, filtra por tienda.
+ * Retorna un objeto con los datos, el rol y la tienda activa del usuario.
  */
 function obtenerProspecciones() {
   setupDatabase();
+  const userInfo = getUsuarioRolYTienda();
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName("Prospecciones");
-  if (!sheet) return [];
+  if (!sheet) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
   
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return []; // Solo encabezados o vacía
+  if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
   
   const headers = data[0];
   const records = [];
   
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const obj = { id: i + 1 }; // El ID es el número de fila física (1-indexed, fila 2 es id 2)
+    const rowTienda = row[8] ? String(row[8]).trim() : ""; // Columna 9 (index 8)
     
+    // Filtrado de seguridad en servidor: si no es Administrador, solo ve las de su propia tienda
+    if (userInfo.rol !== "Administrador" && rowTienda !== userInfo.tienda) {
+      continue;
+    }
+    
+    const obj = { id: i + 1 }; // El ID es el número de fila física (1-indexed)
     headers.forEach((header, index) => {
       let val = row[index];
       // Si la fecha es objeto Date, formatear a string ISO corto yyyy-MM-dd
@@ -520,16 +566,26 @@ function obtenerProspecciones() {
     records.push(obj);
   }
   
-  return records;
+  return {
+    rol: userInfo.rol,
+    tienda: userInfo.tienda,
+    data: records
+  };
 }
 
 /**
  * Agrega una nueva prospección a la hoja 'Prospecciones'.
- * Escribe en la primera columna la fórmula de Sheets '=FILA()-1' para autoincremento.
+ * Bloquea la acción si la intenta realizar un Administrador, ya que solo los vendedores agregan datos.
  */
 function agregarProspeccion(prospecto) {
   try {
     setupDatabase();
+    const userInfo = getUsuarioRolYTienda();
+    
+    if (userInfo.rol === "Administrador") {
+      throw new Error("Permiso denegado. El Administrador no agrega nuevas prospecciones.");
+    }
+    
     const ss = getSpreadsheet();
     const sheet = ss.getSheetByName("Prospecciones");
     if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
@@ -548,13 +604,14 @@ function agregarProspeccion(prospecto) {
       prospecto.email || "",
       prospecto.etapa,
       parseFloat(prospecto.monto) || 0,
-      prospecto.fecha
+      prospecto.fecha,
+      userInfo.tienda // Sucursal asociada
     ]);
     
     return {
       status: "success",
       message: "Guardado exitoso.",
-      data: obtenerProspecciones()
+      response: obtenerProspecciones()
     };
   } catch (e) {
     return {
@@ -566,10 +623,12 @@ function agregarProspeccion(prospecto) {
 
 /**
  * Sobrescribe una prospección existente identificada por su ID (número de fila).
+ * Si es Administrador, edita pero preserva intacta la tienda original.
  */
 function editarProspeccion(id, prospecto) {
   try {
     setupDatabase();
+    const userInfo = getUsuarioRolYTienda();
     const rowNum = parseInt(id);
     if (isNaN(rowNum) || rowNum < 2) {
       throw new Error("ID de prospección inválido.");
@@ -579,12 +638,18 @@ function editarProspeccion(id, prospecto) {
     const sheet = ss.getSheetByName("Prospecciones");
     if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
     
+    // Validar propiedad de la tienda original
+    const originalTienda = String(sheet.getRange(rowNum, 9).getValue()).trim();
+    if (userInfo.rol !== "Administrador" && originalTienda !== userInfo.tienda) {
+      throw new Error("No tienes permisos para editar esta prospección.");
+    }
+    
     // Validaciones básicas en el servidor
     if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa || !prospecto.monto || !prospecto.fecha) {
       throw new Error("Faltan campos obligatorios para actualizar la prospección.");
     }
     
-    // Sobrescribir los datos de la fila (de la columna 2 a la 8 para mantener la numeración en col 1)
+    // Sobrescribir los datos de la fila (de la columna 2 a la 8 para mantener la numeración en col 1 y la tienda en col 9)
     const values = [[
       prospecto.empresa,
       prospecto.cliente,
@@ -600,7 +665,7 @@ function editarProspeccion(id, prospecto) {
     return {
       status: "success",
       message: "Guardado exitoso.",
-      data: obtenerProspecciones()
+      response: obtenerProspecciones()
     };
   } catch (e) {
     return {
@@ -612,10 +677,18 @@ function editarProspeccion(id, prospecto) {
 
 /**
  * Elimina una prospección de la hoja 'Prospecciones' dado su ID (número de fila).
+ * Seguridad estricta: Bloquea la acción si el usuario no es Administrador.
  */
 function eliminarProspeccion(id) {
   try {
     setupDatabase();
+    const userInfo = getUsuarioRolYTienda();
+    
+    // Bloquear si el rol no es Administrador (Seguridad crítica del servidor)
+    if (userInfo.rol !== "Administrador") {
+      throw new Error("Permiso denegado. Solo el Administrador tiene autorización para eliminar en la base de datos.");
+    }
+    
     const rowNum = parseInt(id);
     if (isNaN(rowNum) || rowNum < 2) {
       throw new Error("ID de prospección inválido.");
@@ -625,18 +698,17 @@ function eliminarProspeccion(id) {
     const sheet = ss.getSheetByName("Prospecciones");
     if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
     
-    // Eliminar la fila
     sheet.deleteRow(rowNum);
     
     return {
       status: "success",
-      message: "Prospección eliminada exitosamente.",
-      data: obtenerProspecciones()
+      message: "Eliminado correctamente.",
+      response: obtenerProspecciones()
     };
   } catch (e) {
     return {
       status: "error",
-      message: "Error al eliminar la prospección: " + e.toString()
+      message: "Error: " + e.toString()
     };
   }
 }
@@ -658,5 +730,9 @@ function eliminarProspeccion(id) {
  * - Cada llamada a `google.script.run` se ejecutará utilizando la identidad de Google del usuario logueado en su navegador.
  * - En el historial de revisiones de Google Sheets, cada celda modificada o fila agregada mostrará el correo
  *   electrónico real del vendedor que realizó la acción, en lugar de la cuenta del creador/desarrollador.
+ * 
+ * ACTUALIZACIÓN OBLIGATORIA DEL LINK DE PRODUCCIÓN:
+ * Para actualizar tu URL pública y aplicar los cambios del backend, haz clic en Implementar > Gestionar implementaciones,
+ * edita el despliegue actual con el ícono del lápiz, selecciona "Nueva versión" y haz clic en Implementar.
  */
 

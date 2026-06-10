@@ -1,19 +1,29 @@
 import React, { useState, useEffect } from 'react';
 
 const MOCK_PROSPECCIONES = [
-  { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08" },
-  { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09" },
-  { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07" },
-  { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08" },
-  { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05" }
+  { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08", Tienda: "CB" },
+  { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09", Tienda: "CHQ" },
+  { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07", Tienda: "JT" },
+  { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08", Tienda: "CB" },
+  { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05", Tienda: "PTB" }
 ];
+
+const TIENDAS = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
 export default function ProspeccionesView({ showToast }) {
   const [prospecciones, setProspecciones] = useState([]);
+  const [userRol, setUserRol] = useState('Administrador'); // Rol retornado por el servidor ('Administrador' o 'Vendedor')
+  const [userTienda, setUserTienda] = useState('Todos'); // Tienda del usuario ('Todos' o código de tienda)
+  
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStage, setFilterStage] = useState('all');
+  const [filterTienda, setFilterTienda] = useState('all'); // Filtro exclusivo de Administrador
+
+  // Estados locales para simulación / pruebas locales
+  const [mockUserRol, setMockUserRol] = useState('Administrador');
+  const [mockUserTienda, setMockUserTienda] = useState('Todos');
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,21 +37,19 @@ export default function ProspeccionesView({ showToast }) {
   const [formMonto, setFormMonto] = useState('');
   const [formFecha, setFormFecha] = useState('');
 
-  // Check if running in Google Apps Script Environment
   const isGas = typeof google !== 'undefined' && google.script && google.script.run;
 
-  // ─── CARGAR DATOS AL MONTAR ────────────────────────────
-  useEffect(() => {
-    loadData();
-  }, []);
-
+  // ─── CARGAR DATOS ──────────────────────────────────────
   const loadData = (silent = false) => {
     if (!silent) setIsLoading(true);
     
     if (isGas) {
       google.script.run
-        .withSuccessHandler((datos) => {
-          setProspecciones(datos || []);
+        .withSuccessHandler((response) => {
+          // El backend seguro retorna: { rol, tienda, data }
+          setUserRol(response.rol);
+          setUserTienda(response.tienda);
+          setProspecciones(response.data || []);
           setIsLoading(false);
           setIsSyncing(false);
         })
@@ -52,22 +60,34 @@ export default function ProspeccionesView({ showToast }) {
         })
         .obtenerProspecciones();
     } else {
-      // Emulador local con LocalStorage
+      // Emulador de desarrollo local
       setTimeout(() => {
         if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
           localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(MOCK_PROSPECCIONES));
         }
-        const data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-        setProspecciones(data);
+        const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+        
+        // Simular filtrado por tienda en el emulador
+        const filtrado = mockUserRol === 'Administrador'
+          ? db
+          : db.filter(item => item.Tienda === mockUserTienda);
+          
+        setProspecciones(filtrado);
+        setUserRol(mockUserRol);
+        setUserTienda(mockUserTienda);
         setIsLoading(false);
         setIsSyncing(false);
       }, 500);
     }
   };
 
+  useEffect(() => {
+    loadData();
+  }, [mockUserRol, mockUserTienda]);
+
   const handleSyncManual = () => {
     setIsSyncing(true);
-    showToast("Sincronizando con Google Sheets...", "info");
+    showToast("Sincronizando con la base de datos...", "info");
     loadData(true);
   };
 
@@ -75,7 +95,7 @@ export default function ProspeccionesView({ showToast }) {
   const handleOpenModal = (item = null) => {
     setWasValidated(false);
     if (item) {
-      // Modo Edición
+      // MODO EDICIÓN
       setFormId(item.id);
       setFormEmpresa(item.Empresa || '');
       setFormCliente(item.Cliente || '');
@@ -85,7 +105,7 @@ export default function ProspeccionesView({ showToast }) {
       setFormMonto(item.Monto || '');
       setFormFecha(item.Fecha ? item.Fecha.slice(0, 10) : new Date().toISOString().slice(0, 10));
     } else {
-      // Modo Nuevo
+      // MODO NUEVO
       setFormId('');
       setFormEmpresa('');
       setFormCliente('');
@@ -107,7 +127,6 @@ export default function ProspeccionesView({ showToast }) {
     e.preventDefault();
     const form = e.currentTarget;
     
-    // Validación estricta HTML5
     if (!form.checkValidity()) {
       setWasValidated(true);
       showToast("Por favor complete los campos obligatorios con formatos válidos.", "error");
@@ -128,13 +147,16 @@ export default function ProspeccionesView({ showToast }) {
     setIsModalOpen(false);
 
     if (formId) {
-      // Guardar edición
+      // GUARDAR EDICIÓN (Vendedor o Admin)
       if (isGas) {
         google.script.run
           .withSuccessHandler((response) => {
             if (response.status === 'success') {
               showToast("Guardado exitoso.", "success");
-              setProspecciones(response.data || []);
+              // La respuesta contiene el obtenerProspecciones() seguro actualizado
+              setUserRol(response.response.rol);
+              setUserTienda(response.response.tienda);
+              setProspecciones(response.response.data || []);
             } else {
               showToast("Error al guardar: " + response.message, "error");
             }
@@ -149,8 +171,11 @@ export default function ProspeccionesView({ showToast }) {
         // Emulador local
         setTimeout(() => {
           let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+          
           db = db.map(d => {
             if (d.id == formId) {
+              // El Admin edita pero preserva la tienda original del registro
+              const originalTienda = d.Tienda || 'CB';
               return {
                 ...d,
                 Empresa: datos.empresa,
@@ -159,25 +184,41 @@ export default function ProspeccionesView({ showToast }) {
                 Email: datos.email,
                 Etapa: datos.etapa,
                 Monto: datos.monto,
-                Fecha: datos.fecha
+                Fecha: datos.fecha,
+                Tienda: originalTienda // Conservar tienda original
               };
             }
             return d;
           });
+          
           localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-          setProspecciones(db);
+          
+          // Re-cargar aplicando filtros de rol
+          const filtrado = mockUserRol === 'Administrador'
+            ? db
+            : db.filter(item => item.Tienda === mockUserTienda);
+            
+          setProspecciones(filtrado);
           showToast("Guardado exitoso.", "success");
           setIsLoading(false);
         }, 500);
       }
     } else {
-      // Guardar nuevo registro
+      // AGREGAR NUEVA PROSPECCIÓN (Solo vendedores)
+      if (userRol === 'Administrador') {
+        showToast("Error: El Administrador no puede agregar registros directos.", "error");
+        setIsLoading(false);
+        return;
+      }
+
       if (isGas) {
         google.script.run
           .withSuccessHandler((response) => {
             if (response.status === 'success') {
               showToast("Guardado exitoso.", "success");
-              setProspecciones(response.data || []);
+              setUserRol(response.response.rol);
+              setUserTienda(response.response.tienda);
+              setProspecciones(response.response.data || []);
             } else {
               showToast("Error al guardar: " + response.message, "error");
             }
@@ -204,11 +245,15 @@ export default function ProspeccionesView({ showToast }) {
             Email: datos.email,
             Etapa: datos.etapa,
             Monto: datos.monto,
-            Fecha: datos.fecha
+            Fecha: datos.fecha,
+            Tienda: mockUserTienda // Sucursal activa del vendedor
           };
+          
           db.push(record);
           localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-          setProspecciones(db);
+          
+          const filtrado = db.filter(item => item.Tienda === mockUserTienda);
+          setProspecciones(filtrado);
           showToast("Guardado exitoso.", "success");
           setIsLoading(false);
         }, 500);
@@ -216,17 +261,26 @@ export default function ProspeccionesView({ showToast }) {
     }
   };
 
-  // ─── ELIMINAR ─────────────────────────────────────────────
+  // ─── ELIMINAR (Solo Administrador) ──────────────────────────
   const handleDelete = (item) => {
+    // Validación preventiva en cliente
+    if (userRol !== 'Administrador') {
+      showToast("Error: No tienes permisos para eliminar registros.", "error");
+      return;
+    }
+
     const label = `"${item.Empresa}" (${item.Cliente})`;
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la prospección para ${label}?`)) {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar permanentemente la prospección para ${label}?`)) {
       setIsLoading(true);
+      
       if (isGas) {
         google.script.run
           .withSuccessHandler((response) => {
             if (response.status === 'success') {
-              showToast("Prospección eliminada correctamente.", "success");
-              setProspecciones(response.data || []);
+              showToast("Eliminado correctamente.", "success");
+              setUserRol(response.response.rol);
+              setUserTienda(response.response.tienda);
+              setProspecciones(response.response.data || []);
             } else {
               showToast("Error al eliminar: " + response.message, "error");
             }
@@ -242,20 +296,25 @@ export default function ProspeccionesView({ showToast }) {
         setTimeout(() => {
           let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
           db = db.filter(d => d.id != item.id);
-          // Regenerar correlativos visuales
           db.forEach((d, idx) => { d.Numeración = idx + 1; });
           localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+          
           setProspecciones(db);
-          showToast("Prospección eliminada correctamente.", "success");
+          showToast("Eliminado correctamente.", "success");
           setIsLoading(false);
         }, 500);
       }
     }
   };
 
-  // ─── FILTRADO & BUSQUEDA ──────────────────────────────────
+  // ─── FILTRADO & BUSQUEDA EN CLIENTE ───────────────────────
   const filteredProspecciones = (() => {
     let list = [...prospecciones];
+
+    // Solo el Admin puede aplicar filtro por tienda/sucursal
+    if (userRol === 'Administrador' && filterTienda !== 'all') {
+      list = list.filter(item => (item.Tienda || '').toUpperCase() === filterTienda.toUpperCase());
+    }
 
     if (filterStage !== 'all') {
       list = list.filter(item => (item.Etapa || '').toLowerCase() === filterStage);
@@ -295,33 +354,61 @@ export default function ProspeccionesView({ showToast }) {
     }
   };
 
-  const getStageBadgeClass = (etapa) => {
-    const stageLower = (etapa || '').toLowerCase();
-    switch (stageLower) {
-      case 'prospectado': return 'badge-prospectado';
-      case 'contactado': return 'badge-contactado';
-      case 'cotizado': return 'badge-cotizado';
-      case 'cerrado': return 'badge-cerrado';
-      case 'perdido': return 'badge-perdido';
-      default: return 'badge-prospectado';
-    }
-  };
-
   const getStageBadgeColorStyle = (etapa) => {
     const stageLower = (etapa || '').toLowerCase();
     switch (stageLower) {
-      case 'prospectado': return { background: 'rgba(148, 163, 184, 0.12)', color: '#475569' }; // Gris
-      case 'contactado': return { background: 'rgba(59, 130, 246, 0.12)', color: '#1d4ed8' }; // Azul
-      case 'cotizado': return { background: 'rgba(245, 158, 11, 0.12)', color: '#b45309' }; // Amarillo/Naranja
-      case 'cerrado': return { background: 'rgba(16, 185, 129, 0.12)', color: '#047857' }; // Verde
-      case 'perdido': return { background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c' }; // Rojo
-      default: return {};
+      case 'prospectado': return { background: 'rgba(148, 163, 184, 0.12)', color: '#475569' };
+      case 'contactado': return { background: 'rgba(59, 130, 246, 0.12)', color: '#1d4ed8' };
+      case 'cotizado': return { background: 'rgba(245, 158, 11, 0.12)', color: '#b45309' };
+      case 'cerrado': return { background: 'rgba(16, 185, 129, 0.12)', color: '#047857' };
+      case 'perdido': return { background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c' };
+      default: return { background: 'rgba(148, 163, 184, 0.12)', color: '#475569' };
+    }
+  };
+
+  // Manejador del simulador de roles en local
+  const handleMockRoleChange = (val) => {
+    if (val === 'Administrador') {
+      setMockUserRol('Administrador');
+      setMockUserTienda('Todos');
+    } else if (val === 'Vendedor_CB') {
+      setMockUserRol('Vendedor');
+      setMockUserTienda('CB');
+    } else if (val === 'Vendedor_JT') {
+      setMockUserRol('Vendedor');
+      setMockUserTienda('JT');
     }
   };
 
   return (
     <div style={{ position: 'relative' }}>
       
+      {/* 🛠️ SIMULADOR DE ROLES (Exclusivo en desarrollo local) */}
+      {!isGas && (
+        <div style={{
+          background: '#FFFBEB', border: '1px solid #FDE68A', padding: '10px 16px',
+          borderRadius: '10px', marginBottom: '18px', display: 'flex',
+          alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'
+        }}>
+          <span style={{ fontSize: '11.5px', color: '#B45309', fontWeight: '700' }}>
+            <i className="fas fa-shield-alt" style={{ marginRight: '6px' }}></i>
+            Vista de Pruebas: Simula perfiles comerciales en tiempo real
+          </span>
+          <select 
+            value={mockUserRol === 'Administrador' ? 'Administrador' : `Vendedor_${mockUserTienda}`} 
+            onChange={(e) => handleMockRoleChange(e.target.value)}
+            style={{
+              padding: '5px 10px', fontSize: '11.5px', border: '1.5px solid #F59E0B',
+              borderRadius: '6px', background: '#fff', fontWeight: '700', color: '#B45309', cursor: 'pointer'
+            }}
+          >
+            <option value="Administrador">Perfil: Administrador (Ver Todo / Eliminar Habilitado / No Agregar)</option>
+            <option value="Vendedor_CB">Perfil: Asesor CB (Filtro CB / Agregar Habilitado / No Eliminar)</option>
+            <option value="Vendedor_JT">Perfil: Asesor JT (Filtro JT / Agregar Habilitado / No Eliminar)</option>
+          </select>
+        </div>
+      )}
+
       {/* HEADER DE LA SECCIÓN */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
@@ -331,9 +418,13 @@ export default function ProspeccionesView({ showToast }) {
           <button className="topbar-btn btn-outline" onClick={handleSyncManual} disabled={isLoading}>
             <i className={`fas fa-sync-alt ${isSyncing ? 'fa-spin' : ''}`}></i> Actualizar vista
           </button>
-          <button className="topbar-btn btn-primary" onClick={() => handleOpenModal()}>
-            <i className="fas fa-plus"></i> + Nueva Prospección
-          </button>
+          
+          {/* BOTÓN AGREGAR: Oculto para Administrador, visible para vendedores */}
+          {userRol !== 'Administrador' && (
+            <button className="topbar-btn btn-primary" onClick={() => handleOpenModal()}>
+              <i className="fas fa-plus"></i> + Nueva Prospección
+            </button>
+          )}
         </div>
       </div>
 
@@ -356,11 +447,14 @@ export default function ProspeccionesView({ showToast }) {
           <div className="card-title">
             <i className="fas fa-handshake" style={{ color: 'var(--accent-coral)' }}></i>
             Registro de Prospectos Activos
+            <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '8px' }}>
+              · {userRol === 'Administrador' ? 'Perfil Administrador (Vista Consolidada)' : `Perfil Tienda: ${userTienda}`}
+            </span>
           </div>
           
           <div className="table-controls">
             <div className="search-wrap">
-              <i class="fas fa-search"></i>
+              <i className="fas fa-search"></i>
               <input
                 type="text"
                 className="search-input"
@@ -370,6 +464,20 @@ export default function ProspeccionesView({ showToast }) {
               />
             </div>
             
+            {/* FILTRO POR TIENDA: Visible ÚNICAMENTE para Administrador */}
+            {userRol === 'Administrador' && (
+              <select
+                className="select-filter"
+                value={filterTienda}
+                onChange={(e) => setFilterTienda(e.target.value)}
+              >
+                <option value="all">Filtrar por Tienda (Todas)</option>
+                {TIENDAS.map(store => (
+                  <option key={store} value={store}>Tienda {store}</option>
+                ))}
+              </select>
+            )}
+
             <select
               className="select-filter"
               value={filterStage}
@@ -389,6 +497,8 @@ export default function ProspeccionesView({ showToast }) {
           <table className="deals-table" role="grid" aria-label="Tabla de prospecciones">
             <thead>
               <tr>
+                {/* COLUMNA TIENDA: Visible ÚNICAMENTE para Administrador */}
+                {userRol === 'Administrador' && <th scope="col">Tienda/Sucursal</th>}
                 <th scope="col">No.</th>
                 <th scope="col">Empresa o Entidad</th>
                 <th scope="col">Nombre del Cliente</th>
@@ -403,7 +513,7 @@ export default function ProspeccionesView({ showToast }) {
             <tbody>
               {filteredProspecciones.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="empty-state">
+                  <td colSpan={userRol === 'Administrador' ? 10 : 9} className="empty-state">
                     <i className="fas fa-search"></i>
                     <br />
                     No se encontraron prospectos
@@ -412,6 +522,14 @@ export default function ProspeccionesView({ showToast }) {
               ) : (
                 filteredProspecciones.map(item => (
                   <tr key={item.id} className="deal-row">
+                    {/* CELDA TIENDA: Visible ÚNICAMENTE para Administrador */}
+                    {userRol === 'Administrador' && (
+                      <td style={{ fontWeight: '700', color: 'var(--accent-blue)' }}>
+                        <span className="stage-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb' }}>
+                          {item.Tienda || '—'}
+                        </span>
+                      </td>
+                    )}
                     <td className="num-cell">{item.Numeración || item.id - 1}</td>
                     <td className="company-cell">{item.Empresa || '—'}</td>
                     <td className="client-cell">{item.Cliente || '—'}</td>
@@ -428,6 +546,7 @@ export default function ProspeccionesView({ showToast }) {
                     <td className="amount-cell">{formatMoneda(item.Monto)}</td>
                     <td className="date-cell">{formatFecha(item.Fecha)}</td>
                     <td className="actions-cell">
+                      {/* Editar: Visible para todos */}
                       <button
                         className="action-btn edit-btn"
                         title="Editar"
@@ -435,13 +554,17 @@ export default function ProspeccionesView({ showToast }) {
                       >
                         <i className="fas fa-pencil-alt"></i>
                       </button>
-                      <button
-                        className="action-btn delete-btn"
-                        title="Eliminar"
-                        onClick={() => handleDelete(item)}
-                      >
-                        <i className="fas fa-trash-alt"></i>
-                      </button>
+
+                      {/* Eliminar: Visible ÚNICAMENTE para Administrador */}
+                      {userRol === 'Administrador' && (
+                        <button
+                          className="action-btn delete-btn"
+                          title="Eliminar permanentemente"
+                          onClick={() => handleDelete(item)}
+                        >
+                          <i className="fas fa-trash-alt"></i>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
