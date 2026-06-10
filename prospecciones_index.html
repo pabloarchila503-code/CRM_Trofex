@@ -772,8 +772,8 @@
   <script>
     // Memoria local de prospecciones (Se alimenta del backend o de mock en desarrollo local)
     let LISTA_PROSPECCIONES = [];
-    let userRol = "Administrador"; // 'Administrador' o 'Vendedor'
-    let userTienda = "Todos"; // 'Todos' o el código de tienda
+    let userRol = "Vendedor"; // 'Administrador' o 'Vendedor' - Inicia como Vendedor por defecto para evitar ocultar controles
+    let userTienda = ""; // Código de tienda
 
     // Variables exclusivas para simulación/pruebas locales
     let mockUserRol = "Administrador";
@@ -1006,33 +1006,35 @@
         simulatorEl.style.display = !isGas ? 'flex' : 'none';
       }
 
+      const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+
       const btnNuevaEl = document.getElementById('btn-nueva-prospeccion');
       if (btnNuevaEl) {
-        btnNuevaEl.style.display = userRol === 'Administrador' ? 'none' : 'inline-flex';
+        btnNuevaEl.style.display = isAdmin ? 'none' : 'inline-flex';
       }
 
       const filterTiendaEl = document.getElementById('filter-tienda');
       if (filterTiendaEl) {
-        filterTiendaEl.style.display = userRol === 'Administrador' ? 'inline-block' : 'none';
+        filterTiendaEl.style.display = isAdmin ? 'inline-block' : 'none';
       }
 
       const profileLabelEl = document.getElementById('active-profile-label');
       if (profileLabelEl) {
-        profileLabelEl.textContent = `· ${userRol === 'Administrador' ? 'Perfil Administrador (Vista Consolidada)' : 'Perfil Tienda: ' + userTienda}`;
+        profileLabelEl.textContent = `· ${isAdmin ? 'Perfil Administrador (Vista Consolidada)' : 'Perfil Tienda: ' + userTienda}`;
       }
 
       const nameEl = document.getElementById('user-display-name');
       const emailEl = document.getElementById('user-display-email');
       if (nameEl) {
-        nameEl.textContent = userRol === 'Administrador' ? 'Administrador' : `Asesor ${userTienda}`;
+        nameEl.textContent = isAdmin ? 'Administrador' : `Asesor ${userTienda}`;
       }
       if (emailEl) {
-        emailEl.textContent = userRol === 'Administrador' ? 'admin@trofex.com' : `${userTienda.toLowerCase()}@trofex.com`;
+        emailEl.textContent = isAdmin ? 'admin@trofex.com' : `${userTienda.toLowerCase()}@trofex.com`;
       }
 
       const headersRow = document.getElementById('table-headers');
       if (headersRow) {
-        if (userRol === 'Administrador') {
+        if (isAdmin) {
           headersRow.innerHTML = `
             <th scope="col">Tienda</th>
             <th scope="col">No.</th>
@@ -1065,10 +1067,11 @@
       const tbody = document.getElementById('prospects-tbody');
       tbody.innerHTML = '';
 
+      const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
       if (lista.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colSpan="${userRol === 'Administrador' ? 10 : 9}" class="empty-state">
+            <td colSpan="${isAdmin ? 10 : 9}" class="empty-state">
               <i class="fas fa-handshake"></i>
               <br />
               No hay prospecciones registradas
@@ -1094,7 +1097,7 @@
         const fechaFormateada = formatFecha(item.Fecha);
 
         let rowHtml = '';
-        if (userRol === 'Administrador') {
+        if (isAdmin) {
           rowHtml += `
             <td style="font-weight: 700; color: var(--accent-blue);">
               <span class="stage-badge" style="background: rgba(59, 130, 246, 0.1); color: #2563eb;">
@@ -1117,7 +1120,7 @@
             <button class="action-btn edit-btn" onclick="editarProspeccion(${item.id})" title="Editar"><i class="fas fa-pencil-alt"></i></button>
         `;
 
-        if (userRol === 'Administrador') {
+        if (isAdmin) {
           rowHtml += `
             <button class="action-btn delete-btn" onclick="confirmarEliminar(${item.id})" title="Eliminar"><i class="fas fa-trash-alt"></i></button>
           `;
@@ -1206,7 +1209,8 @@
           })
           .editarProspeccion(id, datos);
       } else {
-        if (userRol === 'Administrador') {
+        const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+        if (isAdmin) {
           showToast("Error: El Administrador no puede agregar registros.", "error");
           mostrarCargando(false);
           return;
@@ -1269,7 +1273,8 @@
       const filtrada = LISTA_PROSPECCIONES.filter(item => {
         const matchQuery = !query || (item.Empresa || '').toLowerCase().includes(query) || (item.Cliente || '').toLowerCase().includes(query) || (item.Email || '').toLowerCase().includes(query);
         const matchStage = stageFilter === 'all' || (item.Etapa || '').toLowerCase() === stageFilter;
-        const matchTienda = userRol !== 'Administrador' || tiendaFilter === 'all' || (item.Tienda || '').toUpperCase() === tiendaFilter.toUpperCase();
+        const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+        const matchTienda = !isAdmin || tiendaFilter === 'all' || (item.Tienda || '').toUpperCase() === tiendaFilter.toUpperCase();
         return matchQuery && matchStage && matchTienda;
       });
       renderizarTabla(filtrada);
