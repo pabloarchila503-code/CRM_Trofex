@@ -28,12 +28,33 @@ export default function DashboardView({
 
       {/* 4 Charts Grid (2x2) */}
       <div className="charts-grid-2x2">
-        {/* Gráfica 1: Análisis 80/20 */}
+        {/* Gráfica 1: Prospecciones */}
         <div className="card">
           <div className="card-header">
             <div>
               <div className="card-title">
-                <span className="card-title-dot" style={{ background: '#FF6D4D' }}></span>
+                <span className="card-title-dot" style={{ background: '#94A3B8' }}></span>
+                Prospecciones
+              </div>
+              <div className="card-subtitle">Embudo de clientes potenciales</div>
+            </div>
+            <button className="card-menu-btn">
+              <i className="fas fa-ellipsis-h"></i>
+            </button>
+          </div>
+          <div className="chart-wrap">
+            <div className="chart-lg">
+              <ProspectosChart deals={deals} />
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfica 2: Análisis 80/20 */}
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">
+                <span className="card-title-dot" style={{ background: '#3B82F6' }}></span>
                 Análisis 80/20
               </div>
               <div className="card-subtitle">Conversión de clientes y cotizaciones</div>
@@ -49,12 +70,12 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Gráfica 2: Proyectos */}
+        {/* Gráfica 3: Proyectos */}
         <div className="card">
           <div className="card-header">
             <div>
               <div className="card-title">
-                <span className="card-title-dot" style={{ background: '#6366F1' }}></span>
+                <span className="card-title-dot" style={{ background: '#F59E0B' }}></span>
                 Proyectos
               </div>
               <div className="card-subtitle">Estatus de cotizaciones corporativas</div>
@@ -70,34 +91,13 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Gráfica 3: Prospectos */}
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">
-                <span className="card-title-dot" style={{ background: '#F59E0B' }}></span>
-                Prospectos
-              </div>
-              <div className="card-subtitle">Embudo de clientes potenciales</div>
-            </div>
-            <button className="card-menu-btn">
-              <i className="fas fa-ellipsis-h"></i>
-            </button>
-          </div>
-          <div className="chart-wrap">
-            <div className="chart-lg">
-              <ProspectosChart deals={deals} />
-            </div>
-          </div>
-        </div>
-
-        {/* Gráfica 4: Carretas */}
+        {/* Gráfica 4: Carreras */}
         <div className="card">
           <div className="card-header">
             <div>
               <div className="card-title">
                 <span className="card-title-dot" style={{ background: '#EC4899' }}></span>
-                Carretas
+                Carreras
               </div>
               <div className="card-subtitle">Puntos de venta y kioscos</div>
             </div>
