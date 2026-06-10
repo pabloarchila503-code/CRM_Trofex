@@ -12,8 +12,9 @@ const TIENDAS = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ',
 
 export default function ProspeccionesView({ showToast }) {
   const [prospecciones, setProspecciones] = useState([]);
-  const [userRol, setUserRol] = useState('Administrador'); // Rol retornado por el servidor ('Administrador' o 'Vendedor')
-  const [userTienda, setUserTienda] = useState('Todos'); // Tienda del usuario ('Todos' o código de tienda)
+  const [userRol, setUserRol] = useState('Vendedor'); // Rol retornado por el servidor ('Administrador' o 'Vendedor') - Iniciado como Vendedor por defecto
+  const [userTienda, setUserTienda] = useState(''); // Tienda del usuario
+  const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -205,7 +206,7 @@ export default function ProspeccionesView({ showToast }) {
       }
     } else {
       // AGREGAR NUEVA PROSPECCIÓN (Solo vendedores)
-      if (userRol === 'Administrador') {
+      if (isAdmin) {
         showToast("Error: El Administrador no puede agregar registros directos.", "error");
         setIsLoading(false);
         return;
@@ -264,7 +265,7 @@ export default function ProspeccionesView({ showToast }) {
   // ─── ELIMINAR (Solo Administrador) ──────────────────────────
   const handleDelete = (item) => {
     // Validación preventiva en cliente
-    if (userRol !== 'Administrador') {
+    if (!isAdmin) {
       showToast("Error: No tienes permisos para eliminar registros.", "error");
       return;
     }
@@ -312,7 +313,7 @@ export default function ProspeccionesView({ showToast }) {
     let list = [...prospecciones];
 
     // Solo el Admin puede aplicar filtro por tienda/sucursal
-    if (userRol === 'Administrador' && filterTienda !== 'all') {
+    if (isAdmin && filterTienda !== 'all') {
       list = list.filter(item => (item.Tienda || '').toUpperCase() === filterTienda.toUpperCase());
     }
 
@@ -420,7 +421,7 @@ export default function ProspeccionesView({ showToast }) {
           </button>
           
           {/* BOTÓN AGREGAR: Oculto para Administrador, visible para vendedores */}
-          {userRol !== 'Administrador' && (
+          {!isAdmin && (
             <button className="topbar-btn btn-primary" onClick={() => handleOpenModal()}>
               <i className="fas fa-plus"></i> + Nueva Prospección
             </button>
@@ -448,7 +449,7 @@ export default function ProspeccionesView({ showToast }) {
             <i className="fas fa-handshake" style={{ color: 'var(--accent-coral)' }}></i>
             Registro de Prospectos Activos
             <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '8px' }}>
-              · {userRol === 'Administrador' ? 'Perfil Administrador (Vista Consolidada)' : `Perfil Tienda: ${userTienda}`}
+              · {isAdmin ? 'Perfil Administrador (Vista Consolidada)' : `Perfil Tienda: ${userTienda}`}
             </span>
           </div>
           
@@ -465,7 +466,7 @@ export default function ProspeccionesView({ showToast }) {
             </div>
             
             {/* FILTRO POR TIENDA: Visible ÚNICAMENTE para Administrador */}
-            {userRol === 'Administrador' && (
+            {isAdmin && (
               <select
                 className="select-filter"
                 value={filterTienda}
@@ -498,7 +499,7 @@ export default function ProspeccionesView({ showToast }) {
             <thead>
               <tr>
                 {/* COLUMNA TIENDA: Visible ÚNICAMENTE para Administrador */}
-                {userRol === 'Administrador' && <th scope="col">Tienda/Sucursal</th>}
+                {isAdmin && <th scope="col">Tienda/Sucursal</th>}
                 <th scope="col">No.</th>
                 <th scope="col">Empresa o Entidad</th>
                 <th scope="col">Nombre del Cliente</th>
@@ -513,7 +514,7 @@ export default function ProspeccionesView({ showToast }) {
             <tbody>
               {filteredProspecciones.length === 0 ? (
                 <tr>
-                  <td colSpan={userRol === 'Administrador' ? 10 : 9} className="empty-state">
+                  <td colSpan={isAdmin ? 10 : 9} className="empty-state">
                     <i className="fas fa-search"></i>
                     <br />
                     No se encontraron prospectos
@@ -523,7 +524,7 @@ export default function ProspeccionesView({ showToast }) {
                 filteredProspecciones.map(item => (
                   <tr key={item.id} className="deal-row">
                     {/* CELDA TIENDA: Visible ÚNICAMENTE para Administrador */}
-                    {userRol === 'Administrador' && (
+                    {isAdmin && (
                       <td style={{ fontWeight: '700', color: 'var(--accent-blue)' }}>
                         <span className="stage-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb' }}>
                           {item.Tienda || '—'}
@@ -556,7 +557,7 @@ export default function ProspeccionesView({ showToast }) {
                       </button>
 
                       {/* Eliminar: Visible ÚNICAMENTE para Administrador */}
-                      {userRol === 'Administrador' && (
+                      {isAdmin && (
                         <button
                           className="action-btn delete-btn"
                           title="Eliminar permanentemente"

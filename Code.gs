@@ -497,34 +497,47 @@ function getUsuarioRolYTienda() {
   try {
     email = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
   } catch (e) {
-    email = "admin@trofex.com"; // Fallback para desarrollo local
+    email = "";
   }
   
   if (!email) {
-    return { rol: "Administrador", tienda: "Todos", email: "local-guest" };
+    // Fallback restrictivo por seguridad: si no se obtiene email, no dar permisos de Admin
+    return { rol: "Vendedor", tienda: "DESCONOCIDO", email: "desconocido" };
   }
   
   const normalizedEmail = email.trim().toLowerCase();
   
-  // Buscar en USUARIOS_CONFIG
-  let configVal = USUARIOS_CONFIG[email] || USUARIOS_CONFIG[normalizedEmail];
+  // Buscar en USUARIOS_CONFIG o EMAIL_TO_STORE
+  let configVal = USUARIOS_CONFIG[email] || USUARIOS_CONFIG[normalizedEmail] || EMAIL_TO_STORE[normalizedEmail];
+  
+  // Búsqueda inteligente en la parte local del correo si no está mapeado explícitamente
   if (!configVal) {
-    // Buscar en EMAIL_TO_STORE
-    configVal = EMAIL_TO_STORE[normalizedEmail];
+    const localPart = normalizedEmail.split('@')[0];
+    const parts = localPart.split('.');
+    for (const part of parts) {
+      const upperPart = part.toUpperCase();
+      if (['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'].includes(upperPart)) {
+        configVal = upperPart;
+        break;
+      }
+    }
+    if (!configVal) {
+      const upperLocal = localPart.toUpperCase();
+      if (['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'].includes(upperLocal)) {
+        configVal = upperLocal;
+      }
+    }
   }
   
-  if (configVal === "Admin" || configVal === "admin" || normalizedEmail.includes("admin")) {
+  // Determinar rol final
+  if (configVal === "Admin" || configVal === "admin" || normalizedEmail.includes("admin") || normalizedEmail === "admin@trofex.com" || normalizedEmail === "admin@tuempresa.com") {
     return { rol: "Administrador", tienda: "Todos", email: email };
   } else if (configVal) {
     return { rol: "Vendedor", tienda: configVal, email: email };
-  } else {
-    // Fallback si el email tiene formato de tienda
-    const match = normalizedEmail.match(/^([a-z0-9]+)@/);
-    if (match && EMAIL_TO_STORE[match[1] + "@trofex.com"]) {
-      return { rol: "Vendedor", tienda: EMAIL_TO_STORE[match[1] + "@trofex.com"], email: email };
-    }
-    return { rol: "Administrador", tienda: "Todos", email: email };
   }
+  
+  // Por seguridad crítica de aislamiento, si no coincide con ningún mapeo, tratar como Vendedor restrictivo
+  return { rol: "Vendedor", tienda: "DESCONOCIDO", email: email };
 }
 
 /**
@@ -543,17 +556,10 @@ function obtenerProspecciones() {
   if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
   
   const headers = data[0];
-  const records = [];
+  const allRecords = [];
   
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const rowTienda = row[8] ? String(row[8]).trim() : ""; // Columna 9 (index 8)
-    
-    // Filtrado de seguridad en servidor: si no es Administrador, solo ve las de su propia tienda
-    if (userInfo.rol !== "Administrador" && rowTienda !== userInfo.tienda) {
-      continue;
-    }
-    
     const obj = { id: i + 1 }; // El ID es el número de fila física (1-indexed)
     headers.forEach((header, index) => {
       let val = row[index];
@@ -563,13 +569,30 @@ function obtenerProspecciones() {
       }
       obj[header] = val;
     });
-    records.push(obj);
+    allRecords.push(obj);
+  }
+  
+  // Lógica de aislamiento estricta en servidor usando filter()
+  let filteredData = [];
+  if (userInfo.rol === "Administrador") {
+    filteredData = allRecords;
+  } else {
+    // Si es vendedor, solo puede ver las prospecciones de su tienda específica
+    const userTiendaLower = (userInfo.tienda || "").trim().toLowerCase();
+    if (userTiendaLower && userTiendaLower !== "todos" && userTiendaLower !== "desconocido") {
+      filteredData = allRecords.filter(function(record) {
+        const recordTiendaLower = (record.Tienda || "").trim().toLowerCase();
+        return recordTiendaLower === userTiendaLower;
+      });
+    } else {
+      filteredData = []; // Tienda desconocida o restrictiva: no retorna nada
+    }
   }
   
   return {
     rol: userInfo.rol,
     tienda: userInfo.tienda,
-    data: records
+    data: filteredData
   };
 }
 
