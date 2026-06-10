@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NexusCRM - Panel de Prospecciones Comerciales conectado a Google Sheets.">
+  <title>NexusCRM · Prospecciones</title>
+
+  <!-- Google Fonts — Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <style>
+    /* ============================================================
+       NexusCRM Design System (Vanilla CSS Modern Style)
+       Cream/Bone bg · White cards · Coral · Green · Blue · Purple
+    ============================================================ */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Colors */
+      --bg-body:       #F5F3EE;     /* soft bone/cream */
+      --bg-sidebar:    #14172B;     /* deep navy */
+      --bg-card:       #FFFFFF;
+      --bg-card-hover: #FAFAF8;
+
+      --accent-coral:  #FF6D4D;     /* CTA, revenue */
+      --accent-orange: #F59E0B;     /* negotiation */
+      --accent-green:  #10B981;     /* won, positive */
+      --accent-blue:   #3B82F6;     /* info */
+      --accent-purple: #8B5CF6;     /* charts */
+      --accent-red:    #EF4444;     /* lost, negative */
+
+      --text-primary:  #1E293B;
+      --text-secondary:#475569;
+      --text-muted:    #94A3B8;
+      --border-light:  #E8E5DC;
+      --border-card:   #F0EDE4;
+
+      /* Sidebar */
+      --sidebar-width: 240px;
+      --sidebar-link:  #8892A4;
+      --sidebar-active:#FFFFFF;
+
+      /* Shadows */
+      --shadow-card: 0 2px 16px rgba(30,41,59,0.07);
+      --shadow-hover: 0 8px 32px rgba(30,41,59,0.13);
+      --shadow-modal: 0 24px 64px rgba(30,41,59,0.22);
+
+      /* Radii */
+      --radius-sm:  8px;
+      --radius-md:  14px;
+      --radius-lg:  20px;
+
+      /* Transitions */
+      --tr-fast: 0.18s ease;
+      --tr-med:  0.28s ease;
+    }
+
+    html { font-size: 16px; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── APP SHELL ─────────────────────────────────────────── */
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ─── SIDEBAR ───────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    .sidebar::-webkit-scrollbar { display: none; }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .sidebar-brand-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent-coral), #FF9070);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(255,109,77,0.45);
+    }
+    .sidebar-brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .sidebar-brand-name span {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--sidebar-link);
+      display: block;
+      margin-top: 1px;
+      letter-spacing: 0.3px;
+    }
+
+    .sidebar-nav {
+      padding: 16px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-section-title {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.28);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      padding: 14px 8px 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--sidebar-link);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background var(--tr-fast), color var(--tr-fast);
+      cursor: pointer;
+      position: relative;
+    }
+    .nav-item i {
+      width: 18px; text-align: center; font-size: 13px; flex-shrink: 0;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+    }
+    .nav-item.active {
+      background: rgba(255,109,77,0.14);
+      color: #fff;
+      font-weight: 600;
+    }
+    .nav-item.active i { color: var(--accent-coral); }
+
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-footer img {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+    .sidebar-footer-info { flex: 1; min-width: 0; }
+    .sidebar-footer-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sidebar-footer-role {
+      font-size: 10px;
+      color: var(--sidebar-link);
+    }
+
+    /* ─── MAIN WRAPPER ──────────────────────────────────────── */
+    .main-wrapper {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ─── TOPBAR ────────────────────────────────────────────── */
+    .topbar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-light);
+      padding: 0 28px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0; z-index: 90;
+      box-shadow: 0 1px 4px rgba(30,41,59,0.04);
+    }
+    .topbar-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-right: auto; }
+
+    .topbar-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr-fast);
+      white-space: nowrap;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--border-light);
+      color: var(--text-secondary);
+    }
+    .btn-outline:hover {
+      border-color: var(--accent-coral);
+      color: var(--accent-coral);
+      background: rgba(255,109,77,0.04);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-coral), #FF9070);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(255,109,77,0.35);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(255,109,77,0.45);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    /* ─── PAGE CONTENT ──────────────────────────────────────── */
+    .page-content { padding: 24px 28px 40px; flex: 1; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 1.1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ─── TABLES ────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--border-card);
+      transition: box-shadow var(--tr-med);
+    }
+    .card:hover { box-shadow: var(--shadow-hover); }
+
+    .table-card { padding: 0; overflow: hidden; }
+    .table-card-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .table-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .search-wrap {
+      position: relative;
+      display: flex; align-items: center;
+    }
+    .search-wrap i {
+      position: absolute; left: 10px;
+      color: var(--text-muted); font-size: 12px;
+    }
+    .search-input {
+      padding: 7px 10px 7px 30px;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: var(--text-primary);
+      width: 220px;
+      transition: border-color var(--tr-fast);
+      outline: none;
+      background: var(--bg-body);
+    }
+    .search-input:focus { border-color: var(--accent-coral); background: #fff; }
+
+    .select-filter {
+      padding: 7px 10px;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px; font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      outline: none;
+      background: var(--bg-body);
+      transition: border-color var(--tr-fast);
+    }
+    .select-filter:focus { border-color: var(--accent-blue); }
+
+    .table-responsive { overflow-x: auto; }
+    .deals-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .deals-table thead { background: var(--bg-body); }
+    .deals-table th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .deals-table td {
+      padding: 12px 16px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-card);
+      vertical-align: middle;
+    }
+    .deal-row { transition: background var(--tr-fast); }
+    .deal-row:hover { background: #FDFCF9; }
+    .deal-row:last-child td { border-bottom: none; }
+
+    .num-cell { font-weight: 700; color: var(--text-muted); width: 50px; }
+    .company-cell { font-weight: 700; color: var(--text-primary); }
+    .client-cell { font-weight: 500; color: var(--text-secondary); }
+    .phone-cell { font-variant-numeric: tabular-nums; }
+    .email-cell { color: var(--text-secondary); }
+
+    /* Color Badges for Etapa */
+    .stage-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      text-transform: capitalize;
+    }
+
+    .badge-prospectado { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }
+    .badge-contactado { background: rgba(245, 158, 11, 0.12); color: #b45309; }
+    .badge-cotizado { background: rgba(139, 92, 246, 0.12); color: #6d28d9; }
+    .badge-cerrado { background: rgba(16, 185, 129, 0.12); color: #047857; }
+    .badge-perdido { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+
+    .amount-cell { font-weight: 700; color: var(--text-primary); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .date-cell   { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .actions-cell { white-space: nowrap; width: 80px; }
+
+    .action-btn {
+      width: 28px; height: 28px;
+      border: none; border-radius: 7px;
+      background: transparent; cursor: pointer;
+      color: var(--text-muted); font-size: 11.5px;
+      transition: all var(--tr-fast);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .edit-btn:hover   { background: rgba(59,130,246,0.1); color: var(--accent-blue); }
+    .delete-btn:hover { background: rgba(239,68,68,0.1);  color: var(--accent-red); }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .empty-state i { font-size: 28px; display: block; margin-bottom: 10px; opacity: 0.5; }
+
+    /* ─── MODAL ────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(14,18,36,0.55);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--tr-med);
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+    .modal-box {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-modal);
+      width: 92%;
+      max-width: 520px;
+      transform: translateY(16px) scale(0.97);
+      transition: transform var(--tr-med);
+      overflow: hidden;
+      border: 1px solid var(--border-light);
+    }
+    .modal-overlay.active .modal-box { transform: translateY(0) scale(1); }
+
+    .modal-head {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-head h3 { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .modal-close {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 14px; padding: 6px;
+      border-radius: 6px; transition: all var(--tr-fast);
+    }
+    .modal-close:hover { background: var(--bg-body); color: var(--text-primary); }
+
+    .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-label {
+      font-size: 10px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-control {
+      padding: 9px 12px;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--tr-fast), box-shadow var(--tr-fast);
+      background: var(--bg-body);
+    }
+    .form-control:focus {
+      border-color: var(--accent-coral);
+      box-shadow: 0 0 0 3px rgba(255,109,77,0.12);
+      background: #fff;
+    }
+
+    /* Strict Validation Styles */
+    .form-control:invalid:focus {
+      border-color: var(--accent-red);
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .modal-foot {
+      padding: 14px 24px 20px;
+      border-top: 1px solid var(--border-light);
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+
+    /* ─── TOASTS ────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px; font-weight: 600;
+      box-shadow: var(--shadow-modal);
+      opacity: 0;
+      transform: translateX(30px);
+      transition: all var(--tr-med);
+      max-width: 360px;
+      pointer-events: none;
+      color: #fff;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); pointer-events: all; }
+    .toast-success { background: var(--accent-green); }
+    .toast-error   { background: var(--accent-red); }
+    .toast-info    { background: var(--accent-blue); }
+
+    /* ─── LOADER OVERLAY ────────────────────────────────────── */
+    .loader-overlay {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+      opacity: 0; pointer-events: none;
+      transition: opacity var(--tr-fast);
+    }
+    .loader-overlay.active { opacity: 1; pointer-events: all; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3.5px solid var(--border-light);
+      border-top-color: var(--accent-coral);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── RESPONSIVE ────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      :root { --sidebar-width: 60px; }
+      .sidebar-brand-name, .nav-item span, .sidebar-footer-info { display: none; }
+      .sidebar-brand { justify-content: center; padding: 20px 12px; }
+      .nav-item { justify-content: center; padding: 11px; }
+      .sidebar-footer { justify-content: center; }
+      .sidebar-footer img { margin: 0; }
+      .modal-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .page-content { padding: 16px 14px 32px; }
+      .topbar { padding: 0 14px; }
+      .table-card-header { padding: 14px 16px; }
+      .search-input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <!-- ─── SIDEBAR NAVIGATION ──────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">CRM</div>
+        <div class="sidebar-brand-name">
+          NexusCRM
+          <span>Sales Manager v2.0</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <span class="nav-section-title">Principal</span>
+        <a href="index.html" class="nav-item" id="nav-dashboard">
+          <i class="fas fa-th-large"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <span class="nav-section-title">Ventas</span>
+        <a href="#" class="nav-item active" id="nav-prospecciones">
+          <i class="fas fa-handshake"></i>
+          <span>Prospecciones</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-users"></i>
+          <span>Clientes</span>
+        </a>
+
+        <span class="nav-section-title">Sistema</span>
+        <a href="#" class="nav-item">
+          <i class="fas fa-cog"></i>
+          <span>Configuración</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <img src="https://i.pravatar.cc/150?u=vendedor" alt="Usuario Activo">
+        <div class="sidebar-footer-info">
+          <div class="sidebar-footer-name" id="user-display-name">Asesor de Ventas</div>
+          <div class="sidebar-footer-role" id="user-display-email">vendedor@trofex.com</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ─── MAIN WRAPPER ────────────────────────────────────── -->
+    <div class="main-wrapper">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <h1 class="topbar-title">Prospecciones Comerciales</h1>
+
+        <button class="topbar-btn btn-outline" onclick="recargarTablaManual()">
+          <i class="fas fa-sync-alt" id="sync-icon"></i> Actualizar vista
+        </button>
+        <button class="topbar-btn btn-primary" onclick="abrirModal()">
+          <i class="fas fa-plus"></i> + Nueva Prospección
+        </button>
+      </header>
+
+      <!-- PAGE CONTENT -->
+      <main class="page-content">
+        <p class="section-label">Ventas — Prospecciones de Clientes</p>
+
+        <!-- TABLE CARD -->
+        <div class="card table-card" style="position: relative;">
+          <!-- Loader Overlay -->
+          <div id="table-loader" class="loader-overlay">
+            <div class="spinner"></div>
+          </div>
+
+          <div class="table-card-header">
+            <div class="card-title">
+              <i class="fas fa-handshake" style="color: var(--accent-coral);"></i>
+              Registro de Prospectos Activos
+            </div>
+            
+            <div class="table-controls">
+              <div class="search-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" class="search-input" id="table-search" placeholder="Buscar por cliente o empresa..." oninput="filtrarTabla()">
+              </div>
+              
+              <select class="select-filter" id="filter-stage" onchange="filtrarTabla()">
+                <option value="all">Todas las etapas</option>
+                <option value="prospectado">Prospectado</option>
+                <option value="contactado">Contactado</option>
+                <option value="cotizado">Cotizado</option>
+                <option value="cerrado">Cerrado</option>
+                <option value="perdido">Perdido</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="deals-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Empresa o Entidad</th>
+                  <th>Nombre del Cliente</th>
+                  <th>Teléfono</th>
+                  <th>E-mail</th>
+                  <th>Etapa</th>
+                  <th>Monto</th>
+                  <th>Fecha</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="prospects-tbody">
+                <!-- Se pobla dinámicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+  </div>
+
+  <!-- ─── MODAL: AGREGAR / EDITAR PROSPECCIÓN ──────────────── -->
+  <div class="modal-overlay" id="prospect-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+      
+      <div class="modal-head">
+        <h3 id="modal-title">Nueva Prospección</h3>
+        <button class="modal-close" onclick="cerrarModal()" aria-label="Cerrar modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form id="prospect-form" onsubmit="guardarProspeccion(event)" novalidate>
+        <div class="modal-body">
+          
+          <input type="hidden" id="field-id">
+
+          <div class="form-group">
+            <label class="form-label" for="field-empresa">Empresa o Entidad</label>
+            <input type="text" id="field-empresa" class="form-control" placeholder="Ej: Embotelladora Central" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-cliente">Nombre del Cliente</label>
+            <input type="text" id="field-cliente" class="form-control" placeholder="Ej: Ing. René Arriola" required>
+          </div>
+
+          <div class="modal-row">
+            <div class="form-group">
+              <label class="form-label" for="field-telefono">Teléfono</label>
+              <input type="tel" id="field-telefono" class="form-control" placeholder="Ej: 502 5555-4321" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label" for="field-email">E-mail</label>
+              <input type="email" id="field-email" class="form-control" placeholder="Ej: cliente@correo.com" required>
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="form-group">
+              <label class="form-label" for="field-etapa">Etapa</label>
+              <select id="field-etapa" class="form-control" required>
+                <option value="" disabled selected>Seleccione una etapa</option>
+                <option value="Prospectado">Prospectado</option>
+                <option value="Contactado">Contactado</option>
+                <option value="Cotizado">Cotizado</option>
+                <option value="Cerrado">Cerrado</option>
+                <option value="Perdido">Perdido</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="field-monto">Monto (Q)</label>
+              <input type="number" id="field-monto" class="form-control" placeholder="Ej: 15500.00" min="0" step="0.01" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-fecha">Fecha de Registro</label>
+            <input type="date" id="field-fecha" class="form-control" required>
+          </div>
+
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="topbar-btn btn-outline" onclick="cerrarModal()">Cancelar</button>
+          <button type="submit" class="topbar-btn btn-primary" id="btn-save">
+            <i class="fas fa-save"></i> Guardar
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ─── TOAST NOTIFICATIONS ────────────────────────────── -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+
+  <!-- ─── JAVASCRIPT CONTROLLER ──────────────────────────── -->
+  <script>
+    // Memoria local de prospecciones (Se alimenta del backend o de mock en desarrollo local)
+    let LISTA_PROSPECCIONES = [];
+
+    // Datos iniciales de simulación si se ejecuta fuera de Google Apps Script
+    const MOCK_PROSPECCIONES = [
+      { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08" },
+      { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09" },
+      { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07" },
+      { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08" },
+      { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05" }
+    ];
+
+    // ── STUBS PARA DESARROLLO LOCAL ─────────────────────────
+    // Si no está disponible google.script.run, inyectamos un emulador con localStorage
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      console.warn("NexusCRM: Entorno de Google Apps Script no detectado. Utilizando emulador local con LocalStorage.");
+      
+      // Inicializar localStorage si no existe
+      if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
+        localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(MOCK_PROSPECCIONES));
+      }
+
+      window.google = {
+        script: {
+          run: {
+            handlers: {},
+            withSuccessHandler: function(onSuccess) {
+              this.handlers.success = onSuccess;
+              return this;
+            },
+            withFailureHandler: function(onFailure) {
+              this.handlers.failure = onFailure;
+              return this;
+            },
+            obtenerProspecciones: function() {
+              setTimeout(() => {
+                const data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                google.script.run.handlers.success(data);
+              }, 500);
+            },
+            agregarProspeccion: function(prospecto) {
+              setTimeout(() => {
+                const data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                const newId = data.length > 0 ? Math.max(...data.map(d => d.id)) + 1 : 2;
+                const newNum = data.length > 0 ? Math.max(...data.map(d => d.Numeración)) + 1 : 1;
+                
+                const record = {
+                  id: newId,
+                  Numeración: newNum,
+                  Empresa: prospecto.empresa,
+                  Cliente: prospecto.cliente,
+                  Teléfono: prospecto.telefono,
+                  Email: prospecto.email,
+                  Etapa: prospecto.etapa,
+                  Monto: parseFloat(prospecto.monto) || 0,
+                  Fecha: prospecto.fecha
+                };
+                data.push(record);
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(data));
+                
+                google.script.run.handlers.success({
+                  status: "success",
+                  message: "Guardado exitoso.",
+                  data: data
+                });
+              }, 600);
+            },
+            editarProspeccion: function(id, prospecto) {
+              setTimeout(() => {
+                let data = JSON.parse(localStorage.getItem('MOCK_PROSPEPECCIONES_DB') || '[]');
+                // Por fallos tipográficos
+                if (data.length === 0) {
+                  data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                }
+                
+                data = data.map(d => {
+                  if (d.id == id) {
+                    return {
+                      ...d,
+                      Empresa: prospecto.empresa,
+                      Cliente: prospecto.cliente,
+                      Teléfono: prospecto.telefono,
+                      Email: prospecto.email,
+                      Etapa: prospecto.etapa,
+                      Monto: parseFloat(prospecto.monto) || 0,
+                      Fecha: prospecto.fecha
+                    };
+                  }
+                  return d;
+                });
+                
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(data));
+                google.script.run.handlers.success({
+                  status: "success",
+                  message: "Guardado exitoso.",
+                  data: data
+                });
+              }, 600);
+            },
+            eliminarProspeccion: function(id) {
+              setTimeout(() => {
+                let data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                data = data.filter(d => d.id != id);
+                
+                // Regenerar la numeración correlativa visual
+                data.forEach((d, idx) => {
+                  d.Numeración = idx + 1;
+                });
+                
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(data));
+                google.script.run.handlers.success({
+                  status: "success",
+                  message: "Prospección eliminada exitosamente.",
+                  data: data
+                });
+              }, 500);
+            }
+          }
+        }
+      };
+
+      // Simular correo de auditoría en la UI
+      document.getElementById('user-display-name').textContent = "Asesor Demo (Local)";
+      document.getElementById('user-display-email').textContent = "cb@trofex.com";
+    } else {
+      // Si estamos en Google Apps Script, intentamos leer la sesión del usuario de forma asíncrona
+      // para mayor fidelidad visual
+      try {
+        // En Apps Script a veces no se puede leer Session de inmediato en cliente, pero si se pudiera:
+        google.script.run.withSuccessHandler(function(userInfo) {
+          if (userInfo && userInfo.emailAccess) {
+            document.getElementById('user-display-email').textContent = userInfo.emailAccess;
+            document.getElementById('user-display-name').textContent = "Asesor: " + (userInfo.storeAccess || "Admin");
+          }
+        }).obtenerDatosRendimientoSeguro();
+      } catch(e) {}
+    }
+
+    // ─── AL CARGAR LA PÁGINA ────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      // Establecer fecha por defecto en el modal (hoy)
+      document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
+      
+      // Cargar los datos desde el servidor/emulador
+      cargarProspecciones();
+    });
+
+    // ─── CARGAR DATOS DEL BACKEND ───────────────────────────
+    function cargarProspecciones() {
+      mostrarCargando(true);
+      google.script.run
+        .withSuccessHandler(function(datos) {
+          LISTA_PROSPECCIONES = datos || [];
+          renderizarTabla(LISTA_PROSPECCIONES);
+          mostrarCargando(false);
+        })
+        .withFailureHandler(function(err) {
+          showToast("Error al cargar prospecciones: " + err.message, "error");
+          mostrarCargando(false);
+        })
+        .obtenerProspecciones();
+    }
+
+    function recargarTablaManual() {
+      const syncIcon = document.getElementById('sync-icon');
+      syncIcon.classList.add('fa-spin');
+      showToast("Actualizando datos desde la hoja...", "info");
+      
+      google.script.run
+        .withSuccessHandler(function(datos) {
+          LISTA_PROSPECCIONES = datos || [];
+          renderizarTabla(LISTA_PROSPECCIONES);
+          syncIcon.classList.remove('fa-spin');
+          showToast("Datos actualizados correctamente.", "success");
+        })
+        .withFailureHandler(function(err) {
+          syncIcon.classList.remove('fa-spin');
+          showToast("Error al actualizar vista: " + err.message, "error");
+        })
+        .obtenerProspecciones();
+    }
+
+    // ─── RENDERIZAR TABLA EN HTML ────────────────────────────
+    function renderizarTabla(lista) {
+      const tbody = document.getElementById('prospects-tbody');
+      tbody.innerHTML = '';
+
+      if (lista.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colSpan="9" class="empty-state">
+              <i class="fas fa-handshake"></i>
+              <br />
+              No hay prospecciones registradas
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      lista.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = 'deal-row';
+        tr.id = `prospect-row-${item.id}`;
+
+        // Determinar badge de etapa
+        const etapaLower = (item.Etapa || '').toLowerCase();
+        let badgeClass = 'badge-prospectado';
+        if (etapaLower === 'contactado') badgeClass = 'badge-contactado';
+        else if (etapaLower === 'cotizado') badgeClass = 'badge-cotizado';
+        else if (etapaLower === 'cerrado') badgeClass = 'badge-cerrado';
+        else if (etapaLower === 'perdido') badgeClass = 'badge-perdido';
+
+        // Formatear Monto
+        const montoFormateado = formatMoneda(item.Monto);
+
+        // Formatear Fecha
+        const fechaFormateada = formatFecha(item.Fecha);
+
+        tr.innerHTML = `
+          <td class="num-cell">${item.Numeración || item.id - 1}</td>
+          <td class="company-cell">${item.Empresa || '—'}</td>
+          <td class="client-cell">${item.Cliente || '—'}</td>
+          <td class="phone-cell">${item.Teléfono || '—'}</td>
+          <td class="email-cell">${item.Email || '—'}</td>
+          <td>
+            <span class="stage-badge ${badgeClass}">${item.Etapa || 'Prospectado'}</span>
+          </td>
+          <td class="amount-cell">${montoFormateado}</td>
+          <td class="date-cell">${fechaFormateada}</td>
+          <td class="actions-cell">
+            <button class="action-btn edit-btn" onclick="editarProspeccion(${item.id})" title="Editar">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+            <button class="action-btn delete-btn" onclick="confirmarEliminar(${item.id})" title="Eliminar">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ─── CONTROLADORES DE MODAL ──────────────────────────────
+    function abrirModal(id = null) {
+      const modal = document.getElementById('prospect-modal');
+      const form = document.getElementById('prospect-form');
+      const titleEl = document.getElementById('modal-title');
+      
+      // Limpiar validaciones previas
+      form.classList.remove('was-validated');
+
+      if (id) {
+        // MODO EDICIÓN
+        titleEl.textContent = "Editar Prospección";
+        const item = LISTA_PROSPECCIONES.find(p => p.id == id);
+        
+        if (item) {
+          document.getElementById('field-id').value = item.id;
+          document.getElementById('field-empresa').value = item.Empresa || '';
+          document.getElementById('field-cliente').value = item.Cliente || '';
+          document.getElementById('field-telefono').value = item.Teléfono || '';
+          document.getElementById('field-email').value = item.Email || '';
+          document.getElementById('field-etapa').value = item.Etapa || 'Prospectado';
+          document.getElementById('field-monto').value = item.Monto || 0;
+          
+          // Formatear fecha para el input date (yyyy-MM-dd)
+          if (item.Fecha) {
+            document.getElementById('field-fecha').value = item.Fecha.slice(0, 10);
+          } else {
+            document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
+          }
+        }
+      } else {
+        // MODO NUEVO
+        titleEl.textContent = "Nueva Prospección";
+        form.reset();
+        document.getElementById('field-id').value = '';
+        document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
+      }
+
+      modal.classList.add('active');
+    }
+
+    function cerrarModal() {
+      const modal = document.getElementById('prospect-modal');
+      modal.classList.remove('active');
+    }
+
+    // ─── GUARDAR (AGREGAR O EDITAR) ──────────────────────────
+    function guardarProspeccion(event) {
+      event.preventDefault();
+      const form = document.getElementById('prospect-form');
+      
+      // Validación estricta HTML5
+      if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        // Mostrar alerta visual de error de validación
+        showToast("Por favor complete los campos obligatorios con formatos válidos.", "error");
+        return;
+      }
+
+      const id = document.getElementById('field-id').value;
+      const datos = {
+        empresa: document.getElementById('field-empresa').value.trim(),
+        cliente: document.getElementById('field-cliente').value.trim(),
+        telefono: document.getElementById('field-telefono').value.trim(),
+        email: document.getElementById('field-email').value.trim(),
+        etapa: document.getElementById('field-etapa').value,
+        monto: parseFloat(document.getElementById('field-monto').value) || 0,
+        fecha: document.getElementById('field-fecha').value
+      };
+
+      mostrarCargando(true);
+      cerrarModal();
+
+      if (id) {
+        // Guardar edición
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response.status === 'success') {
+              showToast("Guardado exitoso.", "success");
+              LISTA_PROSPECCIONES = response.data || [];
+              renderizarTabla(LISTA_PROSPECCIONES);
+            } else {
+              showToast("Error al guardar: " + response.message, "error");
+            }
+            mostrarCargando(false);
+          })
+          .withFailureHandler(function(err) {
+            showToast("Error al guardar: " + err.message, "error");
+            mostrarCargando(false);
+          })
+          .editarProspeccion(id, datos);
+      } else {
+        // Guardar nuevo registro
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response.status === 'success') {
+              showToast("Guardado exitoso.", "success");
+              LISTA_PROSPECCIONES = response.data || [];
+              renderizarTabla(LISTA_PROSPECCIONES);
+            } else {
+              showToast("Error al guardar: " + response.message, "error");
+            }
+            mostrarCargando(false);
+          })
+          .withFailureHandler(function(err) {
+            showToast("Error al guardar: " + err.message, "error");
+            mostrarCargando(false);
+          })
+          .agregarProspeccion(datos);
+      }
+    }
+
+    // ─── CONTROLADORES DE EDICIÓN Y ELIMINACIÓN ──────────────
+    function editarProspeccion(id) {
+      abrirModal(id);
+    }
+
+    function confirmarEliminar(id) {
+      const item = LISTA_PROSPECCIONES.find(p => p.id == id);
+      const nombreLabel = item ? `"${item.Empresa}" (${item.Cliente})` : 'esta prospección';
+      
+      if (confirm(`¿Estás seguro de que deseas eliminar la prospección para ${nombreLabel}?`)) {
+        mostrarCargando(true);
+        google.script.run
+          .withSuccessHandler(function(response) {
+            // El backend retorna un objeto {status: "success", message: "...", data: [...]}
+            // o si es un array directo dependiente del emulador:
+            let data = response;
+            if (response.status === 'success') {
+              showToast("Prospección eliminada correctamente.", "success");
+              data = response.data;
+            } else if (response.status === 'error') {
+              showToast("Error al eliminar: " + response.message, "error");
+              mostrarCargando(false);
+              return;
+            } else {
+              showToast("Prospección eliminada correctamente.", "success");
+            }
+            
+            LISTA_PROSPECCIONES = data || [];
+            renderizarTabla(LISTA_PROSPECCIONES);
+            mostrarCargando(false);
+          })
+          .withFailureHandler(function(err) {
+            showToast("Error al eliminar: " + err.message, "error");
+            mostrarCargando(false);
+          })
+          .eliminarProspeccion(id);
+      }
+    }
+
+    // ─── FILTRADO & BUSQUEDA EN EL FRONTEND ─────────────────
+    function filtrarTabla() {
+      const query = document.getElementById('table-search').value.toLowerCase().trim();
+      const stageFilter = document.getElementById('filter-stage').value.toLowerCase();
+
+      const filtrada = LISTA_PROSPECCIONES.filter(item => {
+        const matchQuery = !query || 
+                           (item.Empresa || '').toLowerCase().includes(query) ||
+                           (item.Cliente || '').toLowerCase().includes(query) ||
+                           (item.Email || '').toLowerCase().includes(query);
+
+        const matchStage = stageFilter === 'all' || 
+                           (item.Etapa || '').toLowerCase() === stageFilter;
+
+        return matchQuery && matchStage;
+      });
+
+      renderizarTabla(filtrada);
+    }
+
+    // ─── UTILITIES ──────────────────────────────────────────
+    function mostrarCargando(mostrar) {
+      const loader = document.getElementById('table-loader');
+      if (mostrar) loader.classList.add('active');
+      else loader.classList.remove('active');
+    }
+
+    function formatMoneda(monto) {
+      const valor = parseFloat(monto);
+      if (isNaN(valor)) return 'Q0.00';
+      return 'Q' + valor.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatFecha(fechaStr) {
+      if (!fechaStr) return '—';
+      try {
+        // fechaStr es tipo yyyy-MM-dd
+        const partes = fechaStr.split('-');
+        if (partes.length === 3) {
+          return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
+        }
+        const d = new Date(fechaStr);
+        if (isNaN(d.getTime())) return fechaStr;
+        return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
+      } catch(e) {
+        return fechaStr;
+      }
+    }
+
+    // Sistema de notificaciones tipo Toast
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      
+      let icon = 'fa-check-circle';
+      if (type === 'error') icon = 'fa-exclamation-circle';
+      else if (type === 'info') icon = 'fa-info-circle';
+
+      toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span>${message}</span>
+      `;
+      
+      container.appendChild(toast);
+      
+      // Forzar reflujo para activar animación
+      toast.offsetHeight;
+      toast.classList.add('show');
+
+      // Auto-eliminar
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+          container.removeChild(toast);
+        }, 300);
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
