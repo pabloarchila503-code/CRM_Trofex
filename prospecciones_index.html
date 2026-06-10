@@ -592,7 +592,7 @@
         <button class="topbar-btn btn-outline" onclick="recargarTablaManual()">
           <i class="fas fa-sync-alt" id="sync-icon"></i> Actualizar vista
         </button>
-        <button class="topbar-btn btn-primary" onclick="abrirModal()">
+        <button class="topbar-btn btn-primary" id="btn-nueva-prospeccion" onclick="abrirModal()">
           <i class="fas fa-plus"></i> + Nueva Prospección
         </button>
       </header>
@@ -600,6 +600,19 @@
       <!-- PAGE CONTENT -->
       <main class="page-content">
         <p class="section-label">Ventas — Prospecciones de Clientes</p>
+
+        <!-- 🛠️ SIMULADOR DE ROLES (Exclusivo en desarrollo local) -->
+        <div id="mock-role-simulator" style="display: none; background: #FFFBEB; border: 1px solid #FDE68A; padding: 10px 16px; border-radius: 10px; margin-bottom: 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+          <span style="font-size: 11.5px; color: #B45309; font-weight: 700;">
+            <i class="fas fa-shield-alt" style="margin-right: 6px;"></i>
+            Vista de Pruebas: Simula perfiles comerciales en tiempo real
+          </span>
+          <select id="mock-role-select" onchange="handleMockRoleChange(this.value)" style="padding: 5px 10px; font-size: 11.5px; border: 1.5px solid #F59E0B; border-radius: 6px; background: #fff; font-weight: 700; color: #B45309; cursor: pointer;">
+            <option value="Administrador">Perfil: Administrador (Ver Todo / Eliminar Habilitado / No Agregar)</option>
+            <option value="Vendedor_CB">Perfil: Asesor CB (Filtro CB / Agregar Habilitado / No Eliminar)</option>
+            <option value="Vendedor_JT">Perfil: Asesor JT (Filtro JT / Agregar Habilitado / No Eliminar)</option>
+          </select>
+        </div>
 
         <!-- TABLE CARD -->
         <div class="card table-card" style="position: relative;">
@@ -612,6 +625,7 @@
             <div class="card-title">
               <i class="fas fa-handshake" style="color: var(--accent-coral);"></i>
               Registro de Prospectos Activos
+              <span id="active-profile-label" style="font-size: 10px; font-weight: 500; color: var(--text-muted); margin-left: 8px;"></span>
             </div>
             
             <div class="table-controls">
@@ -620,6 +634,24 @@
                 <input type="text" class="search-input" id="table-search" placeholder="Buscar por cliente o empresa..." oninput="filtrarTabla()">
               </div>
               
+              <select class="select-filter" id="filter-tienda" onchange="filtrarTabla()" style="display: none;">
+                <option value="all">Filtrar por Tienda (Todas)</option>
+                <option value="CB">Tienda CB</option>
+                <option value="CHM">Tienda CHM</option>
+                <option value="CHQ">Tienda CHQ</option>
+                <option value="ESC">Tienda ESC</option>
+                <option value="HH">Tienda HH</option>
+                <option value="JT">Tienda JT</option>
+                <option value="MZ">Tienda MZ</option>
+                <option value="PT">Tienda PT</option>
+                <option value="PTB">Tienda PTB</option>
+                <option value="SJ">Tienda SJ</option>
+                <option value="SMA">Tienda SMA</option>
+                <option value="VN">Tienda VN</option>
+                <option value="XL">Tienda XL</option>
+                <option value="Z3">Tienda Z3</option>
+              </select>
+
               <select class="select-filter" id="filter-stage" onchange="filtrarTabla()">
                 <option value="all">Todas las etapas</option>
                 <option value="prospectado">Prospectado</option>
@@ -634,7 +666,7 @@
           <div class="table-responsive">
             <table class="deals-table">
               <thead>
-                <tr>
+                <tr id="table-headers">
                   <th>No.</th>
                   <th>Empresa o Entidad</th>
                   <th>Nombre del Cliente</th>
@@ -740,22 +772,26 @@
   <script>
     // Memoria local de prospecciones (Se alimenta del backend o de mock en desarrollo local)
     let LISTA_PROSPECCIONES = [];
+    let userRol = "Administrador"; // 'Administrador' o 'Vendedor'
+    let userTienda = "Todos"; // 'Todos' o el código de tienda
+
+    // Variables exclusivas para simulación/pruebas locales
+    let mockUserRol = "Administrador";
+    let mockUserTienda = "Todos";
 
     // Datos iniciales de simulación si se ejecuta fuera de Google Apps Script
     const MOCK_PROSPECCIONES = [
-      { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08" },
-      { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09" },
-      { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07" },
-      { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08" },
-      { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05" }
+      { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08", Tienda: "CB" },
+      { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09", Tienda: "CHQ" },
+      { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07", Tienda: "JT" },
+      { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08", Tienda: "CB" },
+      { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05", Tienda: "PTB" }
     ];
 
     // ── STUBS PARA DESARROLLO LOCAL ─────────────────────────
-    // Si no está disponible google.script.run, inyectamos un emulador con localStorage
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       console.warn("NexusCRM: Entorno de Google Apps Script no detectado. Utilizando emulador local con LocalStorage.");
       
-      // Inicializar localStorage si no existe
       if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
         localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(MOCK_PROSPECCIONES));
       }
@@ -774,15 +810,27 @@
             },
             obtenerProspecciones: function() {
               setTimeout(() => {
-                const data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                google.script.run.handlers.success(data);
+                const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                const dataFiltrada = mockUserRol === 'Administrador'
+                  ? db
+                  : db.filter(item => item.Tienda === mockUserTienda);
+                
+                google.script.run.handlers.success({
+                  rol: mockUserRol,
+                  tienda: mockUserTienda,
+                  data: dataFiltrada
+                });
               }, 500);
             },
             agregarProspeccion: function(prospecto) {
               setTimeout(() => {
-                const data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                const newId = data.length > 0 ? Math.max(...data.map(d => d.id)) + 1 : 2;
-                const newNum = data.length > 0 ? Math.max(...data.map(d => d.Numeración)) + 1 : 1;
+                if (mockUserRol === 'Administrador') {
+                  google.script.run.handlers.failure(new Error("Permiso denegado. El Administrador no agrega nuevas prospecciones."));
+                  return;
+                }
+                const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                const newId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 2;
+                const newNum = db.length > 0 ? Math.max(...db.map(d => d.Numeración)) + 1 : 1;
                 
                 const record = {
                   id: newId,
@@ -793,28 +841,35 @@
                   Email: prospecto.email,
                   Etapa: prospecto.etapa,
                   Monto: parseFloat(prospecto.monto) || 0,
-                  Fecha: prospecto.fecha
+                  Fecha: prospecto.fecha,
+                  Tienda: mockUserTienda
                 };
-                data.push(record);
-                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(data));
+                db.push(record);
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
                 
+                const dataFiltrada = db.filter(item => item.Tienda === mockUserTienda);
                 google.script.run.handlers.success({
                   status: "success",
                   message: "Guardado exitoso.",
-                  data: data
+                  response: {
+                    rol: mockUserRol,
+                    tienda: mockUserTienda,
+                    data: dataFiltrada
+                  }
                 });
               }, 600);
             },
             editarProspeccion: function(id, prospecto) {
               setTimeout(() => {
-                let data = JSON.parse(localStorage.getItem('MOCK_PROSPEPECCIONES_DB') || '[]');
-                // Por fallos tipográficos
-                if (data.length === 0) {
-                  data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                }
+                let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                let originalTienda = 'CB';
                 
-                data = data.map(d => {
+                db = db.map(d => {
                   if (d.id == id) {
+                    originalTienda = d.Tienda || 'CB';
+                    if (mockUserRol !== 'Administrador' && originalTienda !== mockUserTienda) {
+                      return d;
+                    }
                     return {
                       ...d,
                       Empresa: prospecto.empresa,
@@ -823,74 +878,94 @@
                       Email: prospecto.email,
                       Etapa: prospecto.etapa,
                       Monto: parseFloat(prospecto.monto) || 0,
-                      Fecha: prospecto.fecha
+                      Fecha: prospecto.fecha,
+                      Tienda: originalTienda
                     };
                   }
                   return d;
                 });
                 
-                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(data));
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+                
+                const dataFiltrada = mockUserRol === 'Administrador'
+                  ? db
+                  : db.filter(item => item.Tienda === mockUserTienda);
+                
                 google.script.run.handlers.success({
                   status: "success",
                   message: "Guardado exitoso.",
-                  data: data
+                  response: {
+                    rol: mockUserRol,
+                    tienda: mockUserTienda,
+                    data: dataFiltrada
+                  }
                 });
               }, 600);
             },
             eliminarProspeccion: function(id) {
               setTimeout(() => {
-                let data = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                data = data.filter(d => d.id != id);
-                
-                // Regenerar la numeración correlativa visual
-                data.forEach((d, idx) => {
+                if (mockUserRol !== 'Administrador') {
+                  google.script.run.handlers.failure(new Error("Permiso denegado. Solo el Administrador tiene autorización para eliminar en la base de datos."));
+                  return;
+                }
+                let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                db = db.filter(d => d.id != id);
+                db.forEach((d, idx) => {
                   d.Numeración = idx + 1;
                 });
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
                 
-                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(data));
                 google.script.run.handlers.success({
                   status: "success",
-                  message: "Prospección eliminada exitosamente.",
-                  data: data
+                  message: "Eliminado correctamente.",
+                  response: {
+                    rol: mockUserRol,
+                    tienda: mockUserTienda,
+                    data: db
+                  }
                 });
               }, 500);
             }
           }
         }
       };
-
-      // Simular correo de auditoría en la UI
-      document.getElementById('user-display-name').textContent = "Asesor Demo (Local)";
-      document.getElementById('user-display-email').textContent = "cb@trofex.com";
-    } else {
-      // Si estamos en Google Apps Script, intentamos leer la sesión del usuario de forma asíncrona
-      // para mayor fidelidad visual
-      try {
-        // En Apps Script a veces no se puede leer Session de inmediato en cliente, pero si se pudiera:
-        google.script.run.withSuccessHandler(function(userInfo) {
-          if (userInfo && userInfo.emailAccess) {
-            document.getElementById('user-display-email').textContent = userInfo.emailAccess;
-            document.getElementById('user-display-name').textContent = "Asesor: " + (userInfo.storeAccess || "Admin");
-          }
-        }).obtenerDatosRendimientoSeguro();
-      } catch(e) {}
     }
 
-    // ─── AL CARGAR LA PÁGINA ────────────────────────────────
+    function handleMockRoleChange(val) {
+      if (val === 'Administrador') {
+        mockUserRol = 'Administrador';
+        mockUserTienda = 'Todos';
+      } else if (val === 'Vendedor_CB') {
+        mockUserRol = 'Vendedor';
+        mockUserTienda = 'CB';
+      } else if (val === 'Vendedor_JT') {
+        mockUserRol = 'Vendedor';
+        mockUserTienda = 'JT';
+      }
+      userRol = mockUserRol;
+      userTienda = mockUserTienda;
+      cargarProspecciones();
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
-      // Establecer fecha por defecto en el modal (hoy)
       document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
-      
-      // Cargar los datos desde el servidor/emulador
+      const isGas = typeof google !== 'undefined' && google.script && google.script.run;
+      if (!isGas) {
+        userRol = mockUserRol;
+        userTienda = mockUserTienda;
+      }
       cargarProspecciones();
     });
 
-    // ─── CARGAR DATOS DEL BACKEND ───────────────────────────
     function cargarProspecciones() {
       mostrarCargando(true);
       google.script.run
-        .withSuccessHandler(function(datos) {
-          LISTA_PROSPECCIONES = datos || [];
+        .withSuccessHandler(function(response) {
+          userRol = response.rol;
+          userTienda = response.tienda;
+          LISTA_PROSPECCIONES = response.data || [];
+          
+          actualizarUIFiltrosYRoles();
           renderizarTabla(LISTA_PROSPECCIONES);
           mostrarCargando(false);
         })
@@ -907,8 +982,12 @@
       showToast("Actualizando datos desde la hoja...", "info");
       
       google.script.run
-        .withSuccessHandler(function(datos) {
-          LISTA_PROSPECCIONES = datos || [];
+        .withSuccessHandler(function(response) {
+          userRol = response.rol;
+          userTienda = response.tienda;
+          LISTA_PROSPECCIONES = response.data || [];
+          
+          actualizarUIFiltrosYRoles();
           renderizarTabla(LISTA_PROSPECCIONES);
           syncIcon.classList.remove('fa-spin');
           showToast("Datos actualizados correctamente.", "success");
@@ -920,7 +999,68 @@
         .obtenerProspecciones();
     }
 
-    // ─── RENDERIZAR TABLA EN HTML ────────────────────────────
+    function actualizarUIFiltrosYRoles() {
+      const isGas = typeof google !== 'undefined' && google.script && google.script.run;
+      const simulatorEl = document.getElementById('mock-role-simulator');
+      if (simulatorEl) {
+        simulatorEl.style.display = !isGas ? 'flex' : 'none';
+      }
+
+      const btnNuevaEl = document.getElementById('btn-nueva-prospeccion');
+      if (btnNuevaEl) {
+        btnNuevaEl.style.display = userRol === 'Administrador' ? 'none' : 'inline-flex';
+      }
+
+      const filterTiendaEl = document.getElementById('filter-tienda');
+      if (filterTiendaEl) {
+        filterTiendaEl.style.display = userRol === 'Administrador' ? 'inline-block' : 'none';
+      }
+
+      const profileLabelEl = document.getElementById('active-profile-label');
+      if (profileLabelEl) {
+        profileLabelEl.textContent = `· ${userRol === 'Administrador' ? 'Perfil Administrador (Vista Consolidada)' : 'Perfil Tienda: ' + userTienda}`;
+      }
+
+      const nameEl = document.getElementById('user-display-name');
+      const emailEl = document.getElementById('user-display-email');
+      if (nameEl) {
+        nameEl.textContent = userRol === 'Administrador' ? 'Administrador' : `Asesor ${userTienda}`;
+      }
+      if (emailEl) {
+        emailEl.textContent = userRol === 'Administrador' ? 'admin@trofex.com' : `${userTienda.toLowerCase()}@trofex.com`;
+      }
+
+      const headersRow = document.getElementById('table-headers');
+      if (headersRow) {
+        if (userRol === 'Administrador') {
+          headersRow.innerHTML = `
+            <th scope="col">Tienda</th>
+            <th scope="col">No.</th>
+            <th scope="col">Empresa</th>
+            <th scope="col">Cliente</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">E-mail</th>
+            <th scope="col">Etapa</th>
+            <th scope="col">Monto</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Acciones</th>
+          `;
+        } else {
+          headersRow.innerHTML = `
+            <th scope="col">No.</th>
+            <th scope="col">Empresa</th>
+            <th scope="col">Cliente</th>
+            <th scope="col">Teléfono</th>
+            <th scope="col">E-mail</th>
+            <th scope="col">Etapa</th>
+            <th scope="col">Monto</th>
+            <th scope="col">Fecha</th>
+            <th scope="col">Acciones</th>
+          `;
+        }
+      }
+    }
+
     function renderizarTabla(lista) {
       const tbody = document.getElementById('prospects-tbody');
       tbody.innerHTML = '';
@@ -928,7 +1068,7 @@
       if (lista.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colSpan="9" class="empty-state">
+            <td colSpan="${userRol === 'Administrador' ? 10 : 9}" class="empty-state">
               <i class="fas fa-handshake"></i>
               <br />
               No hay prospecciones registradas
@@ -943,7 +1083,6 @@
         tr.className = 'deal-row';
         tr.id = `prospect-row-${item.id}`;
 
-        // Determinar badge de etapa
         const etapaLower = (item.Etapa || '').toLowerCase();
         let badgeClass = 'badge-prospectado';
         if (etapaLower === 'contactado') badgeClass = 'badge-contactado';
@@ -951,50 +1090,55 @@
         else if (etapaLower === 'cerrado') badgeClass = 'badge-cerrado';
         else if (etapaLower === 'perdido') badgeClass = 'badge-perdido';
 
-        // Formatear Monto
         const montoFormateado = formatMoneda(item.Monto);
-
-        // Formatear Fecha
         const fechaFormateada = formatFecha(item.Fecha);
 
-        tr.innerHTML = `
+        let rowHtml = '';
+        if (userRol === 'Administrador') {
+          rowHtml += `
+            <td style="font-weight: 700; color: var(--accent-blue);">
+              <span class="stage-badge" style="background: rgba(59, 130, 246, 0.1); color: #2563eb;">
+                ${item.Tienda || '—'}
+              </span>
+            </td>
+          `;
+        }
+
+        rowHtml += `
           <td class="num-cell">${item.Numeración || item.id - 1}</td>
           <td class="company-cell">${item.Empresa || '—'}</td>
           <td class="client-cell">${item.Cliente || '—'}</td>
           <td class="phone-cell">${item.Teléfono || '—'}</td>
           <td class="email-cell">${item.Email || '—'}</td>
-          <td>
-            <span class="stage-badge ${badgeClass}">${item.Etapa || 'Prospectado'}</span>
-          </td>
+          <td><span class="stage-badge ${badgeClass}">${item.Etapa || 'Prospectado'}</span></td>
           <td class="amount-cell">${montoFormateado}</td>
           <td class="date-cell">${fechaFormateada}</td>
           <td class="actions-cell">
-            <button class="action-btn edit-btn" onclick="editarProspeccion(${item.id})" title="Editar">
-              <i class="fas fa-pencil-alt"></i>
-            </button>
-            <button class="action-btn delete-btn" onclick="confirmarEliminar(${item.id})" title="Eliminar">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </td>
+            <button class="action-btn edit-btn" onclick="editarProspeccion(${item.id})" title="Editar"><i class="fas fa-pencil-alt"></i></button>
         `;
+
+        if (userRol === 'Administrador') {
+          rowHtml += `
+            <button class="action-btn delete-btn" onclick="confirmarEliminar(${item.id})" title="Eliminar"><i class="fas fa-trash-alt"></i></button>
+          `;
+        }
+
+        rowHtml += `</td>`;
+        tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
       });
     }
 
-    // ─── CONTROLADORES DE MODAL ──────────────────────────────
     function abrirModal(id = null) {
       const modal = document.getElementById('prospect-modal');
       const form = document.getElementById('prospect-form');
       const titleEl = document.getElementById('modal-title');
       
-      // Limpiar validaciones previas
       form.classList.remove('was-validated');
 
       if (id) {
-        // MODO EDICIÓN
         titleEl.textContent = "Editar Prospección";
         const item = LISTA_PROSPECCIONES.find(p => p.id == id);
-        
         if (item) {
           document.getElementById('field-id').value = item.id;
           document.getElementById('field-empresa').value = item.Empresa || '';
@@ -1002,41 +1146,28 @@
           document.getElementById('field-telefono').value = item.Teléfono || '';
           document.getElementById('field-email').value = item.Email || '';
           document.getElementById('field-etapa').value = item.Etapa || 'Prospectado';
-          document.getElementById('field-monto').value = item.Monto || 0;
-          
-          // Formatear fecha para el input date (yyyy-MM-dd)
-          if (item.Fecha) {
-            document.getElementById('field-fecha').value = item.Fecha.slice(0, 10);
-          } else {
-            document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
-          }
+          document.getElementById('field-monto').value = item.Monto || '';
+          document.getElementById('field-fecha').value = item.Fecha ? item.Fecha.slice(0, 10) : new Date().toISOString().slice(0, 10);
         }
       } else {
-        // MODO NUEVO
         titleEl.textContent = "Nueva Prospección";
         form.reset();
         document.getElementById('field-id').value = '';
         document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
       }
-
       modal.classList.add('active');
     }
 
     function cerrarModal() {
-      const modal = document.getElementById('prospect-modal');
-      modal.classList.remove('active');
+      document.getElementById('prospect-modal').classList.remove('active');
     }
 
-    // ─── GUARDAR (AGREGAR O EDITAR) ──────────────────────────
     function guardarProspeccion(event) {
       event.preventDefault();
       const form = document.getElementById('prospect-form');
-      
-      // Validación estricta HTML5
       if (!form.checkValidity()) {
         form.classList.add('was-validated');
-        // Mostrar alerta visual de error de validación
-        showToast("Por favor complete los campos obligatorios con formatos válidos.", "error");
+        showToast("Por favor complete los campos obligatorios.", "error");
         return;
       }
 
@@ -1055,100 +1186,92 @@
       cerrarModal();
 
       if (id) {
-        // Guardar edición
         google.script.run
           .withSuccessHandler(function(response) {
             if (response.status === 'success') {
               showToast("Guardado exitoso.", "success");
-              LISTA_PROSPECCIONES = response.data || [];
+              userRol = response.response.rol;
+              userTienda = response.response.tienda;
+              LISTA_PROSPECCIONES = response.response.data || [];
+              actualizarUIFiltrosYRoles();
               renderizarTabla(LISTA_PROSPECCIONES);
             } else {
-              showToast("Error al guardar: " + response.message, "error");
+              showToast("Error: " + response.message, "error");
             }
             mostrarCargando(false);
           })
           .withFailureHandler(function(err) {
-            showToast("Error al guardar: " + err.message, "error");
+            showToast("Error: " + err.message, "error");
             mostrarCargando(false);
           })
           .editarProspeccion(id, datos);
       } else {
-        // Guardar nuevo registro
+        if (userRol === 'Administrador') {
+          showToast("Error: El Administrador no puede agregar registros.", "error");
+          mostrarCargando(false);
+          return;
+        }
         google.script.run
           .withSuccessHandler(function(response) {
             if (response.status === 'success') {
               showToast("Guardado exitoso.", "success");
-              LISTA_PROSPECCIONES = response.data || [];
+              userRol = response.response.rol;
+              userTienda = response.response.tienda;
+              LISTA_PROSPECCIONES = response.response.data || [];
+              actualizarUIFiltrosYRoles();
               renderizarTabla(LISTA_PROSPECCIONES);
             } else {
-              showToast("Error al guardar: " + response.message, "error");
+              showToast("Error: " + response.message, "error");
             }
             mostrarCargando(false);
           })
           .withFailureHandler(function(err) {
-            showToast("Error al guardar: " + err.message, "error");
+            showToast("Error: " + err.message, "error");
             mostrarCargando(false);
           })
           .agregarProspeccion(datos);
       }
     }
 
-    // ─── CONTROLADORES DE EDICIÓN Y ELIMINACIÓN ──────────────
-    function editarProspeccion(id) {
-      abrirModal(id);
-    }
+    function editarProspeccion(id) { abrirModal(id); }
 
     function confirmarEliminar(id) {
       const item = LISTA_PROSPECCIONES.find(p => p.id == id);
-      const nombreLabel = item ? `"${item.Empresa}" (${item.Cliente})` : 'esta prospección';
-      
-      if (confirm(`¿Estás seguro de que deseas eliminar la prospección para ${nombreLabel}?`)) {
+      if (confirm(`¿Eliminar la prospección para ${item.Empresa}?`)) {
         mostrarCargando(true);
         google.script.run
           .withSuccessHandler(function(response) {
-            // El backend retorna un objeto {status: "success", message: "...", data: [...]}
-            // o si es un array directo dependiente del emulador:
-            let data = response;
             if (response.status === 'success') {
-              showToast("Prospección eliminada correctamente.", "success");
-              data = response.data;
-            } else if (response.status === 'error') {
-              showToast("Error al eliminar: " + response.message, "error");
-              mostrarCargando(false);
-              return;
+              showToast("Eliminado correctamente.", "success");
+              userRol = response.response.rol;
+              userTienda = response.response.tienda;
+              LISTA_PROSPECCIONES = response.response.data || [];
+              actualizarUIFiltrosYRoles();
+              renderizarTabla(LISTA_PROSPECCIONES);
             } else {
-              showToast("Prospección eliminada correctamente.", "success");
+              showToast("Error: " + response.message, "error");
             }
-            
-            LISTA_PROSPECCIONES = data || [];
-            renderizarTabla(LISTA_PROSPECCIONES);
             mostrarCargando(false);
           })
           .withFailureHandler(function(err) {
-            showToast("Error al eliminar: " + err.message, "error");
+            showToast("Error: " + err.message, "error");
             mostrarCargando(false);
           })
           .eliminarProspeccion(id);
       }
     }
 
-    // ─── FILTRADO & BUSQUEDA EN EL FRONTEND ─────────────────
     function filtrarTabla() {
       const query = document.getElementById('table-search').value.toLowerCase().trim();
       const stageFilter = document.getElementById('filter-stage').value.toLowerCase();
+      const tiendaFilter = document.getElementById('filter-tienda') ? document.getElementById('filter-tienda').value : 'all';
 
       const filtrada = LISTA_PROSPECCIONES.filter(item => {
-        const matchQuery = !query || 
-                           (item.Empresa || '').toLowerCase().includes(query) ||
-                           (item.Cliente || '').toLowerCase().includes(query) ||
-                           (item.Email || '').toLowerCase().includes(query);
-
-        const matchStage = stageFilter === 'all' || 
-                           (item.Etapa || '').toLowerCase() === stageFilter;
-
-        return matchQuery && matchStage;
+        const matchQuery = !query || (item.Empresa || '').toLowerCase().includes(query) || (item.Cliente || '').toLowerCase().includes(query) || (item.Email || '').toLowerCase().includes(query);
+        const matchStage = stageFilter === 'all' || (item.Etapa || '').toLowerCase() === stageFilter;
+        const matchTienda = userRol !== 'Administrador' || tiendaFilter === 'all' || (item.Tienda || '').toUpperCase() === tiendaFilter.toUpperCase();
+        return matchQuery && matchStage && matchTienda;
       });
-
       renderizarTabla(filtrada);
     }
 
