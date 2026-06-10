@@ -7,6 +7,7 @@ import TareasView from './components/TareasView';
 import CalendarioView from './components/CalendarioView';
 import RendimientoProgramadoView from './components/RendimientoProgramadoView';
 import VentasView from './components/VentasView';
+import ProspeccionesView from './components/ProspeccionesView';
 import DealModal from './components/DealModal';
 import StoreEditorModal from './components/StoreEditorModal';
 import LockScreen from './components/LockScreen';
@@ -429,7 +430,11 @@ export default function App() {
             />
           )}
 
-          {['prospecciones', '80-20', 'proyecto', 'carreras'].includes(currentView) && (
+          {currentView === 'prospecciones' && (
+            <ProspeccionesView showToast={showToast} />
+          )}
+
+          {['80-20', 'proyecto', 'carreras'].includes(currentView) && (
             <VentasView
               subView={currentView}
               deals={filteredDeals}
