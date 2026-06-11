@@ -1023,6 +1023,11 @@
         btnNuevaEl.style.display = isAdmin ? 'none' : 'inline-flex';
       }
 
+      // Los selectores y filtros (búsqueda y etapas) SOLO serán visibles para el usuario Administrador
+      const tableControlsEl = document.querySelector('.table-controls');
+      if (tableControlsEl) {
+        tableControlsEl.style.display = isAdmin ? 'flex' : 'none';
+      }
       const filterTiendaEl = document.getElementById('filter-tienda');
       if (filterTiendaEl) {
         filterTiendaEl.style.display = isAdmin ? 'inline-block' : 'none';
