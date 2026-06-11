@@ -550,10 +550,10 @@ function obtenerProspecciones() {
   const userInfo = getUsuarioRolYTienda();
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName("Prospecciones");
-  if (!sheet) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
+  if (!sheet) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [], resumenGrafica: { Prospectado: 0, Cotizado: 0, Seguimiento: 0, Cerrado: 0 } };
   
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
+  if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [], resumenGrafica: { Prospectado: 0, Cotizado: 0, Seguimiento: 0, Cerrado: 0 } };
   
   const headers = data[0];
   const allRecords = [];
@@ -574,7 +574,7 @@ function obtenerProspecciones() {
   
   // Lógica de aislamiento estricta en servidor usando filter()
   let filteredData = [];
-  if (userInfo.rol === "Administrador") {
+  if (String(userInfo.rol).trim().toLowerCase() === "administrador") {
     filteredData = allRecords;
   } else {
     // Si es vendedor, solo puede ver las prospecciones de su tienda específica
@@ -588,11 +588,33 @@ function obtenerProspecciones() {
       filteredData = []; // Tienda desconocida o restrictiva: no retorna nada
     }
   }
+
+  // Resumen calculado para alimentar la Gráfica de Cono (Embudo de prospectos)
+  const resumenGrafica = {
+    Prospectado: 0,
+    Cotizado: 0,
+    Seguimiento: 0,
+    Cerrado: 0
+  };
+
+  filteredData.forEach(function(record) {
+    const etapa = (record.Etapa || "").trim().toLowerCase();
+    if (etapa === "prospectado") {
+      resumenGrafica.Prospectado++;
+    } else if (etapa === "cotizado") {
+      resumenGrafica.Cotizado++;
+    } else if (etapa === "seguimiento" || etapa === "contactado") {
+      resumenGrafica.Seguimiento++;
+    } else if (etapa === "cerrado") {
+      resumenGrafica.Cerrado++;
+    }
+  });
   
   return {
     rol: userInfo.rol,
     tienda: userInfo.tienda,
-    data: filteredData
+    data: filteredData,
+    resumenGrafica: resumenGrafica
   };
 }
 
@@ -605,7 +627,7 @@ function agregarProspeccion(prospecto) {
     setupDatabase();
     const userInfo = getUsuarioRolYTienda();
     
-    if (userInfo.rol === "Administrador") {
+    if (String(userInfo.rol).trim().toLowerCase() === "administrador") {
       throw new Error("Permiso denegado. El Administrador no agrega nuevas prospecciones.");
     }
     
@@ -614,9 +636,15 @@ function agregarProspeccion(prospecto) {
     if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
     
     // Validaciones básicas en el servidor
-    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa || !prospecto.monto || !prospecto.fecha) {
+    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa) {
       throw new Error("Faltan campos obligatorios para guardar la prospección.");
     }
+    
+    // Inyectar automáticamente la fecha actual del servidor en la zona horaria indicada
+    const fechaServidor = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
+    
+    // Si la etapa no es Cotizado, el monto es 0 por seguridad
+    const montoFinal = (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0;
     
     // Insertar nueva fila al final
     sheet.appendRow([
@@ -626,9 +654,9 @@ function agregarProspeccion(prospecto) {
       prospecto.telefono || "",
       prospecto.email || "",
       prospecto.etapa,
-      parseFloat(prospecto.monto) || 0,
-      prospecto.fecha,
-      userInfo.tienda // Sucursal asociada
+      montoFinal,
+      fechaServidor, // Fecha automática del servidor
+      userInfo.tienda // Sucursal automática del usuario
     ]);
     
     return {
@@ -663,14 +691,17 @@ function editarProspeccion(id, prospecto) {
     
     // Validar propiedad de la tienda original
     const originalTienda = String(sheet.getRange(rowNum, 9).getValue()).trim();
-    if (userInfo.rol !== "Administrador" && originalTienda !== userInfo.tienda) {
+    if (String(userInfo.rol).trim().toLowerCase() !== "administrador" && originalTienda !== userInfo.tienda) {
       throw new Error("No tienes permisos para editar esta prospección.");
     }
     
     // Validaciones básicas en el servidor
-    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa || !prospecto.monto || !prospecto.fecha) {
+    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa) {
       throw new Error("Faltan campos obligatorios para actualizar la prospección.");
     }
+    
+    // Si la etapa no es Cotizado, forzar monto a 0 por seguridad
+    const montoFinal = (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0;
     
     // Sobrescribir los datos de la fila (de la columna 2 a la 8 para mantener la numeración en col 1 y la tienda en col 9)
     const values = [[
@@ -679,8 +710,8 @@ function editarProspeccion(id, prospecto) {
       prospecto.telefono || "",
       prospecto.email || "",
       prospecto.etapa,
-      parseFloat(prospecto.monto) || 0,
-      prospecto.fecha
+      montoFinal,
+      prospecto.fecha // Preservar la fecha original que está bloqueada
     ]];
     
     sheet.getRange(rowNum, 2, 1, 7).setValues(values);
@@ -708,7 +739,7 @@ function eliminarProspeccion(id) {
     const userInfo = getUsuarioRolYTienda();
     
     // Bloquear si el rol no es Administrador (Seguridad crítica del servidor)
-    if (userInfo.rol !== "Administrador") {
+    if (String(userInfo.rol).trim().toLowerCase() !== "administrador") {
       throw new Error("Permiso denegado. Solo el Administrador tiene autorización para eliminar en la base de datos.");
     }
     

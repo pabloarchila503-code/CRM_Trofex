@@ -14,6 +14,9 @@
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     /* ============================================================
        NexusCRM Design System (Vanilla CSS Modern Style)
@@ -614,6 +617,24 @@
           </select>
         </div>
 
+        <!-- MINIDASHBOARD CARD: Funnel Chart -->
+        <div class="card" style="margin-bottom: 20px; padding: 20px;">
+          <div class="table-card-header" style="margin-bottom: 14px; border-bottom: none; padding: 0;">
+            <div class="card-title">
+              <span class="card-title-dot" style="background: var(--accent-coral);"></span>
+              Embudo de Prospecciones Comerciales
+              <span style="font-size: 10px; font-weight: 500; color: var(--text-muted); margin-left: 8px;">· Estatus acumulado de conversión</span>
+            </div>
+          </div>
+          <div style="height: 180px; position: relative;">
+            <div id="funnel-placeholder" style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 10px; min-height: 180px;">
+              <i class="fas fa-chart-bar fa-2x"></i>
+              <span style="font-size: 13px;">No hay datos suficientes para graficar el embudo</span>
+            </div>
+            <canvas id="funnel-chart-canvas" style="display: none;"></canvas>
+          </div>
+        </div>
+
         <!-- TABLE CARD -->
         <div class="card table-card" style="position: relative;">
           <!-- Loader Overlay -->
@@ -731,7 +752,7 @@
           <div class="modal-row">
             <div class="form-group">
               <label class="form-label" for="field-etapa">Etapa</label>
-              <select id="field-etapa" class="form-control" required>
+              <select id="field-etapa" class="form-control" required onchange="actualizarVisibilidadMonto(this.value)">
                 <option value="" disabled selected>Seleccione una etapa</option>
                 <option value="Prospectado">Prospectado</option>
                 <option value="Contactado">Contactado</option>
@@ -741,15 +762,15 @@
               </select>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="monto-group" style="display: none;">
               <label class="form-label" for="field-monto">Monto (Q)</label>
-              <input type="number" id="field-monto" class="form-control" placeholder="Ej: 15500.00" min="0" step="0.01" required>
+              <input type="number" id="field-monto" class="form-control" placeholder="Ej: 15500.00" min="0" step="0.01" disabled required>
             </div>
           </div>
 
           <div class="form-group">
             <label class="form-label" for="field-fecha">Fecha de Registro</label>
-            <input type="date" id="field-fecha" class="form-control" required>
+            <input type="date" id="field-fecha" class="form-control" readonly required>
           </div>
 
         </div>
@@ -840,8 +861,8 @@
                   Teléfono: prospecto.telefono,
                   Email: prospecto.email,
                   Etapa: prospecto.etapa,
-                  Monto: parseFloat(prospecto.monto) || 0,
-                  Fecha: prospecto.fecha,
+                  Monto: (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0,
+                  Fecha: new Date().toISOString().slice(0, 10), // Inyectado del servidor
                   Tienda: mockUserTienda
                 };
                 db.push(record);
@@ -877,8 +898,8 @@
                       Teléfono: prospecto.telefono,
                       Email: prospecto.email,
                       Etapa: prospecto.etapa,
-                      Monto: parseFloat(prospecto.monto) || 0,
-                      Fecha: prospecto.fecha,
+                      Monto: (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0,
+                      Fecha: d.Fecha, // Preservar la fecha original
                       Tienda: originalTienda
                     };
                   }
@@ -1078,6 +1099,7 @@
             </td>
           </tr>
         `;
+        renderizarEmbudo([]);
         return;
       }
 
@@ -1130,6 +1152,8 @@
         tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
       });
+
+      renderizarEmbudo(lista);
     }
 
     function abrirModal(id = null) {
@@ -1151,18 +1175,40 @@
           document.getElementById('field-etapa').value = item.Etapa || 'Prospectado';
           document.getElementById('field-monto').value = item.Monto || '';
           document.getElementById('field-fecha').value = item.Fecha ? item.Fecha.slice(0, 10) : new Date().toISOString().slice(0, 10);
+          
+          actualizarVisibilidadMonto(item.Etapa || 'Prospectado');
         }
       } else {
         titleEl.textContent = "Nueva Prospección";
         form.reset();
         document.getElementById('field-id').value = '';
         document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
+        
+        actualizarVisibilidadMonto('');
       }
       modal.classList.add('active');
     }
 
     function cerrarModal() {
       document.getElementById('prospect-modal').classList.remove('active');
+    }
+
+    function actualizarVisibilidadMonto(etapa) {
+      const isCotizado = etapa === 'Cotizado';
+      const montoGroup = document.getElementById('monto-group');
+      const fieldMonto = document.getElementById('field-monto');
+      if (montoGroup && fieldMonto) {
+        if (isCotizado) {
+          montoGroup.style.display = 'block';
+          fieldMonto.removeAttribute('disabled');
+          fieldMonto.setAttribute('required', 'true');
+        } else {
+          montoGroup.style.display = 'none';
+          fieldMonto.setAttribute('disabled', 'true');
+          fieldMonto.removeAttribute('required');
+          fieldMonto.value = ''; // limpiar monto si no es cotizado
+        }
+      }
     }
 
     function guardarProspeccion(event) {
@@ -1278,6 +1324,135 @@
         return matchQuery && matchStage && matchTienda;
       });
       renderizarTabla(filtrada);
+    }
+
+    let funnelChartInstance = null;
+    function renderizarEmbudo(lista) {
+      const total = lista.length;
+      const placeholder = document.getElementById('funnel-placeholder');
+      const canvas = document.getElementById('funnel-chart-canvas');
+      
+      if (total === 0) {
+        if (placeholder) placeholder.style.display = 'flex';
+        if (canvas) canvas.style.display = 'none';
+        if (funnelChartInstance) {
+          funnelChartInstance.destroy();
+          funnelChartInstance = null;
+        }
+        return;
+      }
+
+      if (placeholder) placeholder.style.display = 'none';
+      if (canvas) canvas.style.display = 'block';
+
+      // Calcular niveles de embudo
+      const cotizaciones = lista.filter(p => ['cotizado', 'cerrado', 'perdido'].includes((p.Etapa || '').toLowerCase())).length;
+      const seguimiento = lista.filter(p => ['contactado', 'cotizado', 'cerrado'].includes((p.Etapa || '').toLowerCase())).length;
+      const cerrados = lista.filter(p => (p.Etapa || '').toLowerCase() === 'cerrado').length;
+
+      const labels = ['1. Prospecciones', '2. Cotizaciones', '3. Seguimiento', '4. Cerrados'];
+      const values = [total, cotizaciones, seguimiento, cerrados];
+      const colors = ['#94A3B8', '#F59E0B', '#FF6D4D', '#10B981'];
+
+      // Alinear centrado simulando embudo
+      const dataValues = values.map(val => {
+        const start = (total - val) / 2;
+        const end = start + val;
+        return [start, end];
+      });
+
+      if (funnelChartInstance) {
+        funnelChartInstance.destroy();
+      }
+
+      const ctx = canvas.getContext('2d');
+      funnelChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: dataValues,
+            backgroundColor: colors.map(c => c + 'CC'),
+            borderColor: colors,
+            borderWidth: 1.5,
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => labels[items[0].dataIndex],
+                label: (item) => ` Conteo: ${values[item.dataIndex]}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { display: false }
+            },
+            y: {
+              grid: { display: false },
+              ticks: {
+                color: '#64748B',
+                font: { family: 'Inter', size: 10, weight: '600' }
+              }
+            }
+          }
+        },
+        plugins: [{
+          id: 'customDatalabelsFunnel',
+          afterDatasetsDraw(chart) {
+            const { ctx } = chart;
+            ctx.save();
+            chart.data.datasets.forEach((dataset, i) => {
+              const meta = chart.getDatasetMeta(i);
+              meta.data.forEach((element, index) => {
+                const raw = dataset.data[index];
+                let val = 0;
+                let percentageText = '';
+                
+                if (Array.isArray(raw)) {
+                  val = Math.round(raw[1] - raw[0]);
+                  const firstRaw = dataset.data[0];
+                  const totalVal = firstRaw[1] - firstRaw[0];
+                  const pct = totalVal > 0 ? Math.round((val / totalVal) * 100) : 0;
+                  percentageText = ` (${pct}%)`;
+                } else {
+                  val = raw;
+                }
+                
+                const labelText = `${val}${percentageText}`;
+                ctx.font = 'bold 10px Inter, sans-serif';
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowBlur = 3;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                
+                const labelX = (element.x + element.base) / 2;
+                const labelY = element.y;
+                
+                if (element.x - element.base > 45 && val > 0) {
+                  ctx.fillText(labelText, labelX, labelY);
+                } else if (val > 0) {
+                  ctx.fillStyle = '#1E293B';
+                  ctx.textAlign = 'left';
+                  ctx.shadowBlur = 0;
+                  ctx.fillText(labelText, element.x + 6, labelY);
+                }
+              });
+            });
+            ctx.restore();
+          }
+        }]
+      });
     }
 
     // ─── UTILITIES ──────────────────────────────────────────

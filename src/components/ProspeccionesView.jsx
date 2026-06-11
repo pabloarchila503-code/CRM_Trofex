@@ -1,4 +1,152 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Chart from 'chart.js/auto';
+
+// Custom Datalabels Plugin for Funnel Chart
+const customDatalabelsFunnelPlugin = {
+  id: 'customDatalabelsFunnel',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.save();
+    
+    chart.data.datasets.forEach((dataset, i) => {
+      const meta = chart.getDatasetMeta(i);
+      meta.data.forEach((element, index) => {
+        const raw = dataset.data[index];
+        let val = 0;
+        let percentageText = '';
+        
+        if (Array.isArray(raw)) {
+          val = Math.round(raw[1] - raw[0]);
+          const firstRaw = dataset.data[0];
+          const total = firstRaw[1] - firstRaw[0];
+          const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+          percentageText = ` (${pct}%)`;
+        } else {
+          val = raw;
+        }
+        
+        const labelText = `${val}${percentageText}`;
+        ctx.font = 'bold 10px Inter, sans-serif';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        ctx.shadowBlur = 3;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        
+        const labelX = (element.x + element.base) / 2;
+        const labelY = element.y;
+        
+        if (element.x - element.base > 45 && val > 0) {
+          ctx.fillText(labelText, labelX, labelY);
+        } else if (val > 0) {
+          ctx.fillStyle = '#1E293B';
+          ctx.textAlign = 'left';
+          ctx.shadowBlur = 0;
+          ctx.fillText(labelText, element.x + 6, labelY);
+        }
+      });
+    });
+    ctx.restore();
+  }
+};
+
+function FunnelMiniChart({ data }) {
+  const canvasRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+
+    const total = data.total || 0;
+    const cotizaciones = data.cotizado || 0;
+    const seguimiento = data.seguimiento || 0;
+    const cerrados = data.cerrado || 0;
+
+    if (total === 0) return;
+
+    const labels = ['1. Prospecciones', '2. Cotizaciones', '3. Seguimiento', '4. Cerrados'];
+    const values = [total, cotizaciones, seguimiento, cerrados];
+    const colors = ['#94A3B8', '#F59E0B', '#FF6D4D', '#10B981'];
+
+    const dataValues = values.map(val => {
+      if (total === 0) return [0, 0];
+      const start = (total - val) / 2;
+      const end = start + val;
+      return [start, end];
+    });
+
+    if (chartInstanceRef.current) {
+      chartInstanceRef.current.destroy();
+    }
+
+    const ctx = canvasRef.current.getContext('2d');
+    chartInstanceRef.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: dataValues,
+          backgroundColor: colors.map(c => c + 'CC'),
+          borderColor: colors,
+          borderWidth: 1.5,
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => labels[items[0].dataIndex],
+              label: (item) => ` Conteo: ${values[item.dataIndex]}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { display: false }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              color: '#64748B',
+              font: { family: 'Inter', size: 10, weight: '600' }
+            }
+          }
+        }
+      },
+      plugins: [customDatalabelsFunnelPlugin]
+    });
+
+    return () => {
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.destroy();
+      }
+    };
+  }, [data]);
+
+  const total = data.total || 0;
+  if (total === 0) {
+    return (
+      <div style={{
+        height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', color: 'var(--text-muted)', gap: '10px', minHeight: '180px'
+      }}>
+        <i className="fas fa-chart-bar fa-2x"></i>
+        <span style={{ fontSize: '13px' }}>No hay datos suficientes para graficar el embudo</span>
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} />;
+}
+
 
 const MOCK_PROSPECCIONES = [
   { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08", Tienda: "CB" },
@@ -429,6 +577,27 @@ export default function ProspeccionesView({ showToast }) {
         </div>
       </div>
 
+      {/* MINIDASHBOARD CARD: Funnel Chart */}
+      <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
+        <div className="card-header" style={{ marginBottom: '14px', borderBottom: 'none', padding: 0 }}>
+          <div>
+            <div className="card-title">
+              <span className="card-title-dot" style={{ background: 'var(--accent-coral)' }}></span>
+              Embudo de Prospecciones Comerciales
+            </div>
+            <div className="card-subtitle">Conversión y estatus acumulado de prospectos</div>
+          </div>
+        </div>
+        <div style={{ height: '180px', position: 'relative' }}>
+          <FunnelMiniChart data={{
+            total: filteredProspecciones.length,
+            cotizado: filteredProspecciones.filter(p => ['cotizado', 'cerrado', 'perdido'].includes((p.Etapa || '').toLowerCase())).length,
+            seguimiento: filteredProspecciones.filter(p => ['contactado', 'cotizado', 'cerrado'].includes((p.Etapa || '').toLowerCase())).length,
+            cerrado: filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'cerrado').length
+          }} />
+        </div>
+      </div>
+
       {/* TABLE CARD */}
       <div className="card table-card" style={{ position: 'relative' }}>
         
@@ -680,7 +849,7 @@ export default function ProspeccionesView({ showToast }) {
                     </select>
                   </div>
 
-                  <div className="form-group">
+                  <div className="form-group" style={{ display: formEtapa === 'Cotizado' ? 'block' : 'none' }}>
                     <label className="form-label" htmlFor="field-monto">
                       Monto (Q)
                     </label>
@@ -693,7 +862,8 @@ export default function ProspeccionesView({ showToast }) {
                       onChange={(e) => setFormMonto(e.target.value)}
                       min="0"
                       step="0.01"
-                      required
+                      disabled={formEtapa !== 'Cotizado'}
+                      required={formEtapa === 'Cotizado'}
                     />
                   </div>
                 </div>
@@ -707,7 +877,7 @@ export default function ProspeccionesView({ showToast }) {
                     id="field-fecha"
                     className="form-control"
                     value={formFecha}
-                    onChange={(e) => setFormFecha(e.target.value)}
+                    readOnly
                     required
                   />
                 </div>
