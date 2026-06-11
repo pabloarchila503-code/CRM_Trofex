@@ -614,6 +614,7 @@ function obtenerProspecciones() {
     rol: userInfo.rol,
     tienda: userInfo.tienda,
     data: filteredData,
+    datos: filteredData,
     resumenGrafica: resumenGrafica
   };
 }

@@ -532,31 +532,7 @@ export default function ProspeccionesView({ showToast }) {
   return (
     <div style={{ position: 'relative' }}>
       
-      {/* 🛠️ SIMULADOR DE ROLES (Exclusivo en desarrollo local) */}
-      {!isGas && (
-        <div style={{
-          background: '#FFFBEB', border: '1px solid #FDE68A', padding: '10px 16px',
-          borderRadius: '10px', marginBottom: '18px', display: 'flex',
-          alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'
-        }}>
-          <span style={{ fontSize: '11.5px', color: '#B45309', fontWeight: '700' }}>
-            <i className="fas fa-shield-alt" style={{ marginRight: '6px' }}></i>
-            Vista de Pruebas: Simula perfiles comerciales en tiempo real
-          </span>
-          <select 
-            value={mockUserRol === 'Administrador' ? 'Administrador' : `Vendedor_${mockUserTienda}`} 
-            onChange={(e) => handleMockRoleChange(e.target.value)}
-            style={{
-              padding: '5px 10px', fontSize: '11.5px', border: '1.5px solid #F59E0B',
-              borderRadius: '6px', background: '#fff', fontWeight: '700', color: '#B45309', cursor: 'pointer'
-            }}
-          >
-            <option value="Administrador">Perfil: Administrador (Ver Todo / Eliminar Habilitado / No Agregar)</option>
-            <option value="Vendedor_CB">Perfil: Asesor CB (Filtro CB / Agregar Habilitado / No Eliminar)</option>
-            <option value="Vendedor_JT">Perfil: Asesor JT (Filtro JT / Agregar Habilitado / No Eliminar)</option>
-          </select>
-        </div>
-      )}
+
 
       {/* HEADER DE LA SECCIÓN */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
@@ -667,8 +643,7 @@ export default function ProspeccionesView({ showToast }) {
           <table className="deals-table" role="grid" aria-label="Tabla de prospecciones">
             <thead>
               <tr>
-                {/* COLUMNA TIENDA: Visible ÚNICAMENTE para Administrador */}
-                {isAdmin && <th scope="col">Tienda/Sucursal</th>}
+                <th scope="col">Tienda/Sucursal</th>
                 <th scope="col">No.</th>
                 <th scope="col">Empresa o Entidad</th>
                 <th scope="col">Nombre del Cliente</th>
@@ -683,7 +658,7 @@ export default function ProspeccionesView({ showToast }) {
             <tbody>
               {filteredProspecciones.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 10 : 9} className="empty-state">
+                  <td colSpan={10} className="empty-state">
                     <i className="fas fa-search"></i>
                     <br />
                     No se encontraron prospectos
@@ -692,14 +667,11 @@ export default function ProspeccionesView({ showToast }) {
               ) : (
                 filteredProspecciones.map(item => (
                   <tr key={item.id} className="deal-row">
-                    {/* CELDA TIENDA: Visible ÚNICAMENTE para Administrador */}
-                    {isAdmin && (
-                      <td style={{ fontWeight: '700', color: 'var(--accent-blue)' }}>
-                        <span className="stage-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb' }}>
-                          {item.Tienda || '—'}
-                        </span>
-                      </td>
-                    )}
+                    <td style={{ fontWeight: '700', color: 'var(--accent-blue)' }}>
+                      <span className="stage-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb' }}>
+                        {item.Tienda || '—'}
+                      </span>
+                    </td>
                     <td className="num-cell">{item.Numeración || item.id - 1}</td>
                     <td className="company-cell">{item.Empresa || '—'}</td>
                     <td className="client-cell">{item.Cliente || '—'}</td>
