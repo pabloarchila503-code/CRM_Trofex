@@ -519,6 +519,23 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .kpis-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 800px) {
+      .kpis-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    @media (max-width: 500px) {
+      .kpis-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
     /* ─── RESPONSIVE ────────────────────────────────────────── */
     @media (max-width: 900px) {
       :root { --sidebar-width: 60px; }
@@ -604,7 +621,34 @@
       <main class="page-content">
         <p class="section-label">Ventas — Prospecciones de Clientes</p>
 
-
+        <!-- KPI CARDS GRID -->
+        <div class="kpis-grid">
+          <!-- Prospectado Card -->
+          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-blue);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Prospectados</div>
+            <div id="kpi-prospectado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+          </div>
+          <!-- Contactado Card -->
+          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-orange);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Contactados</div>
+            <div id="kpi-contactado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+          </div>
+          <!-- Cotizado Card -->
+          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-purple);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Cotizados</div>
+            <div id="kpi-cotizado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+          </div>
+          <!-- Cerrado Card -->
+          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-green);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Cerrados</div>
+            <div id="kpi-cerrado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+          </div>
+          <!-- Perdido Card -->
+          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-red);">
+            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Perdidos</div>
+            <div id="kpi-perdido" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+          </div>
+        </div>
 
         <!-- MINIDASHBOARD CARD: Funnel Chart -->
         <div class="card" style="margin-bottom: 20px; padding: 20px;">
@@ -1064,6 +1108,20 @@
       }
     }
 
+    function actualizarKPIs(datos) {
+      const prospectados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'prospectado').length;
+      const contactados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'contactado').length;
+      const cotizados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'cotizado').length;
+      const cerrados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'cerrado').length;
+      const perdidos = datos.filter(item => (item.Etapa || '').toLowerCase() === 'perdido').length;
+
+      document.getElementById('kpi-prospectado').textContent = prospectados;
+      document.getElementById('kpi-contactado').textContent = contactados;
+      document.getElementById('kpi-cotizado').textContent = cotizados;
+      document.getElementById('kpi-cerrado').textContent = cerrados;
+      document.getElementById('kpi-perdido').textContent = perdidos;
+    }
+
     function renderizarTabla(lista) {
       const tbody = document.getElementById('prospects-tbody');
       tbody.innerHTML = '';
@@ -1080,6 +1138,7 @@
           </tr>
         `;
         renderizarEmbudo([]);
+        actualizarKPIs([]);
         return;
       }
 
@@ -1131,6 +1190,7 @@
       });
 
       renderizarEmbudo(lista);
+      actualizarKPIs(lista);
     }
 
     function abrirModal(id = null) {
