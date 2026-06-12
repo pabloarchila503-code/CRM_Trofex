@@ -16,6 +16,7 @@
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
     /* ============================================================
@@ -612,6 +613,10 @@
         <button class="topbar-btn btn-outline" onclick="recargarTablaManual()">
           <i class="fas fa-sync-alt" id="sync-icon"></i> Actualizar vista
         </button>
+        <button class="topbar-btn btn-outline" id="btn-importar-excel" onclick="document.getElementById('file-upload').click()" style="display: none;">
+          📥 Importar Excel
+        </button>
+        <input type="file" id="file-upload" accept=".xlsx, .xls, .csv" style="display: none;">
         <button class="topbar-btn btn-primary" id="btn-nueva-prospeccion" onclick="abrirModal()">
           <i class="fas fa-plus"></i> + Nueva Prospección
         </button>
@@ -1065,6 +1070,11 @@
       const btnNuevaEl = document.getElementById('btn-nueva-prospeccion');
       if (btnNuevaEl) {
         btnNuevaEl.style.display = isAdmin ? 'none' : 'inline-flex';
+      }
+
+      const btnImportarEl = document.getElementById('btn-importar-excel');
+      if (btnImportarEl) {
+        btnImportarEl.style.display = isAdmin ? 'none' : 'inline-flex';
       }
 
       // Los selectores y filtros (búsqueda y etapas) SOLO serán visibles para el usuario Administrador
@@ -1549,6 +1559,88 @@
           container.removeChild(toast);
         }, 300);
       }, 4000);
+    }
+
+    // LÓGICA DE IMPORTACIÓN MASIVA DESDE EXCEL
+    window.addEventListener('DOMContentLoaded', () => {
+      const fileUploadInput = document.getElementById('file-upload');
+      if (fileUploadInput) {
+        fileUploadInput.addEventListener('change', importarExcel);
+      }
+    });
+
+    function importarExcel(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      mostrarCargando(true);
+      const reader = new FileReader();
+      
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const sheetData = XLSX.utils.sheet_to_json(worksheet);
+
+          let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+          
+          sheetData.forEach((row) => {
+            const empresa = row.Empresa || row.empresa || row['Empresa o Entidad'] || '—';
+            const cliente = row.Cliente || row.cliente || row['Nombre del Cliente'] || '—';
+            const telefono = row.Telefono || row.telefono || row['Teléfono'] || '—';
+            const email = row.Email || row.email || row['E-mail'] || '—';
+            const etapa = row.Etapa || row.etapa || 'Prospectado';
+            
+            let monto = 0;
+            if (String(etapa).trim().toLowerCase() === 'cotizado') {
+              monto = parseFloat(row.Monto || row.monto || 0) || 0;
+            }
+
+            const newId = Date.now() + Math.floor(Math.random() * 1000);
+            const newNum = db.length > 0 ? Math.max(...db.map(d => d.Numeración || 0)) + 1 : 1;
+
+            const record = {
+              id: newId,
+              Numeración: newNum,
+              Empresa: empresa,
+              Cliente: cliente,
+              Teléfono: telefono,
+              Email: email,
+              Etapa: etapa,
+              Monto: monto,
+              Fecha: new Date().toISOString().slice(0, 10),
+              Tienda: userTienda || 'CB'
+            };
+
+            db.push(record);
+          });
+
+          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+          
+          showToast("Importación exitosa", "success");
+          fileUploadInput.value = '';
+          cargarDatos();
+        } catch (err) {
+          showToast("Error al importar archivo: " + err.message, "error");
+          fileUploadInput.value = '';
+          mostrarCargando(false);
+        }
+      };
+
+      reader.onerror = function() {
+        showToast("Error al leer el archivo", "error");
+        fileUploadInput.value = '';
+        mostrarCargando(false);
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Alias para cargar datos
+    function cargarDatos() {
+      cargarProspecciones();
     }
   </script>
 </body>

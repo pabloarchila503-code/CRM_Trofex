@@ -12,7 +12,8 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
     /* ============================================================
@@ -242,6 +243,10 @@
         <button class="topbar-btn btn-outline" onclick="recargarTablaManual()">
           <i class="fas fa-sync-alt" id="sync-icon"></i> Actualizar vista
         </button>
+        <button class="topbar-btn btn-outline" id="btn-importar-excel" onclick="document.getElementById('file-upload').click()" style="display: none;">
+          📥 Importar Excel
+        </button>
+        <input type="file" id="file-upload" accept=".xlsx, .xls, .csv" style="display: none;">
         <button class="topbar-btn btn-primary" id="btn-nueva-prospeccion" onclick="abrirModal()" style="display: none;">
           <i class="fas fa-plus"></i> + Nueva Prospección
         </button>
@@ -396,19 +401,22 @@
     let userRol = "Vendedor";
     let userTienda = "CB";
 
-    // MOCK DATA PARA DESARROLLO LOCAL
     const MOCK_PROSPECCIONES = [
       { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08", Tienda: "CB" },
       { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09", Tienda: "CHQ" }
     ];
 
-    // INICIALIZACIÓN
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
+      const fileUploadInput = document.getElementById('file-upload');
+      if (fileUploadInput) fileUploadInput.addEventListener('change', importarExcel);
       cargarProspecciones();
     });
 
-    // Emulador de Google Apps Script (Si se abre fuera de Google Sheets)
+    if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
+      localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(MOCK_PROSPECCIONES));
+    }
+
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       window.google = {
         script: {
@@ -418,12 +426,57 @@
             withFailureHandler: function(onFailure) { this.handlers.failure = onFailure; return this; },
             obtenerProspecciones: function() {
               setTimeout(() => {
-                this.handlers.success({ rol: userRol, tienda: userTienda, data: MOCK_PROSPECCIONES });
+                const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                const dataFiltrada = String(userRol).toLowerCase() === 'administrador'
+                  ? db
+                  : db.filter(item => item.Tienda === userTienda);
+                this.handlers.success({ rol: userRol, tienda: userTienda, data: dataFiltrada });
               }, 400);
             },
-            agregarProspeccion: function(datos) { setTimeout(() => this.handlers.success({ status: 'success', response: { rol: userRol, tienda: userTienda, data: MOCK_PROSPECCIONES } }), 500); },
-            editarProspeccion: function(id, datos) { setTimeout(() => this.handlers.success({ status: 'success', response: { rol: userRol, tienda: userTienda, data: MOCK_PROSPECCIONES } }), 500); },
-            eliminarProspeccion: function(id) { setTimeout(() => this.handlers.success({ status: 'success', response: { rol: userRol, tienda: userTienda, data: [] } }), 500); }
+            agregarProspeccion: function(datos) {
+              setTimeout(() => {
+                const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                const newId = Date.now();
+                const newNum = db.length > 0 ? Math.max(...db.map(d => d.Numeración || 0)) + 1 : 1;
+                
+                const record = {
+                  id: newId,
+                  Numeración: newNum,
+                  Empresa: datos.empresa,
+                  Cliente: datos.cliente,
+                  Teléfono: datos.telefono,
+                  Email: datos.email,
+                  Etapa: datos.etapa,
+                  Monto: (String(datos.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(datos.monto) || 0) : 0,
+                  Fecha: datos.fecha,
+                  Tienda: userTienda
+                };
+                db.push(record);
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+                this.handlers.success({ status: 'success' });
+              }, 500);
+            },
+            editarProspeccion: function(id, datos) {
+              setTimeout(() => {
+                let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                db = db.map(d => {
+                  if (d.id == id) {
+                    return { ...d, ...datos, Monto: (String(datos.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(datos.monto) || 0) : 0 };
+                  }
+                  return d;
+                });
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+                this.handlers.success({ status: 'success' });
+              }, 500);
+            },
+            eliminarProspeccion: function(id) {
+              setTimeout(() => {
+                let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+                db = db.filter(d => d.id != id);
+                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+                this.handlers.success({ status: 'success' });
+              }, 500);
+            }
           }
         }
       };
@@ -454,12 +507,48 @@
       setTimeout(() => { syncIcon.classList.remove('fa-spin'); }, 600);
     }
 
+    function importarExcel(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      mostrarCargando(true);
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const sheetData = XLSX.utils.sheet_to_json(worksheet);
+          let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+          sheetData.forEach((row) => {
+            db.push({
+              id: Date.now() + Math.random(),
+              Numeración: db.length + 1,
+              Empresa: row.Empresa || '—',
+              Cliente: row.Cliente || '—',
+              Teléfono: row.Telefono || '—',
+              Email: row.Email || '—',
+              Etapa: row.Etapa || 'Prospectado',
+              Monto: parseFloat(row.Monto) || 0,
+              Fecha: new Date().toISOString().slice(0, 10),
+              Tienda: userTienda
+            });
+          });
+          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+          showToast("Importación exitosa", "success");
+          cargarProspecciones();
+        } catch (err) { showToast("Error al importar", "error"); mostrarCargando(false); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
     function actualizarUIFiltrosYRoles() {
       const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
-
       // 1. Botón agregar SOLO para vendedores
       const btnNuevaEl = document.getElementById('btn-nueva-prospeccion');
       if (btnNuevaEl) btnNuevaEl.style.display = isAdmin ? 'none' : 'inline-flex';
+
+      const btnImportarEl = document.getElementById('btn-importar-excel');
+      if (btnImportarEl) btnImportarEl.style.display = isAdmin ? 'none' : 'inline-flex';
 
       // 2. ¡CORRECCIÓN! Solo ocultar el filtro de tienda, NO la barra de búsqueda completa.
       const filterTiendaEl = document.getElementById('filter-tienda');
