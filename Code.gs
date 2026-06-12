@@ -109,6 +109,22 @@ function setupDatabase() {
     ]);
     prospeccionesSheet.getRange("A1:I1").setFontWeight("bold").setBackground("#f1f5f9");
   }
+
+  // Configurar hoja Analisis8020 si no existe
+  let analisisSheet = ss.getSheetByName("Analisis8020");
+  if (!analisisSheet) {
+    analisisSheet = ss.insertSheet("Analisis8020");
+    analisisSheet.appendRow([
+      "Numeración", 
+      "Orden", 
+      "Cliente", 
+      "Total", 
+      "Etapa", 
+      "Tienda", 
+      "Fecha"
+    ]);
+    analisisSheet.getRange("A1:G1").setFontWeight("bold").setBackground("#f1f5f9");
+  }
   
   return sheet;
 }
@@ -791,3 +807,145 @@ function eliminarProspeccion(id) {
  * edita el despliegue actual con el ícono del lápiz, selecciona "Nueva versión" y haz clic en Implementar.
  */
 
+/**
+ * Obtiene todos los registros del Análisis 80/20.
+ * Aislamiento estricto: el Admin recibe todo, las tiendas solo sus propios registros.
+ */
+function obtenerDatos8020() {
+  setupDatabase();
+  const userInfo = getUsuarioRolYTienda();
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName("Analisis8020");
+  if (!sheet) return { rol: userInfo.rol, tienda: userInfo.tienda, datos: [] };
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, datos: [] };
+  
+  const headers = data[0];
+  const allRecords = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const obj = { id: i + 1 }; // ID es la fila física (1-indexed)
+    headers.forEach((header, index) => {
+      let val = row[index];
+      if (header === "Fecha" && val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
+      }
+      obj[header] = val;
+    });
+    allRecords.push(obj);
+  }
+  
+  let filteredData = [];
+  if (String(userInfo.rol).trim().toLowerCase() === "administrador") {
+    filteredData = allRecords;
+  } else {
+    const userTiendaLower = (userInfo.tienda || "").trim().toLowerCase();
+    if (userTiendaLower && userTiendaLower !== "todos" && userTiendaLower !== "desconocido") {
+      filteredData = allRecords.filter(function(record) {
+        const recordTiendaLower = (record.Tienda || "").trim().toLowerCase();
+        return recordTiendaLower === userTiendaLower;
+      });
+    } else {
+      filteredData = [];
+    }
+  }
+  
+  return {
+    rol: userInfo.rol,
+    tienda: userInfo.tienda,
+    datos: filteredData
+  };
+}
+
+/**
+ * Agrega un registro de venta a la hoja 'Analisis8020'.
+ * Solo las tiendas (vendedores) pueden realizar esta acción.
+ */
+function guardarRegistro8020(registro) {
+  try {
+    setupDatabase();
+    const userInfo = getUsuarioRolYTienda();
+    
+    if (String(userInfo.rol).trim().toLowerCase() === "administrador") {
+      throw new Error("Permiso denegado. El Administrador no puede agregar nuevos registros.");
+    }
+    
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName("Analisis8020");
+    if (!sheet) throw new Error("La hoja 'Analisis8020' no existe.");
+    
+    if (!registro.orden || !registro.cliente || !registro.total || !registro.etapa) {
+      throw new Error("Faltan campos obligatorios para guardar el registro.");
+    }
+    
+    const fechaServidor = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
+    
+    sheet.appendRow([
+      "=ROW()-1", // Numeración
+      registro.orden,
+      registro.cliente,
+      parseFloat(registro.total) || 0,
+      registro.etapa,
+      userInfo.tienda,
+      fechaServidor
+    ]);
+    
+    return {
+      status: "success",
+      message: "Registro guardado exitosamente.",
+      response: obtenerDatos8020()
+    };
+  } catch (e) {
+    return {
+      status: "error",
+      message: e.toString()
+    };
+  }
+}
+
+/**
+ * Modifica un registro de venta en la hoja 'Analisis8020'.
+ * Las tiendas solo pueden modificar sus propios registros.
+ */
+function editarRegistro8020(id, registro) {
+  try {
+    setupDatabase();
+    const userInfo = getUsuarioRolYTienda();
+    const rowNum = parseInt(id);
+    if (isNaN(rowNum) || rowNum < 2) {
+      throw new Error("ID de registro inválido.");
+    }
+    
+    const ss = getSpreadsheet();
+    const sheet = ss.getSheetByName("Analisis8020");
+    if (!sheet) throw new Error("La hoja 'Analisis8020' no existe.");
+    
+    const originalTienda = String(sheet.getRange(rowNum, 6).getValue()).trim(); // Columna Tienda (index 6)
+    if (String(userInfo.rol).trim().toLowerCase() !== "administrador" && originalTienda !== userInfo.tienda) {
+      throw new Error("No tienes permisos para editar este registro.");
+    }
+    
+    if (!registro.orden || !registro.cliente || !registro.total || !registro.etapa) {
+      throw new Error("Faltan campos obligatorios para actualizar el registro.");
+    }
+    
+    // Columnas a sobrescribir: Orden, Cliente, Total, Etapa (Columnas 2 a 5)
+    sheet.getRange(rowNum, 2).setValue(registro.orden);
+    sheet.getRange(rowNum, 3).setValue(registro.cliente);
+    sheet.getRange(rowNum, 4).setValue(parseFloat(registro.total) || 0);
+    sheet.getRange(rowNum, 5).setValue(registro.etapa);
+    
+    return {
+      status: "success",
+      message: "Registro actualizado con éxito.",
+      response: obtenerDatos8020()
+    };
+  } catch (e) {
+    return {
+      status: "error",
+      message: e.toString()
+    };
+  }
+}

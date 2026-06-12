@@ -1,6 +1,7 @@
 import React from 'react';
 import DealsTable from './DealsTable';
 import { AnalisisChart, ProyectosChart, ProspectosChart, CarretasChart } from './Charts';
+import Analisis8020View from './Analisis8020View';
 
 export default function VentasView({ 
   subView, // 'prospecciones' | '80-20' | 'proyecto' | 'carreras'
@@ -9,7 +10,8 @@ export default function VentasView({
   users, 
   customers, 
   onEditDeal, 
-  onDeleteDeal 
+  onDeleteDeal,
+  showToast
 }) {
   return (
     <div className="view-section active">
@@ -32,22 +34,7 @@ export default function VentasView({
       )}
 
       {subView === '80-20' && (
-        <div>
-          <p className="section-label">Ventas — Análisis 80/20</p>
-          <div className="card" style={{ padding: '24px' }}>
-            <div className="card-header" style={{ padding: 0, marginBottom: '20px' }}>
-              <div>
-                <h3 className="card-title" style={{ fontSize: '15px' }}>Análisis 80/20 (Conversión de Red)</h3>
-                <p className="card-subtitle font-normal text-muted mt-1">Conteo consolidado de clientes por estados y embudo de conversión</p>
-              </div>
-            </div>
-            <div className="chart-wrap" style={{ padding: 0 }}>
-              <div style={{ height: '360px' }}>
-                <AnalisisChart deals={deals} />
-              </div>
-            </div>
-          </div>
-        </div>
+        <Analisis8020View showToast={showToast} />
       )}
 
       {subView === 'proyecto' && (

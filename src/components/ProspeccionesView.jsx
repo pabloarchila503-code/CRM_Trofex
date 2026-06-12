@@ -553,6 +553,50 @@ export default function ProspeccionesView({ showToast }) {
         </div>
       </div>
 
+      {/* KPI CARDS GRID */}
+      <div className="kpis-grid" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        {/* Prospectados */}
+        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-blue)' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Prospectados</div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
+            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'prospectado').length}
+          </div>
+        </div>
+        {/* Contactados */}
+        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-orange)' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contactados</div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
+            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'contactado').length}
+          </div>
+        </div>
+        {/* Cotizados */}
+        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-purple)' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cotizados</div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
+            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'cotizado').length}
+          </div>
+        </div>
+        {/* Cerrados */}
+        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-green)' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cerrados</div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
+            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'cerrado').length}
+          </div>
+        </div>
+        {/* Perdidos */}
+        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-red)' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Perdidos</div>
+          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
+            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'perdido').length}
+          </div>
+        </div>
+      </div>
+
       {/* MINIDASHBOARD CARD: Funnel Chart */}
       <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
         <div className="card-header" style={{ marginBottom: '14px', borderBottom: 'none', padding: 0 }}>
@@ -598,20 +642,20 @@ export default function ProspeccionesView({ showToast }) {
             </span>
           </div>
           
-          <div className="table-controls">
-            <div className="search-wrap">
-              <i className="fas fa-search"></i>
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Buscar por cliente o empresa..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            {/* FILTRO POR TIENDA: Visible ÚNICAMENTE para Administrador */}
-            {isAdmin && (
+          {/* Los selectores y filtros (búsqueda y etapas) SOLO serán visibles para el usuario Administrador */}
+          {isAdmin && (
+            <div className="table-controls">
+              <div className="search-wrap">
+                <i className="fas fa-search"></i>
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Buscar por cliente o empresa..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              
               <select
                 className="select-filter"
                 value={filterTienda}
@@ -622,21 +666,21 @@ export default function ProspeccionesView({ showToast }) {
                   <option key={store} value={store}>Tienda {store}</option>
                 ))}
               </select>
-            )}
 
-            <select
-              className="select-filter"
-              value={filterStage}
-              onChange={(e) => setFilterStage(e.target.value)}
-            >
-              <option value="all">Todas las etapas</option>
-              <option value="prospectado">Prospectado</option>
-              <option value="contactado">Contactado</option>
-              <option value="cotizado">Cotizado</option>
-              <option value="cerrado">Cerrado</option>
-              <option value="perdido">Perdido</option>
-            </select>
-          </div>
+              <select
+                className="select-filter"
+                value={filterStage}
+                onChange={(e) => setFilterStage(e.target.value)}
+              >
+                <option value="all">Todas las etapas</option>
+                <option value="prospectado">Prospectado</option>
+                <option value="contactado">Contactado</option>
+                <option value="cotizado">Cotizado</option>
+                <option value="cerrado">Cerrado</option>
+                <option value="perdido">Perdido</option>
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="table-responsive">

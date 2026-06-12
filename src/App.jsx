@@ -443,6 +443,7 @@ export default function App() {
               customers={mockData.customers}
               onEditDeal={handleEditDeal}
               onDeleteDeal={handleDeleteDeal}
+              showToast={showToast}
             />
           )}
         </main>
