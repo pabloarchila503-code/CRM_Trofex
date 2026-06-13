@@ -519,6 +519,20 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Simulator panel style */
+    .simulator-bar {
+      background: #FFFBEB;
+      border-bottom: 1px solid #FDE68A;
+      padding: 8px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: #78350F;
+      font-weight: 500;
+      z-index: 95;
+    }
+
     .kpis-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -555,6 +569,17 @@
   </style>
 </head>
 <body>
+
+  <!-- SIMULATOR BAR (only visible in local preview) -->
+  <div class="simulator-bar" id="mock-role-simulator">
+    <i class="fas fa-tools"></i>
+    <span><strong>Entorno local (Simulador de Roles):</strong></span>
+    <select class="select-filter" onchange="handleMockRoleChange(this.value)" style="background: #fff; border-color: #FCD34D;">
+      <option value="Vendedor_CB" selected>Perfil: Asesor CB (Tienda CB)</option>
+      <option value="Administrador">Perfil: Administrador</option>
+      <option value="Vendedor_JT">Perfil: Asesor JT (Tienda JT)</option>
+    </select>
+  </div>
 
   <div class="app-shell">
 
@@ -830,8 +855,8 @@
     let userTienda = ""; // Código de tienda
 
     // Variables exclusivas para simulación/pruebas locales
-    let mockUserRol = "Administrador";
-    let mockUserTienda = "Todos";
+    let mockUserRol = "Vendedor";
+    let mockUserTienda = "CB";
 
     // Datos iniciales de simulación si se ejecuta fuera de Google Apps Script
     const MOCK_PROSPECCIONES = [

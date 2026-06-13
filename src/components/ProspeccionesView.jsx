@@ -158,7 +158,7 @@ const MOCK_PROSPECCIONES = [
 
 const TIENDAS = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
-export default function ProspeccionesView({ showToast }) {
+export default function ProspeccionesView({ showToast, userRole, activeStore }) {
   const [prospecciones, setProspecciones] = useState([]);
   const [userRol, setUserRol] = useState('Vendedor'); // Rol retornado por el servidor ('Administrador' o 'Vendedor') - Iniciado como Vendedor por defecto
   const [userTienda, setUserTienda] = useState(''); // Tienda del usuario
@@ -170,9 +170,23 @@ export default function ProspeccionesView({ showToast }) {
   const [filterStage, setFilterStage] = useState('all');
   const [filterTienda, setFilterTienda] = useState('all'); // Filtro exclusivo de Administrador
 
+  // Mapear props de la sesión si están disponibles
+  const initialMockRol = userRole === 'admin' ? 'Administrador' : 'Vendedor';
+  const initialMockTienda = userRole === 'admin' ? 'Todos' : (activeStore || 'CB');
+
   // Estados locales para simulación / pruebas locales
-  const [mockUserRol, setMockUserRol] = useState('Administrador');
-  const [mockUserTienda, setMockUserTienda] = useState('Todos');
+  const [mockUserRol, setMockUserRol] = useState(initialMockRol);
+  const [mockUserTienda, setMockUserTienda] = useState(initialMockTienda);
+
+  // Sincronizar estados locales de prueba cuando cambian las props de sesión principal
+  useEffect(() => {
+    if (userRole) {
+      const mappedRol = userRole === 'admin' ? 'Administrador' : 'Vendedor';
+      const mappedTienda = userRole === 'admin' ? 'Todos' : (activeStore || 'CB');
+      setMockUserRol(mappedRol);
+      setMockUserTienda(mappedTienda);
+    }
+  }, [userRole, activeStore]);
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -532,7 +546,35 @@ export default function ProspeccionesView({ showToast }) {
   return (
     <div style={{ position: 'relative' }}>
       
-
+      {/* SIMULATOR BAR (only visible in local preview) */}
+      {!isGas && (
+        <div className="simulator-bar" style={{
+          background: '#FFFBEB',
+          borderBottom: '1px solid #FDE68A',
+          padding: '8px 28px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          fontSize: '12px',
+          color: '#78350F',
+          fontWeight: '500',
+          marginBottom: '20px',
+          borderRadius: 'var(--radius-md)'
+        }}>
+          <i className="fas fa-tools"></i>
+          <span><strong>Entorno local (Simulador de Roles):</strong></span>
+          <select 
+            className="select-filter" 
+            value={mockUserRol === 'Administrador' ? 'Administrador' : `Vendedor_${mockUserTienda}`}
+            onChange={(e) => handleMockRoleChange(e.target.value)} 
+            style={{ background: '#fff', borderColor: '#FCD34D' }}
+          >
+            <option value="Administrador">Perfil: Administrador</option>
+            <option value="Vendedor_CB">Perfil: Asesor CB (Tienda CB)</option>
+            <option value="Vendedor_JT">Perfil: Asesor JT (Tienda JT)</option>
+          </select>
+        </div>
+      )}
 
       {/* HEADER DE LA SECCIÓN */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>

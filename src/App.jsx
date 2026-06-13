@@ -431,7 +431,11 @@ export default function App() {
           )}
 
           {currentView === 'prospecciones' && (
-            <ProspeccionesView showToast={showToast} />
+            <ProspeccionesView 
+              showToast={showToast} 
+              userRole={userRole}
+              activeStore={activeStore}
+            />
           )}
 
           {['80-20', 'proyecto', 'carreras'].includes(currentView) && (
