@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NexusCRM - Análisis de Pareto 80/20 conectado a Google Sheets.">
+  <title>NexusCRM · Análisis 80/20</title>
+
+  <!-- Google Fonts — Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ============================================================
+       NexusCRM Design System (Vanilla CSS Modern Style)
+    ============================================================ */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Colors */
+      --bg-body:       #F5F3EE;     /* soft bone/cream */
+      --bg-sidebar:    #14172B;     /* deep navy */
+      --bg-card:       #FFFFFF;
+      --bg-card-hover: #FAFAF8;
+
+      --accent-coral:  #FF6D4D;     /* CTA, revenue */
+      --accent-orange: #F59E0B;     /* negotiation */
+      --accent-green:  #10B981;     /* won, positive */
+      --accent-blue:   #3B82F6;     /* info */
+      --accent-purple: #8B5CF6;     /* charts */
+      --accent-red:    #EF4444;     /* lost, negative */
+
+      --text-primary:  #1E293B;
+      --text-secondary:#475569;
+      --text-muted:    #94A3B8;
+      --border-light:  #E8E5DC;
+      --border-card:   #F0EDE4;
+
+      /* Sidebar */
+      --sidebar-width: 240px;
+      --sidebar-link:  #8892A4;
+      --sidebar-active:#FFFFFF;
+
+      /* Shadows */
+      --shadow-card: 0 2px 16px rgba(30,41,59,0.07);
+      --shadow-hover: 0 8px 32px rgba(30,41,59,0.13);
+      --shadow-modal: 0 24px 64px rgba(30,41,59,0.22);
+
+      /* Radii */
+      --radius-sm:  8px;
+      --radius-md:  14px;
+      --radius-lg:  20px;
+
+      /* Transitions */
+      --tr-fast: 0.18s ease;
+      --tr-med:  0.28s ease;
+    }
+
+    html { font-size: 16px; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .app-shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ─── SIDEBAR ───────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+    .sidebar::-webkit-scrollbar { display: none; }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .sidebar-brand-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent-coral), #FF9070);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(255,109,77,0.45);
+    }
+    .sidebar-brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .sidebar-brand-name span {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--sidebar-link);
+      display: block;
+      margin-top: 1px;
+      letter-spacing: 0.3px;
+    }
+
+    .sidebar-nav {
+      padding: 16px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-section-title {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.28);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      padding: 14px 8px 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--sidebar-link);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background var(--tr-fast), color var(--tr-fast);
+      cursor: pointer;
+      position: relative;
+    }
+    .nav-item i {
+      width: 18px; text-align: center; font-size: 13px; flex-shrink: 0;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+    }
+    .nav-item.active {
+      background: rgba(255,109,77,0.14);
+      color: #fff;
+      font-weight: 600;
+    }
+    .nav-item.active i { color: var(--accent-coral); }
+
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-footer img {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+    .sidebar-footer-info { flex: 1; min-width: 0; }
+    .sidebar-footer-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sidebar-footer-role {
+      font-size: 10px;
+      color: var(--sidebar-link);
+    }
+
+    /* ─── MAIN WRAPPER ──────────────────────────────────────── */
+    .main-wrapper {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ─── TOPBAR ────────────────────────────────────────────── */
+    .topbar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-light);
+      padding: 0 28px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0; z-index: 90;
+      box-shadow: 0 1px 4px rgba(30,41,59,0.04);
+    }
+    .topbar-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-right: auto; }
+
+    .topbar-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--tr-fast);
+      white-space: nowrap;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--border-light);
+      color: var(--text-secondary);
+    }
+    .btn-outline:hover {
+      border-color: var(--accent-coral);
+      color: var(--accent-coral);
+      background: rgba(255,109,77,0.04);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-coral), #FF9070);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(255,109,77,0.35);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(255,109,77,0.45);
+    }
+
+    /* ─── PAGE CONTENT ──────────────────────────────────────── */
+    .page-content { padding: 24px 28px 40px; flex: 1; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 1.1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ─── KPIS GRID ─────────────────────────────────────────── */
+    .kpis-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 768px) {
+      .kpis-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--border-card);
+      transition: box-shadow var(--tr-med);
+    }
+    .card:hover { box-shadow: var(--shadow-hover); }
+
+    .kpi-card {
+      padding: 20px;
+    }
+    .kpi-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-top: 8px;
+    }
+
+    /* ─── CHARTS & TABLES ───────────────────────────────────── */
+    .chart-table-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .table-card { padding: 0; overflow: hidden; }
+    .table-card-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .table-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .select-filter {
+      padding: 7px 10px;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif;
+      font-size: 12px; font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      outline: none;
+      background: var(--bg-body);
+      transition: border-color var(--tr-fast);
+    }
+    .select-filter:focus { border-color: var(--accent-blue); }
+
+    .table-responsive { overflow-x: auto; }
+    .deals-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .deals-table treaties { background: var(--bg-body); }
+    .deals-table th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .deals-table td {
+      padding: 12px 16px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-card);
+      vertical-align: middle;
+    }
+    .deal-row { transition: background var(--tr-fast); }
+    .deal-row:hover { background: #FDFCF9; }
+    .deal-row:last-child td { border-bottom: none; }
+
+    .num-cell { font-weight: 700; color: var(--text-muted); width: 50px; }
+    .order-cell { font-weight: 700; color: var(--text-primary); }
+    .client-cell { font-weight: 500; color: var(--text-secondary); }
+    .amount-cell { font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .stage-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-no-contactado { background: rgba(148, 163, 184, 0.12); color: #475569; }
+    .badge-contactado { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }
+    .badge-cotizado { background: rgba(245, 158, 11, 0.12); color: #b45309; }
+    .badge-cerrado { background: rgba(16, 185, 129, 0.12); color: #047857; }
+    .badge-perdido { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+
+    .paretoclass-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .pareto-top { background: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.25); }
+    .pareto-resto { background: rgba(148, 163, 184, 0.12); color: #475569; border: 1px solid rgba(148, 163, 184, 0.25); }
+
+    .action-btn {
+      width: 28px; height: 28px;
+      border: none; border-radius: 7px;
+      background: transparent; cursor: pointer;
+      color: var(--text-muted); font-size: 11.5px;
+      transition: all var(--tr-fast);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .edit-btn:hover { background: rgba(59,130,246,0.1); color: var(--accent-blue); }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .empty-state i { font-size: 28px; display: block; margin-bottom: 10px; opacity: 0.5; }
+
+    /* ─── MODAL ────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(14,18,36,0.55);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--tr-med);
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+
+    .modal-box {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-modal);
+      width: 92%;
+      max-width: 500px;
+      transform: translateY(16px) scale(0.97);
+      transition: transform var(--tr-med);
+      overflow: hidden;
+      border: 1px solid var(--border-light);
+    }
+    .modal-overlay.active .modal-box { transform: translateY(0) scale(1); }
+
+    .modal-head {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-head h3 { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .modal-close {
+      background: transparent; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 14px; padding: 6px;
+      border-radius: 6px; transition: all var(--tr-fast);
+    }
+    .modal-close:hover { background: var(--bg-body); color: var(--text-primary); }
+
+    .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-label {
+      font-size: 10px; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-control {
+      padding: 9px 12px;
+      border: 1.5px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--tr-fast), box-shadow var(--tr-fast);
+      background: var(--bg-body);
+    }
+    .form-control:focus {
+      border-color: var(--accent-coral);
+      box-shadow: 0 0 0 3px rgba(255,109,77,0.12);
+      background: #fff;
+    }
+    .form-control:invalid:focus {
+      border-color: var(--accent-red);
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+
+    .modal-foot {
+      padding: 14px 24px 20px;
+      border-top: 1px solid var(--border-light);
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+
+    /* ─── TOASTS ────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px; font-weight: 600;
+      box-shadow: var(--shadow-modal);
+      opacity: 0;
+      transform: translateX(30px);
+      transition: all var(--tr-med);
+      color: #fff;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    .toast-success { background: var(--accent-green); }
+    .toast-error   { background: var(--accent-red); }
+    .toast-info    { background: var(--accent-blue); }
+
+    /* ─── LOADER ────────────────────────────────────────────── */
+    .loader-overlay {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+      opacity: 0; pointer-events: none;
+      transition: opacity var(--tr-fast);
+    }
+    .loader-overlay.active { opacity: 1; pointer-events: all; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3.5px solid var(--border-light);
+      border-top-color: var(--accent-coral);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Simulator panel style */
+    .simulator-bar {
+      background: #FFFBEB;
+      border-bottom: 1px solid #FDE68A;
+      padding: 8px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: #78350F;
+      font-weight: 500;
+      z-index: 95;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIMULATOR BAR (only visible in local preview) -->
+  <div class="simulator-bar" id="mock-role-simulator">
+    <i class="fas fa-tools"></i>
+    <span><strong>Entorno local (Simulador de Roles):</strong></span>
+    <select class="select-filter" onchange="handleMockRoleChange(this.value)" style="background: #fff; border-color: #FCD34D;">
+      <option value="Administrador">Perfil: Administrador</option>
+      <option value="Vendedor_CB">Perfil: Asesor CB (Tienda CB)</option>
+      <option value="Vendedor_JT">Perfil: Asesor JT (Tienda JT)</option>
+    </select>
+  </div>
+
+  <div class="app-shell">
+
+    <!-- ─── SIDEBAR NAVIGATION ──────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">CRM</div>
+        <div class="sidebar-brand-name">
+          NexusCRM
+          <span>Sales Manager v2.0</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <span class="nav-section-title">Principal</span>
+        <a href="index.html" class="nav-item">
+          <i class="fas fa-th-large"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <span class="nav-section-title">Ventas</span>
+        <a href="prospecciones_index.html" class="nav-item">
+          <i class="fas fa-handshake"></i>
+          <span>Prospecciones</span>
+        </a>
+
+        <a href="#" class="nav-item active">
+          <i class="fas fa-percentage"></i>
+          <span>Análisis 80/20</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <i class="fas fa-users"></i>
+          <span>Clientes</span>
+        </a>
+
+        <span class="nav-section-title">Sistema</span>
+        <a href="#" class="nav-item">
+          <i class="fas fa-cog"></i>
+          <span>Configuración</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <img src="https://i.pravatar.cc/150?u=vendedor" alt="Usuario Activo">
+        <div class="sidebar-footer-info">
+          <div class="sidebar-footer-name" id="user-display-name">Asesor de Ventas</div>
+          <div class="sidebar-footer-role" id="user-display-email">vendedor@trofex.com</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ─── MAIN WRAPPER ────────────────────────────────────── -->
+    <div class="main-wrapper">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <h1 class="topbar-title">Análisis 80/20</h1>
+
+        <button class="topbar-btn btn-outline" onclick="recargarTablaManual()">
+          <i class="fas fa-sync-alt" id="sync-icon"></i> Actualizar vista
+        </button>
+        <button class="topbar-btn btn-primary" id="btn-agregar-8020" onclick="abrirModal8020()" style="display: none;">
+          <i class="fas fa-plus"></i> + Agregar
+        </button>
+      </header>
+
+      <!-- PAGE CONTENT -->
+      <main class="page-content">
+        <p class="section-label">Ventas — Análisis de Pareto 80/20</p>
+
+        <!-- KPI CARDS GRID -->
+        <div class="kpis-grid">
+          <div class="card kpi-card" style="border-top: 4px solid var(--accent-coral);">
+            <div class="kpi-title">Monto Global Acumulado</div>
+            <div class="kpi-value" id="kpi-monto-global">Q0.00</div>
+          </div>
+          <div class="card kpi-card" style="border-top: 4px solid var(--accent-green);">
+            <div class="kpi-title">Clientes Top 80%</div>
+            <div class="kpi-value" id="kpi-count-top">0</div>
+          </div>
+          <div class="card kpi-card" style="border-top: 4px solid var(--accent-blue);">
+            <div class="kpi-title">Clientes Resto 20%</div>
+            <div class="kpi-value" id="kpi-count-resto">0</div>
+          </div>
+        </div>
+
+        <div class="chart-table-container">
+          <!-- DONUT CHART CARD -->
+          <div class="card" style="padding: 20px;">
+            <div class="table-card-header" style="padding: 0 0 14px; border-bottom: none;">
+              <div class="card-title">
+                <span class="card-title-dot" style="background: var(--accent-purple);"></span>
+                Distribución por Etapas de Oportunidades
+              </div>
+            </div>
+            <div style="height: 240px; display: flex; justify-content: center; align-items: center; position: relative;">
+              <div id="chart-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 10px;">
+                <i class="fas fa-chart-pie fa-2x"></i>
+                <span>No hay datos suficientes para graficar la distribución</span>
+              </div>
+              <canvas id="donut-chart-canvas" style="display: none; max-width: 240px; max-height: 240px;"></canvas>
+            </div>
+          </div>
+
+          <!-- TABLE CARD -->
+          <div class="card table-card" style="position: relative;">
+            <div id="table-loader" class="loader-overlay">
+              <div class="spinner"></div>
+            </div>
+
+            <div class="table-card-header">
+              <div class="card-title">
+                <i class="fas fa-percentage" style="color: var(--accent-coral);"></i>
+                Clasificación de Clientes 80/20 (Pareto)
+                <span id="active-profile-label" style="font-size: 10px; font-weight: 500; color: var(--text-muted); margin-left: 8px;"></span>
+              </div>
+              
+              <div class="table-controls">
+                <!-- Filtro por Tienda: Visible únicamente para el Administrador -->
+                <select class="select-filter" id="filter-tienda" onchange="filtrarTabla()" style="display: none;">
+                  <option value="all">Filtrar por Tienda (Todas)</option>
+                  <option value="CB">Tienda CB</option>
+                  <option value="CHM">Tienda CHM</option>
+                  <option value="CHQ">Tienda CHQ</option>
+                  <option value="ESC">Tienda ESC</option>
+                  <option value="HH">Tienda HH</option>
+                  <option value="JT">Tienda JT</option>
+                  <option value="MZ">Tienda MZ</option>
+                  <option value="PT">Tienda PT</option>
+                  <option value="PTB">Tienda PTB</option>
+                  <option value="SJ">Tienda SJ</option>
+                  <option value="SMA">Tienda SMA</option>
+                  <option value="VN">Tienda VN</option>
+                  <option value="XL">Tienda XL</option>
+                  <option value="Z3">Tienda Z3</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="deals-table">
+                <thead id="table-headers">
+                  <!-- Se pobla dinámicamente según el rol del usuario -->
+                </thead>
+                <tbody id="table-body-8020">
+                  <!-- Se pobla dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+  </div>
+
+  <!-- ─── MODAL: AGREGAR / EDITAR REGISTRO 80/20 ──────────────── -->
+  <div class="modal-overlay" id="modal-8020" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+      
+      <div class="modal-head">
+        <h3 id="modal-title">Nuevo Registro 80/20</h3>
+        <button class="modal-close" onclick="cerrarModal8020()" aria-label="Cerrar modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form id="form-8020" onsubmit="guardar8020(event)" novalidate>
+        <div class="modal-body">
+          <input type="hidden" id="field-id">
+
+          <div class="form-group">
+            <label class="form-label" for="field-orden">Orden de Venta</label>
+            <input type="text" id="field-orden" class="form-control" placeholder="Ej: OV-1025" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-cliente">Cliente</label>
+            <input type="text" id="field-cliente" class="form-control" placeholder="Ej: Corporación Multi-Inversiones" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-total">Total (Q)</label>
+            <input type="number" id="field-total" class="form-control" placeholder="Ej: 45000.00" min="0" step="0.01" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-etapa">Etapa</label>
+            <select id="field-etapa" class="form-control" required>
+              <option value="" disabled selected>Seleccione una etapa</option>
+              <option value="No contactado">No contactado</option>
+              <option value="Contactado">Contactado</option>
+              <option value="Cotizado">Cotizado</option>
+              <option value="Cerrado">Cerrado</option>
+              <option value="Perdido">Perdido</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="topbar-btn btn-outline" onclick="cerrarModal8020()">Cancelar</button>
+          <button type="submit" class="topbar-btn btn-primary">
+            <i class="fas fa-save"></i> Guardar
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ─── TOAST NOTIFICATIONS ────────────────────────────── -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+
+  <!-- ─── JAVASCRIPT CONTROLLER ──────────────────────────── -->
+  <script>
+    // Base de datos o array independiente para este módulo
+    let db_8020 = [];
+    let userRol = "Vendedor"; // Administrador | Vendedor
+    let userTienda = ""; // Código de tienda
+
+    // Variables de simulación local
+    let mockUserRol = "Administrador";
+    let mockUserTienda = "Todos";
+
+    // Datos iniciales de simulación si se ejecuta fuera de GAS
+    const MOCK_8020_DB = [
+      { id: 2, Orden: "1001", Cliente: "Constructora Nacional", Total: 50000.00, Etapa: "Cerrado", Tienda: "CB" },
+      { id: 3, Orden: "1002", Cliente: "Corporación Multi-Inversiones", Total: 35000.00, Etapa: "Cotizado", Tienda: "CB" },
+      { id: 4, Orden: "1003", Cliente: "Ingenio Pantaleón", Total: 15000.00, Etapa: "Contactado", Tienda: "CB" },
+      { id: 5, Orden: "1004", Cliente: "Restaurantes Campero", Total: 8000.00, Etapa: "No contactado", Tienda: "CB" },
+      { id: 6, Orden: "1005", Cliente: "Tienda La Barata", Total: 5000.00, Etapa: "Perdido", Tienda: "CB" },
+      { id: 7, Orden: "1006", Cliente: "Hoteles Camino Real", Total: 42000.00, Etapa: "Cerrado", Tienda: "JT" },
+      { id: 8, Orden: "1007", Cliente: "Distribuidora El Sol", Total: 28000.00, Etapa: "Cotizado", Tienda: "JT" },
+      { id: 9, Orden: "1008", Cliente: "Manufacturas Modas", Total: 12000.00, Etapa: "Contactado", Tienda: "JT" }
+    ];
+
+    // STUBS PARA DESARROLLO LOCAL
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      console.warn("NexusCRM 80/20: Entorno de Google Apps Script no detectado. Utilizando emulador local.");
+      
+      if (!localStorage.getItem('MOCK_8020_DB')) {
+        localStorage.setItem('MOCK_8020_DB', JSON.stringify(MOCK_8020_DB));
+      }
+
+      window.google = {
+        script: {
+          run: {
+            handlers: {},
+            withSuccessHandler: function(onSuccess) {
+              this.handlers.success = onSuccess;
+              return this;
+            },
+            withFailureHandler: function(onFailure) {
+              this.handlers.failure = onFailure;
+              return this;
+            },
+            obtenerDatos8020: function() {
+              setTimeout(() => {
+                const db = JSON.parse(localStorage.getItem('MOCK_8020_DB') || '[]');
+                const filtrado = mockUserRol === 'Administrador'
+                  ? db
+                  : db.filter(item => item.Tienda === mockUserTienda);
+                
+                google.script.run.handlers.success({
+                  rol: mockUserRol,
+                  tienda: mockUserTienda,
+                  datos: filtrado
+                });
+              }, 500);
+            },
+            guardarRegistro8020: function(registro) {
+              setTimeout(() => {
+                if (mockUserRol === 'Administrador') {
+                  google.script.run.handlers.failure(new Error("Permiso denegado. El Administrador no agrega nuevos registros."));
+                  return;
+                }
+                const db = JSON.parse(localStorage.getItem('MOCK_8020_DB') || '[]');
+                const newId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 2;
+                
+                const record = {
+                  id: newId,
+                  Orden: registro.orden,
+                  Cliente: registro.cliente,
+                  Total: parseFloat(registro.total) || 0,
+                  Etapa: registro.etapa,
+                  Tienda: mockUserTienda
+                };
+                db.push(record);
+                localStorage.setItem('MOCK_8020_DB', JSON.stringify(db));
+                
+                const filtrado = db.filter(item => item.Tienda === mockUserTienda);
+                google.script.run.handlers.success({
+                  status: "success",
+                  response: {
+                    rol: mockUserRol,
+                    tienda: mockUserTienda,
+                    datos: filtrado
+                  }
+                });
+              }, 600);
+            },
+            editarRegistro8020: function(id, registro) {
+              setTimeout(() => {
+                let db = JSON.parse(localStorage.getItem('MOCK_8020_DB') || '[]');
+                let originalTienda = 'CB';
+                
+                db = db.map(d => {
+                  if (d.id == id) {
+                    originalTienda = d.Tienda || 'CB';
+                    if (mockUserRol !== 'Administrador' && originalTienda !== mockUserTienda) {
+                      return d;
+                    }
+                    return {
+                      ...d,
+                      Orden: registro.orden,
+                      Cliente: registro.cliente,
+                      Total: parseFloat(registro.total) || 0,
+                      Etapa: registro.etapa,
+                      Tienda: originalTienda
+                    };
+                  }
+                  return d;
+                });
+                
+                localStorage.setItem('MOCK_8020_DB', JSON.stringify(db));
+                
+                const filtrado = mockUserRol === 'Administrador'
+                  ? db
+                  : db.filter(item => item.Tienda === mockUserTienda);
+                
+                google.script.run.handlers.success({
+                  status: "success",
+                  response: {
+                    rol: mockUserRol,
+                    tienda: mockUserTienda,
+                    datos: filtrado
+                  }
+                });
+              }, 600);
+            }
+          }
+        }
+      };
+    }
+
+    function handleMockRoleChange(val) {
+      if (val === 'Administrador') {
+        mockUserRol = 'Administrador';
+        mockUserTienda = 'Todos';
+      } else if (val === 'Vendedor_CB') {
+        mockUserRol = 'Vendedor';
+        mockUserTienda = 'CB';
+      } else if (val === 'Vendedor_JT') {
+        mockUserRol = 'Vendedor';
+        mockUserTienda = 'JT';
+      }
+      userRol = mockUserRol;
+      userTienda = mockUserTienda;
+      cargarDatos8020();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const isGas = typeof google !== 'undefined' && google.script && google.script.run;
+      if (!isGas) {
+        userRol = mockUserRol;
+        userTienda = mockUserTienda;
+      }
+      cargarDatos8020();
+    });
+
+    function cargarDatos8020() {
+      mostrarCargando(true);
+      google.script.run
+        .withSuccessHandler(function(response) {
+          userRol = response.rol;
+          userTienda = response.tienda;
+          db_8020 = response.datos || [];
+          
+          actualizarUIFiltrosYRoles();
+          const procesados = calcularPareto(db_8020);
+          renderizarTabla8020(procesados);
+          mostrarCargando(false);
+        })
+        .withFailureHandler(function(err) {
+          showToast("Error al cargar datos: " + err.message, "error");
+          mostrarCargando(false);
+        })
+        .obtenerDatos8020();
+    }
+
+    function recargarTablaManual() {
+      const syncIcon = document.getElementById('sync-icon');
+      syncIcon.classList.add('fa-spin');
+      showToast("Actualizando datos desde la hoja...", "info");
+      
+      google.script.run
+        .withSuccessHandler(function(response) {
+          userRol = response.rol;
+          userTienda = response.tienda;
+          db_8020 = response.datos || [];
+          
+          actualizarUIFiltrosYRoles();
+          const procesados = calcularPareto(db_8020);
+          renderizarTabla8020(procesados);
+          syncIcon.classList.remove('fa-spin');
+          showToast("Datos actualizados correctamente.", "success");
+        })
+        .withFailureHandler(function(err) {
+          syncIcon.classList.remove('fa-spin');
+          showToast("Error al actualizar vista: " + err.message, "error");
+        })
+        .obtenerDatos8020();
+    }
+
+    function actualizarUIFiltrosYRoles() {
+      const isGas = typeof google !== 'undefined' && google.script && google.script.run;
+      const simulatorEl = document.getElementById('mock-role-simulator');
+      if (simulatorEl) {
+        simulatorEl.style.display = !isGas ? 'flex' : 'none';
+      }
+
+      const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+
+      // Botón Agregar: oculto para Administrador, visible para vendedores
+      const btnAgregar = document.getElementById('btn-agregar-8020');
+      if (btnAgregar) {
+        btnAgregar.style.display = isAdmin ? 'none' : 'inline-flex';
+      }
+
+      // Filtro por Tienda: visible únicamente para Administrador
+      const filterTiendaEl = document.getElementById('filter-tienda');
+      if (filterTiendaEl) {
+        filterTiendaEl.style.display = isAdmin ? 'inline-block' : 'none';
+      }
+
+      const profileLabelEl = document.getElementById('active-profile-label');
+      if (profileLabelEl) {
+        profileLabelEl.textContent = `· ${isAdmin ? 'Perfil Administrador (Vista Consolidada)' : 'Perfil Tienda: ' + userTienda}`;
+      }
+
+      const nameEl = document.getElementById('user-display-name');
+      const emailEl = document.getElementById('user-display-email');
+      if (nameEl) {
+        nameEl.textContent = isAdmin ? 'Administrador' : `Asesor ${userTienda}`;
+      }
+      if (emailEl) {
+        emailEl.textContent = isAdmin ? 'admin@trofex.com' : `${userTienda.toLowerCase()}@trofex.com`;
+      }
+    }
+
+    // ─── LÓGICA DE PARETO (El Cálculo Automático) ──────────────────
+    function calcularPareto(datos) {
+      if (datos.length === 0) return [];
+
+      // 1. Suma el 'Total' de todos los registros para obtener el Monto Global (100%)
+      const montoGlobal = datos.reduce((sum, item) => sum + (parseFloat(item.Total) || 0), 0);
+      
+      // 2. Ordena los registros de Mayor a Menor según su 'Total'
+      const ordenados = [...datos].sort((a, b) => (parseFloat(b.Total) || 0) - (parseFloat(a.Total) || 0));
+      
+      // 3. Recorre el array sumando de forma acumulativa y asignando clasificación
+      let sumaAcumulada = 0;
+      const procesados = ordenados.map(item => {
+        const total = parseFloat(item.Total) || 0;
+        sumaAcumulada += total;
+        
+        let clasificacion = "Resto 20%";
+        // Si la suma acumulativa es menor o igual al 80% del Monto Global
+        if (montoGlobal > 0 && sumaAcumulada <= montoGlobal * 0.8) {
+          clasificacion = "Top 80%";
+        } else if (montoGlobal > 0 && (sumaAcumulada - total) < montoGlobal * 0.8) {
+          // Caso borde: Incluir al cliente que cruza el umbral del 80% si es el primero o para no dejar vacíos
+          clasificacion = "Top 80%";
+        }
+        
+        return {
+          ...item,
+          Clasificacion: clasificacion
+        };
+      });
+
+      // Actualizar KPIs superiores
+      document.getElementById('kpi-monto-global').textContent = formatMoneda(montoGlobal);
+      document.getElementById('kpi-count-top').textContent = procesados.filter(p => p.Clasificacion === 'Top 80%').length;
+      document.getElementById('kpi-count-resto').textContent = procesados.filter(p => p.Clasificacion === 'Resto 20%').length;
+
+      return procesados;
+    }
+
+    // ─── RENDERIZAR TABLA CON COLUMNAS POR ROL ──────────────────────
+    function renderizarTabla8020(datos) {
+      const headersRow = document.getElementById('table-headers');
+      const tbody = document.getElementById('table-body-8020');
+      tbody.innerHTML = '';
+
+      const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+
+      // 1. Configurar Cabeceras de Tabla según el Rol
+      if (isAdmin) {
+        headersRow.innerHTML = `
+          <th scope="col">No.</th>
+          <th scope="col">Tienda/Sucursal</th>
+          <th scope="col">Orden de Venta</th>
+          <th scope="col">Cliente</th>
+          <th scope="col">Total</th>
+          <th scope="col">Clasificación</th>
+          <th scope="col">Etapa</th>
+        `;
+      } else {
+        headersRow.innerHTML = `
+          <th scope="col">No.</th>
+          <th scope="col">Orden de Venta</th>
+          <th scope="col">Cliente</th>
+          <th scope="col">Total</th>
+          <th scope="col">Clasificación</th>
+          <th scope="col">Etapa</th>
+          <th scope="col">Acciones</th>
+        `;
+      }
+
+      if (datos.length === 0) {
+        const colSpan = isAdmin ? 7 : 7;
+        tbody.innerHTML = `
+          <tr>
+            <td colSpan="${colSpan}" class="empty-state">
+              <i class="fas fa-percentage"></i>
+              <br />
+              No hay registros ingresados
+            </td>
+          </tr>
+        `;
+        renderizarGraficoDonut([]);
+        return;
+      }
+
+      // 2. Poblar las filas de la tabla
+      datos.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'deal-row';
+
+        const numStr = String(index + 1).padStart(2, '0');
+        const totalStr = formatMoneda(item.Total);
+        
+        // Badges
+        const paretoClass = item.Clasificacion === 'Top 80%' ? 'pareto-top' : 'pareto-resto';
+        const etapaLower = (item.Etapa || '').toLowerCase().replace(' ', '-');
+        let stageBadgeClass = 'badge-no-contactado';
+        if (etapaLower === 'contactado') stageBadgeClass = 'badge-contactado';
+        else if (etapaLower === 'cotizado') stageBadgeClass = 'badge-cotizado';
+        else if (etapaLower === 'cerrado') stageBadgeClass = 'badge-cerrado';
+        else if (etapaLower === 'perdido') stageBadgeClass = 'badge-perdido';
+
+        let rowHtml = `<td class="num-cell">${numStr}</td>`;
+
+        if (isAdmin) {
+          rowHtml += `
+            <td style="font-weight: 700; color: var(--accent-blue);">
+              <span class="stage-badge" style="background: rgba(59, 130, 246, 0.1); color: #2563eb;">
+                ${item.Tienda || '—'}
+              </span>
+            </td>
+          `;
+        }
+
+        rowHtml += `
+          <td class="order-cell">${item.Orden || '—'}</td>
+          <td class="client-cell">${item.Cliente || '—'}</td>
+          <td class="amount-cell">${totalStr}</td>
+          <td><span class="paretoclass-badge ${paretoClass}">${item.Clasificacion}</span></td>
+          <td><span class="stage-badge ${stageBadgeClass}">${item.Etapa || 'No contactado'}</span></td>
+        `;
+
+        if (!isAdmin) {
+          rowHtml += `
+            <td class="actions-cell">
+              <button class="action-btn edit-btn" onclick="editarRegistro(${item.id})" title="Editar"><i class="fas fa-pencil-alt"></i></button>
+            </td>
+          `;
+        }
+
+        tr.innerHTML = rowHtml;
+        tbody.appendChild(tr);
+      });
+
+      renderizarGraficoDonut(datos);
+    }
+
+    // ─── GUARDAR / EDITAR ACCIÓN ──────────────────────────────────
+    function guardar8020(event) {
+      event.preventDefault();
+      const form = document.getElementById('form-8020');
+      if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        showToast("Por favor complete los campos obligatorios.", "error");
+        return;
+      }
+
+      const id = document.getElementById('field-id').value;
+      const datos = {
+        orden: document.getElementById('field-orden').value.trim(),
+        cliente: document.getElementById('field-cliente').value.trim(),
+        total: parseFloat(document.getElementById('field-total').value) || 0,
+        etapa: document.getElementById('field-etapa').value
+      };
+
+      mostrarCargando(true);
+      cerrarModal8020();
+
+      if (id) {
+        // Modo Edición
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response.status === 'success') {
+              showToast("Guardado exitoso.", "success");
+              db_8020 = response.response.datos || [];
+              const procesados = calcularPareto(db_8020);
+              renderizarTabla8020(procesados);
+            } else {
+              showToast("Error: " + response.message, "error");
+            }
+            mostrarCargando(false);
+          })
+          .withFailureHandler(function(err) {
+            showToast("Error: " + err.message, "error");
+            mostrarCargando(false);
+          })
+          .editarRegistro8020(id, datos);
+      } else {
+        // Modo Agregar
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response.status === 'success') {
+              showToast("Guardado exitoso.", "success");
+              db_8020 = response.response.datos || [];
+              const procesados = calcularPareto(db_8020);
+              renderizarTabla8020(procesados);
+            } else {
+              showToast("Error: " + response.message, "error");
+            }
+            mostrarCargando(false);
+          })
+          .withFailureHandler(function(err) {
+            showToast("Error: " + err.message, "error");
+            mostrarCargando(false);
+          })
+          .guardarRegistro8020(datos);
+      }
+    }
+
+    function abrirModal8020(id = null) {
+      const modal = document.getElementById('modal-8020');
+      const form = document.getElementById('form-8020');
+      const titleEl = document.getElementById('modal-title');
+      
+      form.classList.remove('was-validated');
+
+      if (id) {
+        titleEl.textContent = "Editar Registro 80/20";
+        const item = db_8020.find(p => p.id == id);
+        if (item) {
+          document.getElementById('field-id').value = item.id;
+          document.getElementById('field-orden').value = item.Orden || '';
+          document.getElementById('field-cliente').value = item.Cliente || '';
+          document.getElementById('field-total').value = item.Total || '';
+          document.getElementById('field-etapa').value = item.Etapa || 'No contactado';
+        }
+      } else {
+        titleEl.textContent = "Nuevo Registro 80/20";
+        form.reset();
+        document.getElementById('field-id').value = '';
+      }
+      modal.classList.add('active');
+    }
+
+    function cerrarModal8020() {
+      document.getElementById('modal-8020').classList.remove('active');
+    }
+
+    function editarRegistro(id) {
+      abrirModal8020(id);
+    }
+
+    function filtrarTabla() {
+      const tiendaFilter = document.getElementById('filter-tienda').value;
+      const filtrados = db_8020.filter(item => {
+        const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+        return !isAdmin || tiendaFilter === 'all' || (item.Tienda || '').toUpperCase() === tiendaFilter.toUpperCase();
+      });
+      const procesados = calcularPareto(filtrados);
+      renderizarTabla8020(procesados);
+    }
+
+    // ─── GRÁFICA DE DONA DE ETAPAS (Chart.js) ─────────────────────
+    let donutChartInstance = null;
+    function renderizarGraficoDonut(datos) {
+      const placeholder = document.getElementById('chart-placeholder');
+      const canvas = document.getElementById('donut-chart-canvas');
+
+      if (datos.length === 0) {
+        if (placeholder) placeholder.style.display = 'flex';
+        if (canvas) canvas.style.display = 'none';
+        if (donutChartInstance) {
+          donutChartInstance.destroy();
+          donutChartInstance = null;
+        }
+        return;
+      }
+
+      if (placeholder) placeholder.style.display = 'none';
+      if (canvas) canvas.style.display = 'block';
+
+      // Calcular distribución
+      const conteos = {
+        'No contactado': 0,
+        'Contactado': 0,
+        'Cotizado': 0,
+        'Cerrado': 0,
+        'Perdido': 0
+      };
+
+      datos.forEach(item => {
+        const etapa = item.Etapa || 'No contactado';
+        if (conteos.hasOwnProperty(etapa)) {
+          conteos[etapa]++;
+        }
+      });
+
+      const labels = Object.keys(conteos);
+      const values = Object.values(conteos);
+      const colors = ['#94A3B8', '#3B82F6', '#8B5CF6', '#10B981', '#EF4444'];
+
+      if (donutChartInstance) {
+        donutChartInstance.destroy();
+      }
+
+      const ctx = canvas.getContext('2d');
+      donutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors,
+            borderWidth: 2,
+            borderColor: '#FFFFFF'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 10,
+                font: { family: 'Inter', size: 10, weight: '500' },
+                color: '#64748B'
+              }
+            }
+          },
+          cutout: '65%'
+        }
+      });
+    }
+
+    // UTILITIES
+    function mostrarCargando(mostrar) {
+      const loader = document.getElementById('table-loader');
+      if (mostrar) loader.classList.add('active');
+      else loader.classList.remove('active');
+    }
+
+    function formatMoneda(monto) {
+      const valor = parseFloat(monto);
+      if (isNaN(valor)) return 'Q0.00';
+      return 'Q' + valor.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      
+      let icon = 'fa-check-circle';
+      if (type === 'error') icon = 'fa-exclamation-circle';
+      else if (type === 'info') icon = 'fa-info-circle';
+
+      toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span>${message}</span>
+      `;
+      
+      container.appendChild(toast);
+      toast.offsetHeight;
+      toast.classList.add('show');
+
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+          container.removeChild(toast);
+        }, 300);
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
