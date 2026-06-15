@@ -28,11 +28,37 @@ export default function TareasView({
   userRole, 
   storeChecklists, 
   onToggleTask,
-  onSaveToSheets 
+  onSaveToSheets,
+  checkedTasks,
+  setCheckedTasks,
+  savedDays,
+  setSavedDays,
+  weeklyTasks,
+  setWeeklyTasks
 }) {
   // Simulated time states
   const [simulatedTimeChoice, setSimulatedTimeChoice] = useState('real'); // 'real' or simulated values
   const [systemTime, setSystemTime] = useState(new Date());
+
+  const getSystemDayTab = () => {
+    const day = new Date().getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    if (day === 0) return 'Lun'; // Sunday defaults to Lun
+    const dayMap = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+    return dayMap[day];
+  };
+
+  const [activeTab, setActiveTab] = useState(getSystemDayTab());
+
+  // Admin tasks management states
+  const [adminActividad, setAdminActividad] = useState('');
+  const [adminDescripcion, setAdminDescripcion] = useState('');
+  const [adminObligatorio, setAdminObligatorio] = useState('Sí');
+  const [adminHoraInicio, setAdminHoraInicio] = useState('08:30');
+  const [adminHoraFin, setAdminHoraFin] = useState('17:30');
+  const [editingTaskId, setEditingTaskId] = useState(null);
+
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [alertDismissedToday, setAlertDismissedToday] = useState(false);
 
   // Refs for compliance charts
   const barChartRef = useRef(null);
@@ -51,6 +77,19 @@ export default function TareasView({
     }, 1000);
     return () => clearInterval(timer);
   }, [simulatedTimeChoice]);
+
+  // Alert Modal Check Effect
+  useEffect(() => {
+    const currentDay = new Date().getDay();
+    const isWorkDay = currentDay >= 1 && currentDay <= 6;
+    const todayTabLabel = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'][currentDay];
+    const isDaySaved = savedDays[storeCode]?.[todayTabLabel] || false;
+    const currentMinutesVal = hour * 60 + minute;
+
+    if (isWorkDay && currentMinutesVal >= 990 && !isDaySaved && !alertDismissedToday && !isAlertModalOpen) {
+      setIsAlertModalOpen(true);
+    }
+  }, [hour, minute, savedDays, storeCode, alertDismissedToday, isAlertModalOpen]);
 
   // Compute active hour/minute based on choice
   const { hour, minute, timeStr } = useMemo(() => {
@@ -371,11 +410,188 @@ export default function TareasView({
     };
   }, [storeStatistics, complianceAverages, storeCode, userRole, storeHistory]);
 
+  // Get ISO week number
+  const getWeekNumber = (d) => {
+    const target = new Date(d.valueOf());
+    const dayNr = (d.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = target.valueOf();
+    target.setMonth(0, 1);
+    if (target.getDay() !== 4) {
+      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+    }
+    return 1 + Math.ceil((firstThursday - target) / 604800000);
+  };
+
+  // Calculate dynamic week dates starting on Monday of this week
+  const getWeekDayDates = useMemo(() => {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    const distance = currentDay === 0 ? -6 : 1 - currentDay; // distance to Monday
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + distance);
+    
+    const dayMap = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+    const dayInitials = { Lun: 'L', Mar: 'M', Mie: 'M', Jue: 'J', Vie: 'V', Sab: 'S' };
+    const weekNo = getWeekNumber(today);
+    
+    const daysData = {};
+    dayMap.forEach((day, index) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + index);
+      const dayNum = d.getDate().toString().padStart(2, '0');
+      const initial = dayInitials[day];
+      daysData[day] = {
+        label: `S${weekNo}-${initial}${dayNum}`,
+        date: d
+      };
+    });
+    
+    return daysData;
+  }, []);
+
+  const monthYearLabel = useMemo(() => {
+    const today = new Date();
+    const monthNamesUpper = [
+      'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+      'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+    return `${monthNamesUpper[today.getMonth()]} ${today.getFullYear()}`;
+  }, []);
+
+  // Compute tasks for current selected tab
+  const activeTasks = useMemo(() => {
+    return weeklyTasks[activeTab] || [];
+  }, [weeklyTasks, activeTab]);
+
+  const todayTab = useMemo(() => {
+    const day = systemTime.getDay();
+    const dayMap = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+    return dayMap[day];
+  }, [systemTime]);
+
+  const getTaskEndMinutes = (horaFin) => {
+    if (!horaFin) return 9999;
+    const [h, m] = horaFin.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const currentMinutes = hour * 60 + minute;
+
+  const formatTime12h = (timeStr) => {
+    if (!timeStr) return '';
+    const [hStr, mStr] = timeStr.split(':');
+    const h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    return `${displayH.toString().padStart(2, '0')}:${mStr} ${ampm}`;
+  };
+
+  // Toggle tasks checkbox handler
+  const handleToggleCronogramaTask = (taskId) => {
+    if (activeStore === 'Todos') return;
+    const isDaySaved = savedDays[storeCode]?.[activeTab] || false;
+    const task = (weeklyTasks[activeTab] || []).find(t => t.id === taskId);
+    const isExpired = activeTab === todayTab && task?.horaFin && (currentMinutes > getTaskEndMinutes(task.horaFin));
+    if (isDaySaved || isExpired) return;
+
+    setCheckedTasks(prev => {
+      const storeChecks = { ...prev[storeCode] };
+      const dayTasks = { ...storeChecks[activeTab] };
+      dayTasks[taskId] = !dayTasks[taskId];
+      storeChecks[activeTab] = dayTasks;
+      return { ...prev, [storeCode]: storeChecks };
+    });
+  };
+
+  // Save Progress click handler
+  const handleSaveProgress = () => {
+    setSavedDays(prev => {
+      const storeSaved = { ...prev[storeCode] };
+      storeSaved[activeTab] = true;
+      return { ...prev, [storeCode]: storeSaved };
+    });
+    alert(`Sincronización exitosa con BD_Historial_Cronograma. Las actividades para el día ${activeTab} se han congelado.`);
+  };
+
+  // Admin tasks management handlers
+  const handleSaveAdminTask = (e) => {
+    e.preventDefault();
+    if (!adminActividad.trim()) return;
+
+    setWeeklyTasks(prev => {
+      const dayTasks = [...(prev[activeTab] || [])];
+      if (editingTaskId !== null) {
+        const updated = dayTasks.map(t => {
+          if (t.id === editingTaskId) {
+            return {
+              ...t,
+              name: adminActividad,
+              desc: adminDescripcion,
+              obligatoria: adminObligatorio === 'Sí',
+              icon: t.icon || '📋',
+              horaInicio: adminHoraInicio,
+              horaFin: adminHoraFin
+            };
+          }
+          return t;
+        });
+        return { ...prev, [activeTab]: updated };
+      } else {
+        const newId = dayTasks.length > 0 ? Math.max(...dayTasks.map(t => t.id)) + 1 : 1;
+        const newTask = {
+          id: newId,
+          name: adminActividad,
+          desc: adminDescripcion,
+          obligatoria: adminObligatorio === 'Sí',
+          icon: '📋',
+          horaInicio: adminHoraInicio,
+          horaFin: adminHoraFin
+        };
+        return { ...prev, [activeTab]: [...dayTasks, newTask] };
+      }
+    });
+
+    setAdminActividad('');
+    setAdminDescripcion('');
+    setAdminObligatorio('Sí');
+    setAdminHoraInicio('08:30');
+    setAdminHoraFin('17:30');
+    setEditingTaskId(null);
+  };
+
+  const handleEditAdminTask = (task) => {
+    setAdminActividad(task.name);
+    setAdminDescripcion(task.desc || '');
+    setAdminObligatorio(task.obligatoria ? 'Sí' : 'No');
+    setAdminHoraInicio(task.horaInicio || '08:30');
+    setAdminHoraFin(task.horaFin || '17:30');
+    setEditingTaskId(task.id);
+  };
+
+  const handleDeleteAdminTask = (taskId) => {
+    if (window.confirm('¿Seguro que deseas eliminar esta actividad?')) {
+      setWeeklyTasks(prev => {
+        const filtered = (prev[activeTab] || []).filter(t => t.id !== taskId);
+        return { ...prev, [activeTab]: filtered };
+      });
+      if (editingTaskId === taskId) {
+        setEditingTaskId(null);
+        setAdminActividad('');
+        setAdminDescripcion('');
+        setAdminObligatorio('Sí');
+        setAdminHoraInicio('08:30');
+        setAdminHoraFin('17:30');
+      }
+    }
+  };
+
   return (
     <div className="view-section active">
       
       {/* Simulation Header Clock control */}
-      <div className="card" style={{ display: 'none', marginBottom: '20px', padding: '16px 20px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+      <div className="card" style={{ display: 'flex', marginBottom: '20px', padding: '16px 20px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ fontSize: '20px' }}>⏱️</div>
           <div>
@@ -402,6 +618,308 @@ export default function TareasView({
           </select>
         </div>
       </div>
+
+      {/* 1. Cronograma de Actividades Semanal (Trasladado) */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ color: 'var(--accent-coral)', display: 'inline-flex', padding: '5px', background: 'rgba(255, 109, 77, 0.1)', borderRadius: '6px' }}>
+              <i className="fas fa-calendar-check" style={{ fontSize: '14px' }}></i>
+            </span>
+            <div>
+              <h3 className="card-title" style={{ fontSize: '14.5px' }}>Cronograma de Actividades Obligatorias</h3>
+              <p className="card-subtitle">Tareas operacionales asignadas de Lunes a Sábado</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span className="stage-badge" style={{ background: 'var(--accent-coral)', color: '#FFFFFF', fontSize: '10px', fontWeight: '800', padding: '3px 8px', textTransform: 'uppercase' }}>
+              {monthYearLabel}
+            </span>
+            <span className="stage-badge" style={{ background: '#f8fafc', color: 'var(--text-secondary)', fontSize: '10px', border: '1.5px solid var(--border-light)', fontWeight: '700' }}>
+              {activeStore === 'Todos' ? 'Red General' : `Tienda: ${activeStore}`}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ padding: '20px' }}>
+          <div className="cronograma-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--border-light)', marginBottom: '20px', gap: '4px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            {['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'].map(day => {
+              const isActive = activeTab === day;
+              const isSaved = savedDays[storeCode]?.[day] || false;
+              const tabInfo = getWeekDayDates[day] || { label: day };
+              
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => setActiveTab(day)}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '12.5px',
+                    fontWeight: '700',
+                    border: 'none',
+                    background: 'transparent',
+                    borderBottom: isActive ? '3.5px solid var(--accent-coral)' : '3.5px solid transparent',
+                    color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
+                  }}
+                >
+                  {tabInfo.label}
+                  {isSaved && <span style={{ fontSize: '10px' }}>🔒</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Consolidate warning for admin when viewing Todos */}
+          {activeStore === 'Todos' && (
+            <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: '8px', border: '1.5px dashed var(--border-light)', textAlign: 'center', marginBottom: '20px' }}>
+              <i className="fas fa-info-circle" style={{ color: 'var(--accent-blue)', fontSize: '20px', marginBottom: '6px', display: 'block' }}></i>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                Modo consolidado. Selecciona una sucursal en la barra superior para interactuar con su cronograma semanal.
+              </span>
+            </div>
+          )}
+
+          {/* Activities list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+            {activeTab === 'Mie' && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1.5px solid rgba(245, 158, 11, 0.2)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <div style={{ textAlign: 'left' }}>
+                  <strong style={{ fontSize: '12.5px', color: '#B45309', display: 'block' }}>Advertencia Comercial Semanal</strong>
+                  <span style={{ fontSize: '11px', color: '#92400E' }}>
+                    Si tu avance comercial y tasa de conversión son menores al 80%, debes reportar de inmediato con tu supervisor de red.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {activeTasks.map(task => {
+              const isChecked = (checkedTasks[storeCode]?.[activeTab] || {})[task.id] || false;
+              const isDaySaved = savedDays[storeCode]?.[activeTab] || false;
+              const isExpired = activeTab === todayTab && task.horaFin && (currentMinutes > getTaskEndMinutes(task.horaFin));
+              const isFrozen = isDaySaved || isExpired;
+              const isDisabled = activeStore === 'Todos' || isFrozen;
+
+              return (
+                <div 
+                  key={task.id}
+                  onClick={() => !isDisabled && handleToggleCronogramaTask(task.id)}
+                  className={isExpired ? "frozen-task" : ""}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: isChecked ? 'rgba(16, 185, 129, 0.04)' : '#FFFFFF',
+                    border: isChecked ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-light)',
+                    borderRadius: '8px',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isFrozen ? 0.6 : 1,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '16px' }}>{task.icon || '📋'}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                      <span style={{ 
+                        fontSize: '13px', 
+                        fontWeight: '600', 
+                        color: isChecked ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        textDecoration: isChecked ? 'line-through' : 'none',
+                        opacity: isChecked ? 0.75 : 1
+                      }}>
+                        {task.name}
+                      </span>
+                      {task.desc && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{task.desc}</span>}
+                      {task.horaInicio && task.horaFin && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <span className="task-time-label">🕒 {formatTime12h(task.horaInicio)} - {formatTime12h(task.horaFin)}</span>
+                          {isExpired && <span style={{ color: '#EF4444' }}>🔒</span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {task.obligatoria !== false && (
+                      <span className="stage-badge" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#EF4444', fontSize: '9px', fontWeight: '800', border: '1px solid rgba(239,68,68,0.15)' }}>
+                        Obligatorio
+                      </span>
+                    )}
+                    <input 
+                      type="checkbox" 
+                      checked={isChecked}
+                      disabled={isDisabled}
+                      onChange={() => {}} // handled by outer container onClick
+                      style={{ transform: 'scale(1.2)', cursor: isDisabled ? 'not-allowed' : 'pointer' }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {activeTasks.length === 0 && (
+              <div className="empty-state">
+                <i className="fas fa-clipboard-list"></i> No hay actividades registradas para este día.
+              </div>
+            )}
+          </div>
+
+          {activeStore !== 'Todos' && activeTasks.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                className="topbar-btn btn-primary"
+                onClick={handleSaveProgress}
+                disabled={savedDays[storeCode]?.[activeTab] || false}
+                style={{
+                  background: (savedDays[storeCode]?.[activeTab]) ? '#94A3B8' : 'linear-gradient(135deg, var(--accent-coral), #FF9070)',
+                  boxShadow: (savedDays[storeCode]?.[activeTab]) ? 'none' : '0 4px 12px rgba(255,109,77,0.35)',
+                  cursor: (savedDays[storeCode]?.[activeTab]) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <i className={(savedDays[storeCode]?.[activeTab]) ? "fas fa-lock" : "fas fa-cloud-upload-alt"} style={{ marginRight: '8px' }}></i>
+                {(savedDays[storeCode]?.[activeTab]) ? 'Progreso Guardado (Congelado)' : 'Guardar Progreso del Día'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Panel de Administración de Tareas Interactivo (Exclusivo para Admin, Trasladado) */}
+      {userRole === 'admin' && (
+        <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <span style={{ color: 'var(--accent-coral)', fontSize: '18px' }}>
+              <i className="fas fa-tasks"></i>
+            </span>
+            <div>
+              <h3 className="card-title" style={{ fontSize: '14.5px' }}>Panel de Administración de Tareas — {activeTab}</h3>
+              <p className="card-subtitle">Administrar actividades obligatorias para el día seleccionado</p>
+            </div>
+          </div>
+          
+          <form onSubmit={handleSaveAdminTask} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 0.6fr 0.6fr auto', gap: '12px', alignItems: 'end', marginBottom: '20px' }}>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label className="form-label" style={{ fontSize: '11px' }}>Actividad</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="Nombre de la actividad" 
+                value={adminActividad}
+                onChange={(e) => setAdminActividad(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label className="form-label" style={{ fontSize: '11px' }}>Descripción</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="Detalle o descripción" 
+                value={adminDescripcion}
+                onChange={(e) => setAdminDescripcion(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label className="form-label" style={{ fontSize: '11px' }}>Obligatorio</label>
+              <select 
+                className="select-filter" 
+                value={adminObligatorio} 
+                onChange={(e) => setAdminObligatorio(e.target.value)}
+                style={{ width: '100%', padding: '9px' }}
+              >
+                <option value="Sí">Sí</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label className="form-label" style={{ fontSize: '11px' }}>Hora Inicio</label>
+              <input 
+                type="time" 
+                className="form-control" 
+                value={adminHoraInicio}
+                onChange={(e) => setAdminHoraInicio(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group" style={{ textAlign: 'left' }}>
+              <label className="form-label" style={{ fontSize: '11px' }}>Hora Fin</label>
+              <input 
+                type="time" 
+                className="form-control" 
+                value={adminHoraFin}
+                onChange={(e) => setAdminHoraFin(e.target.value)}
+                required
+              />
+            </div>
+            <button type="submit" className="topbar-btn btn-primary" style={{ height: '38px', padding: '0 16px' }}>
+              {editingTaskId !== null ? 'Actualizar' : 'Agregar'}
+            </button>
+          </form>
+
+          <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
+            <table className="deals-table">
+              <thead>
+                <tr style={{ background: 'var(--bg-body)' }}>
+                  <th>Actividad</th>
+                  <th>Descripción</th>
+                  <th>Horario</th>
+                  <th style={{ textAlign: 'center' }}>Obligatorio</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeTasks.map(task => (
+                  <tr key={task.id} className="deal-row">
+                    <td style={{ fontWeight: '600' }}>
+                      <span style={{ marginRight: '6px' }}>{task.icon || '📋'}</span>
+                      {task.name}
+                    </td>
+                    <td>{task.desc || '—'}</td>
+                    <td style={{ fontWeight: '700', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      {task.horaInicio && task.horaFin ? `${task.horaInicio} - ${task.horaFin}` : '—'}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`stage-badge ${task.obligatoria !== false ? 'status-won' : 'status-lost'}`} style={{ fontSize: '10px', padding: '2px 8px', fontWeight: '800' }}>
+                        {task.obligatoria !== false ? 'Sí' : 'No'}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="action-btn edit-btn" onClick={() => handleEditAdminTask(task)} title="Editar" style={{ marginRight: '4px' }}>
+                        <i className="fas fa-edit"></i>
+                      </button>
+                      <button className="action-btn delete-btn" onClick={() => handleDeleteAdminTask(task.id)} title="Eliminar">
+                        <i className="fas fa-trash-alt"></i>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {activeTasks.length === 0 && (
+                  <tr>
+                    <td colSpan="5" className="empty-state">
+                      <i className="fas fa-clipboard-list"></i> No hay actividades registradas para este día.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Main Checklist and blocks layout (2 columns) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', marginBottom: '24px', alignItems: 'stretch' }} className="grid-responsive-md">
@@ -945,6 +1463,32 @@ export default function TareasView({
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+      {/* 5. MODAL: Critical 16:30 Warning Alert Modal */}
+      {isAlertModalOpen && (
+        <div className="modal-overlay active" style={{ zIndex: 11000, background: 'rgba(239, 68, 68, 0.4)', backdropFilter: 'blur(4px)' }}>
+          <div className="modal-box" style={{ maxWidth: '420px', padding: '30px', border: '1.5px solid #EF4444', textAlign: 'center' }}>
+            <div style={{ fontSize: '38px', color: '#EF4444', marginBottom: '12px' }}>⚠️</div>
+            <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#111827', marginBottom: '8px' }}>
+              Advertencia de Cierre Administrativo
+            </h3>
+            <p style={{ fontSize: '12px', color: '#4B5563', lineHeight: '1.5', marginBottom: '24px' }}>
+              Por favor, asegúrate de completar y registrar todas tus actividades obligatorias de la jornada antes del cierre administrativo.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button 
+                className="topbar-btn btn-primary" 
+                style={{ background: '#EF4444', width: '100%', justifyContent: 'center', padding: '10px' }}
+                onClick={() => {
+                  setIsAlertModalOpen(false);
+                  setAlertDismissedToday(true);
+                }}
+              >
+                Comprendido, registraré ahora
+              </button>
+            </div>
           </div>
         </div>
       )}

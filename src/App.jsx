@@ -82,53 +82,69 @@ export default function App() {
   // Lifted Cronograma states
   const [weeklyTasks, setWeeklyTasks] = useState({
     Lun: [
-      { id: 1, name: 'Revisión y gestión de órdenes para la semana', icon: '📋', desc: 'Revisión y gestión de órdenes', obligatoria: true },
-      { id: 2, name: 'Seguimiento a órdenes de Ruta de Camión', icon: '🚚', desc: 'Seguimiento a órdenes', obligatoria: true },
-      { id: 3, name: 'Ejecución y contacto a clientes del 80/20', icon: '🎯', desc: 'Contacto a clientes', obligatoria: true },
-      { id: 4, name: 'Ejecución y contacto a Clientes del Proyecto', icon: '🚀', desc: 'Contacto a clientes del proyecto', obligatoria: true },
-      { id: 5, name: 'Ejecución de Seguimiento de Cartera o Cartera Muerta', icon: '👤', desc: 'Seguimiento de cartera muerta', obligatoria: true }
+      { id: 1, name: 'Revisión y gestión de órdenes para la semana', icon: '📋', desc: 'Revisión y gestión de órdenes', obligatoria: true, horaInicio: '08:30', horaFin: '10:00' },
+      { id: 2, name: 'Seguimiento a órdenes de Ruta de Camión', icon: '🚚', desc: 'Seguimiento a órdenes', obligatoria: true, horaInicio: '10:00', horaFin: '12:00' },
+      { id: 3, name: 'Ejecución y contacto a clientes del 80/20', icon: '🎯', desc: 'Contacto a clientes', obligatoria: true, horaInicio: '13:00', horaFin: '14:30' },
+      { id: 4, name: 'Ejecución y contacto a Clientes del Proyecto', icon: '🚀', desc: 'Contacto a clientes del proyecto', obligatoria: true, horaInicio: '14:30', horaFin: '16:00' },
+      { id: 5, name: 'Ejecución de Seguimiento de Cartera o Cartera Muerta', icon: '👤', desc: 'Seguimiento de cartera muerta', obligatoria: true, horaInicio: '16:00', horaFin: '17:30' }
     ],
     Mar: [
-      { id: 1, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true },
-      { id: 2, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true },
-      { id: 3, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true },
-      { id: 4, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true }
+      { id: 1, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true, horaInicio: '08:30', horaFin: '10:30' },
+      { id: 2, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true, horaInicio: '10:30', horaFin: '12:30' },
+      { id: 3, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true, horaInicio: '13:30', horaFin: '15:30' },
+      { id: 4, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true, horaInicio: '15:30', horaFin: '17:30' }
     ],
     Mie: [
-      { id: 1, name: 'Creación de órdenes para llenado de Sala', icon: '🏠', desc: 'Creación de órdenes', obligatoria: true },
-      { id: 2, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true },
-      { id: 3, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true },
-      { id: 4, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true },
-      { id: 5, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true }
+      { id: 1, name: 'Creación de órdenes para llenado de Sala', icon: '🏠', desc: 'Creación de órdenes', obligatoria: true, horaInicio: '08:30', horaFin: '10:00' },
+      { id: 2, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true, horaInicio: '10:00', horaFin: '12:00' },
+      { id: 3, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true, horaInicio: '13:00', horaFin: '14:30' },
+      { id: 4, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true, horaInicio: '14:30', horaFin: '16:00' },
+      { id: 5, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true, horaInicio: '16:00', horaFin: '17:30' }
     ],
     Jue: [
-      { id: 1, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true },
-      { id: 2, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true },
-      { id: 3, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true },
-      { id: 4, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true }
+      { id: 1, name: 'Seguimiento de contacto a clientes del 80/20', icon: '🎯', desc: 'Seguimiento', obligatoria: true, horaInicio: '08:30', horaFin: '10:30' },
+      { id: 2, name: 'Seguimiento de contacto a Clientes del Proyecto', icon: '🚀', desc: 'Seguimiento', obligatoria: true, horaInicio: '10:30', horaFin: '12:30' },
+      { id: 3, name: 'Seguimientos a Clientes Prospectados', icon: '👥', desc: 'Seguimiento', obligatoria: true, horaInicio: '13:30', horaFin: '15:30' },
+      { id: 4, name: 'Primer contacto a Organizadores de Carreras', icon: '🏁', desc: 'Primer contacto', obligatoria: true, horaInicio: '15:30', horaFin: '17:30' }
     ],
     Vie: [
-      { id: 1, name: 'Cierre de todas las actividades', icon: '🔒', desc: 'Cierre', obligatoria: true },
-      { id: 2, name: 'Enviar los cierres al Grupo de Supervisores', icon: '📤', desc: 'Enviar cierres', obligatoria: true }
+      { id: 1, name: 'Cierre de todas las actividades', icon: '🔒', desc: 'Cierre', obligatoria: true, horaInicio: '08:30', horaFin: '12:00' },
+      { id: 2, name: 'Enviar los cierres al Grupo de Supervisores', icon: '📤', desc: 'Enviar cierres', obligatoria: true, horaInicio: '13:00', horaFin: '17:30' }
     ],
     Sab: [
-      { id: 1, name: 'Recopilación de información de clientes a contactar semana Siguiente', icon: '📂', desc: 'Recopilación', obligatoria: true },
-      { id: 2, name: 'Segmentación de Clientes a contactar semana Siguiente', icon: '📊', desc: 'Segmentación', obligatoria: true },
-      { id: 3, name: 'Presentar Proyecto', icon: '🚀', desc: 'Presentar Proyecto', obligatoria: true },
-      { id: 4, name: 'Presentar 80/20', icon: '🎯', desc: 'Presentar 80/20', obligatoria: true },
-      { id: 5, name: 'Prospección de Clientes', icon: '🔍', desc: 'Prospección', obligatoria: true }
+      { id: 1, name: 'Recopilación de información de clientes a contactar semana Siguiente', icon: '📂', desc: 'Recopilación', obligatoria: true, horaInicio: '08:30', horaFin: '10:00' },
+      { id: 2, name: 'Segmentación de Clientes a contactar semana Siguiente', icon: '📊', desc: 'Segmentación', obligatoria: true, horaInicio: '10:00', horaFin: '12:00' },
+      { id: 3, name: 'Presentar Proyecto', icon: '🚀', desc: 'Presentar Proyecto', obligatoria: true, horaInicio: '13:00', horaFin: '14:30' },
+      { id: 4, name: 'Presentar 80/20', icon: '🎯', desc: 'Presentar 80/20', obligatoria: true, horaInicio: '14:30', horaFin: '16:00' },
+      { id: 5, name: 'Prospección de Clientes', icon: '🔍', desc: 'Prospección', obligatoria: true, horaInicio: '16:00', horaFin: '17:30' }
     ]
   });
-  const [checkedTasks, setCheckedTasks] = useState({
-    Lun: { 1: false, 2: false, 3: false, 4: false, 5: false },
-    Mar: { 1: false, 2: false, 3: false, 4: false },
-    Mie: { 1: false, 2: false, 3: false, 4: false, 5: false },
-    Jue: { 1: false, 2: false, 3: false, 4: false },
-    Vie: { 1: false, 2: false },
-    Sab: { 1: false, 2: false, 3: false, 4: false, 5: false }
+
+  // Nested by store: checkedTasks[storeCode][day][taskId]
+  const [checkedTasks, setCheckedTasks] = useState(() => {
+    const initial = {};
+    STORES.forEach(store => {
+      initial[store] = {
+        Lun: { 1: false, 2: false, 3: false, 4: false, 5: false },
+        Mar: { 1: false, 2: false, 3: false, 4: false },
+        Mie: { 1: false, 2: false, 3: false, 4: false, 5: false },
+        Jue: { 1: false, 2: false, 3: false, 4: false },
+        Vie: { 1: false, 2: false },
+        Sab: { 1: false, 2: false, 3: false, 4: false, 5: false }
+      };
+    });
+    return initial;
   });
-  const [savedDays, setSavedDays] = useState({
-    Lun: false, Mar: false, Mie: false, Jue: false, Vie: false, Sab: false
+
+  // Nested by store: savedDays[storeCode][day]
+  const [savedDays, setSavedDays] = useState(() => {
+    const initial = {};
+    STORES.forEach(store => {
+      initial[store] = {
+        Lun: false, Mar: false, Mie: false, Jue: false, Vie: false, Sab: false
+      };
+    });
+    return initial;
   });
 
   // Auth handlers
@@ -405,6 +421,12 @@ export default function App() {
               storeChecklists={storeChecklists}
               onToggleTask={handleToggleTask}
               onSaveToSheets={handleSaveToSheets}
+              checkedTasks={checkedTasks}
+              setCheckedTasks={setCheckedTasks}
+              savedDays={savedDays}
+              setSavedDays={setSavedDays}
+              weeklyTasks={weeklyTasks}
+              setWeeklyTasks={setWeeklyTasks}
             />
           )}
 

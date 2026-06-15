@@ -766,3 +766,43 @@ body {
   }
 }
 
+/* ── 19. TAREAS Y SELECCIÓN DE TIENDAS (REDESIGN) ──────────── */
+.frozen-task {
+  opacity: 0.6 !important;
+}
+
+.frozen-task input[type="checkbox"] {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Store Selector Pill Button styling */
+.store-pill-container {
+  display: inline-block;
+  position: relative;
+}
+
+.store-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, rgba(255, 109, 77, 0.12), rgba(255, 109, 77, 0.04));
+  border: 1.5px solid rgba(255, 109, 77, 0.35);
+  box-shadow: 0 4px 10px rgba(255, 109, 77, 0.1);
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.store-pill-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(255, 109, 77, 0.22);
+  border-color: var(--accent-coral);
+  background: linear-gradient(135deg, rgba(255, 109, 77, 0.18), rgba(255, 109, 77, 0.06));
+}
+

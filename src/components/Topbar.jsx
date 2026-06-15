@@ -24,38 +24,35 @@ export default function Topbar({ title, onExportCSV, onAddDeal, userRole, active
     <header className="topbar">
       <h1 className="topbar-title">{title}</h1>
 
-      {/* Store Selection Dropdown */}
-      <div className="topbar-store-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
-        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center' }}>
-          <i className="fas fa-store" style={{ color: 'var(--accent-coral)', marginRight: '6px', fontSize: '13px' }}></i>
-          Tienda:
-        </span>
-        <select
-          value={activeStore || 'Todos'}
-          onChange={(e) => onStoreChange && onStoreChange(e.target.value)}
-          disabled={userRole === 'store'}
-          className="select-filter"
-          style={{ 
-            fontWeight: '700',
-            borderColor: userRole === 'store' ? 'transparent' : 'var(--border-light)',
-            background: userRole === 'store' ? 'rgba(20, 23, 43, 0.05)' : 'var(--bg-body)',
-            cursor: userRole === 'store' ? 'not-allowed' : 'pointer',
-            padding: '6px 12px',
-            color: 'var(--text-primary)',
-            borderRadius: 'var(--radius-sm)'
-          }}
-        >
-          {userRole === 'admin' ? (
-            <>
+      {/* Store Selection Dropdown (Pill Button Redesign) */}
+      <div className="store-pill-container" style={{ marginRight: '16px' }}>
+        <div className="store-pill-btn">
+          <i className="fas fa-store" style={{ color: 'var(--accent-coral)', fontSize: '14px' }}></i>
+          <span>Tienda: {activeStore === 'Todos' ? 'Todas las Tiendas' : activeStore}</span>
+          {userRole === 'admin' && <i className="fas fa-chevron-down" style={{ fontSize: '10px', marginLeft: '4px', opacity: 0.7 }}></i>}
+          
+          {userRole === 'admin' && (
+            <select
+              value={activeStore || 'Todos'}
+              onChange={(e) => onStoreChange && onStoreChange(e.target.value)}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                opacity: 0,
+                cursor: 'pointer',
+                WebkitAppearance: 'none'
+              }}
+            >
               <option value="Todos">Todas las Tiendas</option>
               {STORES.map(store => (
                 <option key={store} value={store}>{store}</option>
               ))}
-            </>
-          ) : (
-            <option value={activeStore}>{activeStore}</option>
+            </select>
           )}
-        </select>
+        </div>
       </div>
 
       <div className="topbar-date">

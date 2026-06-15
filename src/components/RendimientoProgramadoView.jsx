@@ -63,7 +63,8 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', userR
       const todayAssigned = weeklyTasks[todayKey]?.length || 0;
       
       // Calculate checked count for today
-      const todayChecks = checkedTasks[todayKey] || {};
+      const storeChecks = checkedTasks[storeCode] || {};
+      const todayChecks = storeChecks[todayKey] || {};
       const todayCompleted = Object.values(todayChecks).filter(Boolean).length;
       const todayPct = todayAssigned > 0 ? Math.round((todayCompleted / todayAssigned) * 100) : 0;
       
