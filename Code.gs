@@ -92,22 +92,59 @@ function setupDatabase() {
     histSheet.appendRow([todayStr, "CHQ", "TX.CHQ", 13, 3, 0.23, "CRÍTICO", "{}"]);
   }
 
-  // Configurar hoja Prospecciones si no existe
+  // Configurar hoja Prospecciones si no existe o si tiene el formato viejo
   let prospeccionesSheet = ss.getSheetByName("Prospecciones");
-  if (!prospeccionesSheet) {
-    prospeccionesSheet = ss.insertSheet("Prospecciones");
-    prospeccionesSheet.appendRow([
-      "Numeración", 
-      "Empresa", 
-      "Cliente", 
-      "Teléfono", 
-      "Email", 
-      "Etapa", 
-      "Monto", 
-      "Fecha",
-      "Tienda"
-    ]);
-    prospeccionesSheet.getRange("A1:I1").setFontWeight("bold").setBackground("#f1f5f9");
+  let needsRecreate = false;
+  if (prospeccionesSheet) {
+    // Verificar si tiene el formato viejo (ej. si la segunda columna no es "Mes")
+    if (prospeccionesSheet.getLastColumn() > 0) {
+      const col2Header = prospeccionesSheet.getRange(1, 2).getValue();
+      if (col2Header !== "Mes") {
+        needsRecreate = true;
+      }
+    }
+  } else {
+    needsRecreate = true;
+  }
+
+  if (needsRecreate) {
+    if (prospeccionesSheet) {
+      try {
+        ss.deleteSheet(prospeccionesSheet);
+      } catch (e) {
+        // En caso de que sea la única hoja, limpiarla en su lugar
+        prospeccionesSheet.clear();
+      }
+    }
+    prospeccionesSheet = ss.getSheetByName("Prospecciones") || ss.insertSheet("Prospecciones");
+    const headers = ["Numeración", "Mes", "Tienda", "Prospectados", "Contactados", "Cotizados", "Cerrados", "Perdidos"];
+    prospeccionesSheet.appendRow(headers);
+    prospeccionesSheet.getRange("A1:H1").setFontWeight("bold").setBackground("#f1f5f9");
+    
+    // Pre-sembrar datos de prueba realistas para 14 tiendas y 12 meses (168 filas)
+    const stores = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const rows = [];
+    let num = 1;
+    
+    for (let s = 0; s < stores.length; s++) {
+      const store = stores[s];
+      for (let m = 0; m < months.length; m++) {
+        const month = months[m];
+        
+        // Generar valores determinísticos/aleatorios agradables
+        const seed = (s * 12 + m) * 31;
+        const prospectados = 20 + (seed % 30);
+        const contactados = Math.floor(prospectados * 0.75);
+        const cotizados = Math.floor(contactados * 0.6);
+        const cerrados = Math.floor(cotizados * 0.5) + 1;
+        const perdidos = Math.floor((prospectados - cerrados) * 0.25);
+        
+        rows.push([num++, month, store, prospectados, contactados, cotizados, cerrados, perdidos]);
+      }
+    }
+    
+    prospeccionesSheet.getRange(2, 1, rows.length, 8).setValues(rows);
   }
 
   // Configurar hoja Analisis8020 si no existe
@@ -566,34 +603,27 @@ function obtenerProspecciones() {
   const userInfo = getUsuarioRolYTienda();
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName("Prospecciones");
-  if (!sheet) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [], resumenGrafica: { Prospectado: 0, Cotizado: 0, Seguimiento: 0, Cerrado: 0 } };
+  if (!sheet) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
   
   const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [], resumenGrafica: { Prospectado: 0, Cotizado: 0, Seguimiento: 0, Cerrado: 0 } };
+  if (data.length <= 1) return { rol: userInfo.rol, tienda: userInfo.tienda, data: [] };
   
   const headers = data[0];
   const allRecords = [];
   
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const obj = { id: i + 1 }; // El ID es el número de fila física (1-indexed)
+    const obj = { id: i + 1 }; // Fila física (1-indexed)
     headers.forEach((header, index) => {
-      let val = row[index];
-      // Si la fecha es objeto Date, formatear a string ISO corto yyyy-MM-dd
-      if (header === "Fecha" && val instanceof Date) {
-        val = Utilities.formatDate(val, Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
-      }
-      obj[header] = val;
+      obj[header] = row[index];
     });
     allRecords.push(obj);
   }
   
-  // Lógica de aislamiento estricta en servidor usando filter()
   let filteredData = [];
   if (String(userInfo.rol).trim().toLowerCase() === "administrador") {
     filteredData = allRecords;
   } else {
-    // Si es vendedor, solo puede ver las prospecciones de su tienda específica
     const userTiendaLower = (userInfo.tienda || "").trim().toLowerCase();
     if (userTiendaLower && userTiendaLower !== "todos" && userTiendaLower !== "desconocido") {
       filteredData = allRecords.filter(function(record) {
@@ -601,185 +631,94 @@ function obtenerProspecciones() {
         return recordTiendaLower === userTiendaLower;
       });
     } else {
-      filteredData = []; // Tienda desconocida o restrictiva: no retorna nada
+      filteredData = [];
     }
   }
-
-  // Resumen calculado para alimentar la Gráfica de Cono (Embudo de prospectos)
-  const resumenGrafica = {
-    Prospectado: 0,
-    Cotizado: 0,
-    Seguimiento: 0,
-    Cerrado: 0
-  };
-
-  filteredData.forEach(function(record) {
-    const etapa = (record.Etapa || "").trim().toLowerCase();
-    if (etapa === "prospectado") {
-      resumenGrafica.Prospectado++;
-    } else if (etapa === "cotizado") {
-      resumenGrafica.Cotizado++;
-    } else if (etapa === "seguimiento" || etapa === "contactado") {
-      resumenGrafica.Seguimiento++;
-    } else if (etapa === "cerrado") {
-      resumenGrafica.Cerrado++;
-    }
-  });
   
   return {
     rol: userInfo.rol,
     tienda: userInfo.tienda,
     data: filteredData,
-    datos: filteredData,
-    resumenGrafica: resumenGrafica
+    datos: filteredData
   };
 }
 
 /**
- * Agrega una nueva prospección a la hoja 'Prospecciones'.
- * Bloquea la acción si la intenta realizar un Administrador, ya que solo los vendedores agregan datos.
+ * Guarda o actualiza los totales mensuales agregados de una sucursal.
+ * Seguridad crítica: Si el usuario es vendedor, se ignora la tienda enviada por el cliente y se fuerza la suya.
  */
-function agregarProspeccion(prospecto) {
+function guardarValoresMensuales(datos) {
   try {
     setupDatabase();
     const userInfo = getUsuarioRolYTienda();
     
-    if (String(userInfo.rol).trim().toLowerCase() === "administrador") {
-      throw new Error("Permiso denegado. El Administrador no agrega nuevas prospecciones.");
-    }
-    
-    const ss = getSpreadsheet();
-    const sheet = ss.getSheetByName("Prospecciones");
-    if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
-    
-    // Validaciones básicas en el servidor
-    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa) {
-      throw new Error("Faltan campos obligatorios para guardar la prospección.");
-    }
-    
-    // Inyectar automáticamente la fecha actual del servidor en la zona horaria indicada
-    const fechaServidor = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
-    
-    // Si la etapa no es Cotizado, el monto es 0 por seguridad
-    const montoFinal = (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0;
-    
-    // Insertar nueva fila al final
-    sheet.appendRow([
-      "=ROW()-1", // Numeración automática basada en fila
-      prospecto.empresa,
-      prospecto.cliente,
-      prospecto.telefono || "",
-      prospecto.email || "",
-      prospecto.etapa,
-      montoFinal,
-      fechaServidor, // Fecha automática del servidor
-      userInfo.tienda // Sucursal automática del usuario
-    ]);
-    
-    return {
-      status: "success",
-      message: "Guardado exitoso.",
-      response: obtenerProspecciones()
-    };
-  } catch (e) {
-    return {
-      status: "error",
-      message: "Error al guardar: " + e.toString()
-    };
-  }
-}
-
-/**
- * Sobrescribe una prospección existente identificada por su ID (número de fila).
- * Si es Administrador, edita pero preserva intacta la tienda original.
- */
-function editarProspeccion(id, prospecto) {
-  try {
-    setupDatabase();
-    const userInfo = getUsuarioRolYTienda();
-    const rowNum = parseInt(id);
-    if (isNaN(rowNum) || rowNum < 2) {
-      throw new Error("ID de prospección inválido.");
-    }
-    
-    const ss = getSpreadsheet();
-    const sheet = ss.getSheetByName("Prospecciones");
-    if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
-    
-    // Validar propiedad de la tienda original
-    const originalTienda = String(sheet.getRange(rowNum, 9).getValue()).trim();
-    if (String(userInfo.rol).trim().toLowerCase() !== "administrador" && originalTienda !== userInfo.tienda) {
-      throw new Error("No tienes permisos para editar esta prospección.");
-    }
-    
-    // Validaciones básicas en el servidor
-    if (!prospecto.empresa || !prospecto.cliente || !prospecto.etapa) {
-      throw new Error("Faltan campos obligatorios para actualizar la prospección.");
-    }
-    
-    // Si la etapa no es Cotizado, forzar monto a 0 por seguridad
-    const montoFinal = (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0;
-    
-    // Sobrescribir los datos de la fila (de la columna 2 a la 8 para mantener la numeración en col 1 y la tienda en col 9)
-    const values = [[
-      prospecto.empresa,
-      prospecto.cliente,
-      prospecto.telefono || "",
-      prospecto.email || "",
-      prospecto.etapa,
-      montoFinal,
-      prospecto.fecha // Preservar la fecha original que está bloqueada
-    ]];
-    
-    sheet.getRange(rowNum, 2, 1, 7).setValues(values);
-    
-    return {
-      status: "success",
-      message: "Guardado exitoso.",
-      response: obtenerProspecciones()
-    };
-  } catch (e) {
-    return {
-      status: "error",
-      message: "Error al guardar: " + e.toString()
-    };
-  }
-}
-
-/**
- * Elimina una prospección de la hoja 'Prospecciones' dado su ID (número de fila).
- * Seguridad estricta: Bloquea la acción si el usuario no es Administrador.
- */
-function eliminarProspeccion(id) {
-  try {
-    setupDatabase();
-    const userInfo = getUsuarioRolYTienda();
-    
-    // Bloquear si el rol no es Administrador (Seguridad crítica del servidor)
+    let tiendaFinal = datos.tienda;
     if (String(userInfo.rol).trim().toLowerCase() !== "administrador") {
-      throw new Error("Permiso denegado. Solo el Administrador tiene autorización para eliminar en la base de datos.");
-    }
-    
-    const rowNum = parseInt(id);
-    if (isNaN(rowNum) || rowNum < 2) {
-      throw new Error("ID de prospección inválido.");
+      // Forzar tienda asignada por seguridad
+      tiendaFinal = userInfo.tienda;
     }
     
     const ss = getSpreadsheet();
     const sheet = ss.getSheetByName("Prospecciones");
     if (!sheet) throw new Error("La hoja 'Prospecciones' no existe.");
     
-    sheet.deleteRow(rowNum);
+    const mesTarget = String(datos.mes).trim();
+    const storeTarget = String(tiendaFinal).trim();
+    
+    const sheetData = sheet.getDataRange().getValues();
+    let rowIdx = -1;
+    
+    // Buscar la fila correspondiente a esta sucursal y mes
+    for (let i = 1; i < sheetData.length; i++) {
+      const rowMes = String(sheetData[i][1]).trim(); // Columna Mes
+      const rowTienda = String(sheetData[i][2]).trim(); // Columna Tienda
+      if (rowMes.toLowerCase() === mesTarget.toLowerCase() && rowTienda.toLowerCase() === storeTarget.toLowerCase()) {
+        rowIdx = i + 1; // Fila física (1-indexed)
+        break;
+      }
+    }
+    
+    const prospectados = parseInt(datos.prospectados) || 0;
+    const contactados = parseInt(datos.contactados) || 0;
+    const cotizados = parseInt(datos.cotizados) || 0;
+    const cerrados = parseInt(datos.cerrados) || 0;
+    const perdidos = parseInt(datos.perdidos) || 0;
+    
+    if (rowIdx !== -1) {
+      // Actualizar fila existente (Mes, Tienda, Prospectados, Contactados, Cotizados, Cerrados, Perdidos)
+      sheet.getRange(rowIdx, 2, 1, 7).setValues([[
+        mesTarget,
+        storeTarget,
+        prospectados,
+        contactados,
+        cotizados,
+        cerrados,
+        perdidos
+      ]]);
+    } else {
+      // Si por alguna razón no existía la fila, se agrega
+      const nextNum = sheet.getLastRow();
+      sheet.appendRow([
+        nextNum,
+        mesTarget,
+        storeTarget,
+        prospectados,
+        contactados,
+        cotizados,
+        cerrados,
+        perdidos
+      ]);
+    }
     
     return {
       status: "success",
-      message: "Eliminado correctamente.",
+      message: "Totales mensuales guardados con éxito.",
       response: obtenerProspecciones()
     };
   } catch (e) {
     return {
       status: "error",
-      message: "Error: " + e.toString()
+      message: "Error al guardar: " + e.toString()
     };
   }
 }

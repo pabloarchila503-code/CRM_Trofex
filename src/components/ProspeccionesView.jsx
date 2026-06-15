@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 
 // Custom Datalabels Plugin for Funnel Chart
@@ -65,9 +65,9 @@ function FunnelMiniChart({ data }) {
 
     if (total === 0) return;
 
-    const labels = ['1. Prospecciones', '2. Cotizaciones', '3. Seguimiento', '4. Cerrados'];
-    const values = [total, cotizaciones, seguimiento, cerrados];
-    const colors = ['#94A3B8', '#F59E0B', '#FF6D4D', '#10B981'];
+    const labels = ['1. Prospectados', '2. Contactados', '3. Cotizados', '4. Cerrados'];
+    const values = [total, seguimiento, cotizaciones, cerrados];
+    const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#10B981'];
 
     const dataValues = values.map(val => {
       if (total === 0) return [0, 0];
@@ -147,28 +147,46 @@ function FunnelMiniChart({ data }) {
   return <canvas ref={canvasRef} />;
 }
 
-
-const MOCK_PROSPECCIONES = [
-  { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08", Tienda: "CB" },
-  { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09", Tienda: "CHQ" },
-  { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07", Tienda: "JT" },
-  { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08", Tienda: "CB" },
-  { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05", Tienda: "PTB" }
-];
-
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const TIENDAS = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
+
+const generarMockProspecciones = () => {
+  const db = [];
+  let num = 1;
+  TIENDAS.forEach((store, sIdx) => {
+    MESES.forEach((month, mIdx) => {
+      const seed = (sIdx * 12 + mIdx) * 31;
+      const prospectados = 20 + (seed % 30);
+      const contactados = Math.floor(prospectados * 0.75);
+      const cotizados = Math.floor(contactados * 0.6);
+      const cerrados = Math.floor(cotizados * 0.5) + 1;
+      const perdidos = Math.floor((prospectados - cerrados) * 0.25);
+      
+      db.push({
+        id: num,
+        Numeración: num++,
+        Mes: month,
+        Tienda: store,
+        Prospectados: prospectados,
+        Contactados: contactados,
+        Cotizados: cotizados,
+        Cerrados: cerrados,
+        Perdidos: perdidos
+      });
+    });
+  });
+  return db;
+};
 
 export default function ProspeccionesView({ showToast, userRole, activeStore }) {
   const [prospecciones, setProspecciones] = useState([]);
-  const [userRol, setUserRol] = useState('Vendedor'); // Rol retornado por el servidor ('Administrador' o 'Vendedor') - Iniciado como Vendedor por defecto
-  const [userTienda, setUserTienda] = useState(''); // Tienda del usuario
+  const [userRol, setUserRol] = useState('Vendedor'); // Rol del backend ('Administrador' o 'Vendedor')
+  const [userTienda, setUserTienda] = useState(''); // Tienda asignada
   const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
   
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStage, setFilterStage] = useState('all');
-  const [filterTienda, setFilterTienda] = useState('all'); // Filtro exclusivo de Administrador
+  const [activeMonth, setActiveMonth] = useState(null); // Mes activo seleccionado
 
   // Mapear props de la sesión si están disponibles
   const initialMockRol = userRole === 'admin' ? 'Administrador' : 'Vendedor';
@@ -177,6 +195,15 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
   // Estados locales para simulación / pruebas locales
   const [mockUserRol, setMockUserRol] = useState(initialMockRol);
   const [mockUserTienda, setMockUserTienda] = useState(initialMockTienda);
+
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formMes, setFormMes] = useState('');
+  const [formProspectados, setFormProspectados] = useState('');
+  const [formContactados, setFormContactados] = useState('');
+  const [formCotizados, setFormCotizados] = useState('');
+  const [formCerrados, setFormCerrados] = useState('');
+  const [formPerdidos, setFormPerdidos] = useState('');
 
   // Sincronizar estados locales de prueba cuando cambian las props de sesión principal
   useEffect(() => {
@@ -188,18 +215,6 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
     }
   }, [userRole, activeStore]);
 
-  // Modal States
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [wasValidated, setWasValidated] = useState(false);
-  const [formId, setFormId] = useState('');
-  const [formEmpresa, setFormEmpresa] = useState('');
-  const [formCliente, setFormCliente] = useState('');
-  const [formTelefono, setFormTelefono] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formEtapa, setFormEtapa] = useState('');
-  const [formMonto, setFormMonto] = useState('');
-  const [formFecha, setFormFecha] = useState('');
-
   const isGas = typeof google !== 'undefined' && google.script && google.script.run;
 
   // ─── CARGAR DATOS ──────────────────────────────────────
@@ -209,7 +224,6 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
     if (isGas) {
       google.script.run
         .withSuccessHandler((response) => {
-          // El backend seguro retorna: { rol, tienda, data }
           setUserRol(response.rol);
           setUserTienda(response.tienda);
           setProspecciones(response.data || []);
@@ -226,7 +240,7 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
       // Emulador de desarrollo local
       setTimeout(() => {
         if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
-          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(MOCK_PROSPECCIONES));
+          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(generarMockProspecciones()));
         }
         const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
         
@@ -254,282 +268,215 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
     loadData(true);
   };
 
-  // ─── ACCIONES DE MODAL ──────────────────────────────────
-  const handleOpenModal = (item = null) => {
-    setWasValidated(false);
-    if (item) {
-      // MODO EDICIÓN
-      setFormId(item.id);
-      setFormEmpresa(item.Empresa || '');
-      setFormCliente(item.Cliente || '');
-      setFormTelefono(item.Teléfono || '');
-      setFormEmail(item.Email || '');
-      setFormEtapa(item.Etapa || 'Prospectado');
-      setFormMonto(item.Monto || '');
-      setFormFecha(item.Fecha ? item.Fecha.slice(0, 10) : new Date().toISOString().slice(0, 10));
-    } else {
-      // MODO NUEVO
-      setFormId('');
-      setFormEmpresa('');
-      setFormCliente('');
-      setFormTelefono('');
-      setFormEmail('');
-      setFormEtapa('');
-      setFormMonto('');
-      setFormFecha(new Date().toISOString().slice(0, 10));
-    }
+  // ─── CALCULO DE TOTAL ANUAL ──────────────────────────────
+  const totalAnual = useMemo(() => {
+    return prospecciones.reduce((acc, curr) => {
+      return {
+        prospectados: acc.prospectados + (parseInt(curr.Prospectados) || 0),
+        contactados: acc.contactados + (parseInt(curr.Contactados) || 0),
+        cotizados: acc.cotizados + (parseInt(curr.Cotizados) || 0),
+        cerrados: acc.cerrados + (parseInt(curr.Cerrados) || 0),
+        perdidos: acc.perdidos + (parseInt(curr.Perdidos) || 0)
+      };
+    }, { prospectados: 0, contactados: 0, cotizados: 0, cerrados: 0, perdidos: 0 });
+  }, [prospecciones]);
+
+  const tasaConversionAnual = useMemo(() => {
+    if (totalAnual.prospectados === 0) return 0;
+    return ((totalAnual.cerrados / totalAnual.prospectados) * 100).toFixed(1);
+  }, [totalAnual]);
+
+  // Calcular agregados de meses para la cuadrícula 4x3
+  const mesesAgg = useMemo(() => {
+    const res = {};
+    MESES.forEach(m => {
+      res[m] = { prospectados: 0, contactados: 0, cotizados: 0, cerrados: 0, perdidos: 0 };
+    });
+    
+    prospecciones.forEach(p => {
+      const m = p.Mes;
+      if (res[m]) {
+        res[m].prospectados += (parseInt(p.Prospectados) || 0);
+        res[m].contactados += (parseInt(p.Contactados) || 0);
+        res[m].cotizados += (parseInt(p.Cotizados) || 0);
+        res[m].cerrados += (parseInt(p.Cerrados) || 0);
+        res[m].perdidos += (parseInt(p.Perdidos) || 0);
+      }
+    });
+
+    return res;
+  }, [prospecciones]);
+
+  // Lista detallada de sucursales para el Administrador en el mes activo
+  const adminMonthDetails = useMemo(() => {
+    if (!activeMonth || !isAdmin) return [];
+    
+    // Filtrar registros por el mes seleccionado
+    const records = prospecciones.filter(p => p.Mes.toLowerCase() === activeMonth.toLowerCase());
+    
+    const mapped = records.map(r => {
+      const prospectados = parseInt(r.Prospectados) || 0;
+      const cerrados = parseInt(r.Cerrados) || 0;
+      const conversion = prospectados > 0 ? (cerrados / prospectados) * 100 : 0;
+      return {
+        tienda: r.Tienda,
+        prospectados,
+        contactados: parseInt(r.Contactados) || 0,
+        cotizados: parseInt(r.Cotizados) || 0,
+        cerrados,
+        perdidos: parseInt(r.Perdidos) || 0,
+        conversion
+      };
+    });
+
+    // Ordenar de menor a mayor tasa de conversión (Cerrados / Prospectados)
+    return mapped.sort((a, b) => a.conversion - b.conversion);
+  }, [activeMonth, prospecciones, isAdmin]);
+
+  // Datos del mes activo para la sucursal
+  const storeMonthDetails = useMemo(() => {
+    if (!activeMonth || isAdmin) return null;
+    
+    const record = prospecciones.find(p => p.Mes.toLowerCase() === activeMonth.toLowerCase());
+    if (!record) return null;
+
+    const prospectados = parseInt(record.Prospectados) || 0;
+    const contactados = parseInt(record.Contactados) || 0;
+    const cotizados = parseInt(record.Cotizados) || 0;
+    const cerrados = parseInt(record.Cerrados) || 0;
+    const perdidos = parseInt(record.Perdidos) || 0;
+    const conversion = prospectados > 0 ? (cerrados / prospectados) * 100 : 0;
+
+    return {
+      prospectados,
+      contactados,
+      cotizados,
+      cerrados,
+      perdidos,
+      conversion
+    };
+  }, [activeMonth, prospecciones, isAdmin]);
+
+  // Manejar apertura del modal de edición
+  const handleOpenEditModal = () => {
+    if (isAdmin || !activeMonth) return;
+    const details = storeMonthDetails;
+    if (!details) return;
+
+    setFormMes(activeMonth);
+    setFormProspectados(details.prospectados);
+    setFormContactados(details.contactados);
+    setFormCotizados(details.cotizados);
+    setFormCerrados(details.cerrados);
+    setFormPerdidos(details.perdidos);
     setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-  };
-
-  // ─── GUARDAR (AGREGAR O EDITAR) ──────────────────────────
   const handleSave = (e) => {
     e.preventDefault();
-    const form = e.currentTarget;
     
-    if (!form.checkValidity()) {
-      setWasValidated(true);
-      showToast("Por favor complete los campos obligatorios con formatos válidos.", "error");
+    const prospectadosVal = parseInt(formProspectados);
+    const contactadosVal = parseInt(formContactados);
+    const cotizadosVal = parseInt(formCotizados);
+    const cerradosVal = parseInt(formCerrados);
+    const perdidosVal = parseInt(formPerdidos);
+
+    if (isNaN(prospectadosVal) || isNaN(contactadosVal) || isNaN(cotizadosVal) || isNaN(cerradosVal) || isNaN(perdidosVal)) {
+      showToast("Por favor ingresa únicamente valores numéricos enteros.", "error");
+      return;
+    }
+    
+    if (prospectadosVal < 0 || contactadosVal < 0 || cotizadosVal < 0 || cerradosVal < 0 || perdidosVal < 0) {
+      showToast("Los valores numéricos no pueden ser negativos.", "error");
       return;
     }
 
-    const datos = {
-      empresa: formEmpresa.trim(),
-      cliente: formCliente.trim(),
-      telefono: formTelefono.trim(),
-      email: formEmail.trim(),
-      etapa: formEtapa,
-      monto: parseFloat(formMonto) || 0,
-      fecha: formFecha
+    const payload = {
+      mes: formMes,
+      tienda: mockUserTienda,
+      prospectados: prospectadosVal,
+      contactados: contactadosVal,
+      cotizados: cotizadosVal,
+      cerrados: cerradosVal,
+      perdidos: perdidosVal
     };
 
     setIsLoading(true);
     setIsModalOpen(false);
 
-    if (formId) {
-      // GUARDAR EDICIÓN (Vendedor o Admin)
-      if (isGas) {
-        google.script.run
-          .withSuccessHandler((response) => {
-            if (response.status === 'success') {
-              showToast("Guardado exitoso.", "success");
-              // La respuesta contiene el obtenerProspecciones() seguro actualizado
-              setUserRol(response.response.rol);
-              setUserTienda(response.response.tienda);
-              setProspecciones(response.response.data || []);
-            } else {
-              showToast("Error al guardar: " + response.message, "error");
-            }
-            setIsLoading(false);
-          })
-          .withFailureHandler((err) => {
-            showToast("Error al guardar: " + err.message, "error");
-            setIsLoading(false);
-          })
-          .editarProspeccion(formId, datos);
-      } else {
-        // Emulador local
-        setTimeout(() => {
-          let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-          
-          db = db.map(d => {
-            if (d.id == formId) {
-              // El Admin edita pero preserva la tienda original del registro
-              const originalTienda = d.Tienda || 'CB';
-              return {
-                ...d,
-                Empresa: datos.empresa,
-                Cliente: datos.cliente,
-                Teléfono: datos.telefono,
-                Email: datos.email,
-                Etapa: datos.etapa,
-                Monto: datos.monto,
-                Fecha: datos.fecha,
-                Tienda: originalTienda // Conservar tienda original
-              };
-            }
-            return d;
-          });
-          
-          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-          
-          // Re-cargar aplicando filtros de rol
-          const filtrado = mockUserRol === 'Administrador'
-            ? db
-            : db.filter(item => item.Tienda === mockUserTienda);
-            
-          setProspecciones(filtrado);
-          showToast("Guardado exitoso.", "success");
+    if (isGas) {
+      google.script.run
+        .withSuccessHandler((response) => {
+          if (response.status === 'success') {
+            showToast("Valores mensuales actualizados exitosamente.", "success");
+            setUserRol(response.response.rol);
+            setUserTienda(response.response.tienda);
+            setProspecciones(response.response.data || []);
+          } else {
+            showToast("Error al guardar: " + response.message, "error");
+          }
           setIsLoading(false);
-        }, 500);
-      }
+        })
+        .withFailureHandler((err) => {
+          showToast("Error al guardar: " + err.message, "error");
+          setIsLoading(false);
+        })
+        .guardarValoresMensuales(payload);
     } else {
-      // AGREGAR NUEVA PROSPECCIÓN (Solo vendedores)
-      if (isAdmin) {
-        showToast("Error: El Administrador no puede agregar registros directos.", "error");
+      // Emulador local
+      setTimeout(() => {
+        let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+        
+        let found = false;
+        db = db.map(item => {
+          if (item.Mes.toLowerCase() === payload.mes.toLowerCase() && item.Tienda.toLowerCase() === payload.tienda.toLowerCase()) {
+            found = true;
+            return {
+              ...item,
+              Prospectados: payload.prospectados,
+              Contactados: payload.contactados,
+              Cotizados: payload.cotizados,
+              Cerrados: payload.cerrados,
+              Perdidos: payload.perdidos
+            };
+          }
+          return item;
+        });
+
+        if (!found) {
+          const nextId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 1;
+          db.push({
+            id: nextId,
+            Numeración: nextId,
+            Mes: payload.mes,
+            Tienda: payload.tienda,
+            Prospectados: payload.prospectados,
+            Contactados: payload.contactados,
+            Cotizados: payload.cotizados,
+            Cerrados: payload.cerrados,
+            Perdidos: payload.perdidos
+          });
+        }
+
+        localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+
+        const filtrado = mockUserRol === 'Administrador'
+          ? db
+          : db.filter(item => item.Tienda === mockUserTienda);
+
+        setProspecciones(filtrado);
+        showToast("Valores mensuales actualizados exitosamente.", "success");
         setIsLoading(false);
-        return;
-      }
-
-      if (isGas) {
-        google.script.run
-          .withSuccessHandler((response) => {
-            if (response.status === 'success') {
-              showToast("Guardado exitoso.", "success");
-              setUserRol(response.response.rol);
-              setUserTienda(response.response.tienda);
-              setProspecciones(response.response.data || []);
-            } else {
-              showToast("Error al guardar: " + response.message, "error");
-            }
-            setIsLoading(false);
-          })
-          .withFailureHandler((err) => {
-            showToast("Error al guardar: " + err.message, "error");
-            setIsLoading(false);
-          })
-          .agregarProspeccion(datos);
-      } else {
-        // Emulador local
-        setTimeout(() => {
-          const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-          const newId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 2;
-          const newNum = db.length > 0 ? Math.max(...db.map(d => d.Numeración)) + 1 : 1;
-          
-          const record = {
-            id: newId,
-            Numeración: newNum,
-            Empresa: datos.empresa,
-            Cliente: datos.cliente,
-            Teléfono: datos.telefono,
-            Email: datos.email,
-            Etapa: datos.etapa,
-            Monto: datos.monto,
-            Fecha: datos.fecha,
-            Tienda: mockUserTienda // Sucursal activa del vendedor
-          };
-          
-          db.push(record);
-          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-          
-          const filtrado = db.filter(item => item.Tienda === mockUserTienda);
-          setProspecciones(filtrado);
-          showToast("Guardado exitoso.", "success");
-          setIsLoading(false);
-        }, 500);
-      }
+      }, 500);
     }
   };
 
-  // ─── ELIMINAR (Solo Administrador) ──────────────────────────
-  const handleDelete = (item) => {
-    // Validación preventiva en cliente
-    if (!isAdmin) {
-      showToast("Error: No tienes permisos para eliminar registros.", "error");
-      return;
-    }
-
-    const label = `"${item.Empresa}" (${item.Cliente})`;
-    if (window.confirm(`¿Estás seguro de que deseas eliminar permanentemente la prospección para ${label}?`)) {
-      setIsLoading(true);
-      
-      if (isGas) {
-        google.script.run
-          .withSuccessHandler((response) => {
-            if (response.status === 'success') {
-              showToast("Eliminado correctamente.", "success");
-              setUserRol(response.response.rol);
-              setUserTienda(response.response.tienda);
-              setProspecciones(response.response.data || []);
-            } else {
-              showToast("Error al eliminar: " + response.message, "error");
-            }
-            setIsLoading(false);
-          })
-          .withFailureHandler((err) => {
-            showToast("Error al eliminar: " + err.message, "error");
-            setIsLoading(false);
-          })
-          .eliminarProspeccion(item.id);
-      } else {
-        // Emulador local
-        setTimeout(() => {
-          let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-          db = db.filter(d => d.id != item.id);
-          db.forEach((d, idx) => { d.Numeración = idx + 1; });
-          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-          
-          setProspecciones(db);
-          showToast("Eliminado correctamente.", "success");
-          setIsLoading(false);
-        }, 500);
-      }
-    }
+  const getConversionColor = (percentage) => {
+    if (percentage >= 50) return '#10B981'; // Verde
+    if (percentage >= 25) return '#F59E0B'; // Naranja/Ambar
+    return '#EF4444'; // Rojo
   };
 
-  // ─── FILTRADO & BUSQUEDA EN CLIENTE ───────────────────────
-  const filteredProspecciones = (() => {
-    let list = [...prospecciones];
-
-    // Solo el Admin puede aplicar filtro por tienda/sucursal
-    if (isAdmin && filterTienda !== 'all') {
-      list = list.filter(item => (item.Tienda || '').toUpperCase() === filterTienda.toUpperCase());
-    }
-
-    if (filterStage !== 'all') {
-      list = list.filter(item => (item.Etapa || '').toLowerCase() === filterStage);
-    }
-
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(item => 
-        (item.Empresa || '').toLowerCase().includes(q) ||
-        (item.Cliente || '').toLowerCase().includes(q) ||
-        (item.Email || '').toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  })();
-
-  // ─── UTILITIES ────────────────────────────────────────────
-  const formatMoneda = (monto) => {
-    const valor = parseFloat(monto);
-    if (isNaN(valor)) return 'Q0.00';
-    return 'Q' + valor.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  const formatFecha = (fechaStr) => {
-    if (!fechaStr) return '—';
-    try {
-      const partes = fechaStr.split('-');
-      if (partes.length === 3) {
-        return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
-      }
-      const d = new Date(fechaStr);
-      if (isNaN(d.getTime())) return fechaStr;
-      return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    } catch(e) {
-      return fechaStr;
-    }
-  };
-
-  const getStageBadgeColorStyle = (etapa) => {
-    const stageLower = (etapa || '').toLowerCase();
-    switch (stageLower) {
-      case 'prospectado': return { background: 'rgba(148, 163, 184, 0.12)', color: '#475569' };
-      case 'contactado': return { background: 'rgba(59, 130, 246, 0.12)', color: '#1d4ed8' };
-      case 'cotizado': return { background: 'rgba(245, 158, 11, 0.12)', color: '#b45309' };
-      case 'cerrado': return { background: 'rgba(16, 185, 129, 0.12)', color: '#047857' };
-      case 'perdido': return { background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c' };
-      default: return { background: 'rgba(148, 163, 184, 0.12)', color: '#475569' };
-    }
-  };
-
-  // Manejador del simulador de roles en local
   const handleMockRoleChange = (val) => {
     if (val === 'Administrador') {
       setMockUserRol('Administrador');
@@ -541,6 +488,7 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
       setMockUserRol('Vendedor');
       setMockUserTienda('JT');
     }
+    setActiveMonth(null);
   };
 
   return (
@@ -579,382 +527,439 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
       {/* HEADER DE LA SECCIÓN */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <p className="section-label">Ventas — Control de Prospecciones</p>
+          <p className="section-label">Ventas — Control de Prospecciones Mensuales</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="topbar-btn btn-outline" onClick={handleSyncManual} disabled={isLoading}>
             <i className={`fas fa-sync-alt ${isSyncing ? 'fa-spin' : ''}`}></i> Actualizar vista
           </button>
-          
-          {/* BOTÓN AGREGAR: Oculto para Administrador, visible para vendedores */}
-          {!isAdmin && (
-            <button className="topbar-btn btn-primary" onClick={() => handleOpenModal()}>
-              <i className="fas fa-plus"></i> + Nueva Prospección
-            </button>
-          )}
         </div>
       </div>
 
-      {/* KPI CARDS GRID */}
-      <div className="kpis-grid" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-        gap: '16px',
-        marginBottom: '20px'
+      {/* ─── BANNER DE TOTAL ANUAL ─── */}
+      <div className="card" style={{
+        background: 'linear-gradient(135deg, #FFF8F5 0%, #FFFFFF 100%)',
+        borderLeft: '5px solid var(--accent-coral)',
+        padding: '24px',
+        marginBottom: '24px',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        {/* Prospectados */}
-        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-blue)' }}>
-          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Prospectados</div>
-          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
-            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'prospectado').length}
-          </div>
-        </div>
-        {/* Contactados */}
-        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-orange)' }}>
-          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contactados</div>
-          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
-            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'contactado').length}
-          </div>
-        </div>
-        {/* Cotizados */}
-        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-purple)' }}>
-          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cotizados</div>
-          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
-            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'cotizado').length}
-          </div>
-        </div>
-        {/* Cerrados */}
-        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-green)' }}>
-          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cerrados</div>
-          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
-            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'cerrado').length}
-          </div>
-        </div>
-        {/* Perdidos */}
-        <div className="card" style={{ padding: '16px', borderTop: '4px solid var(--accent-red)' }}>
-          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Perdidos</div>
-          <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '6px' }}>
-            {filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'perdido').length}
-          </div>
-        </div>
-      </div>
-
-      {/* MINIDASHBOARD CARD: Funnel Chart */}
-      <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
-        <div className="card-header" style={{ marginBottom: '14px', borderBottom: 'none', padding: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <div className="card-title">
-              <span className="card-title-dot" style={{ background: 'var(--accent-coral)' }}></span>
-              Embudo de Prospecciones Comerciales
-            </div>
-            <div className="card-subtitle">Conversión y estatus acumulado de prospectos</div>
+            <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+              Resumen Acumulado Anual
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+              Consolidado general del año para {isAdmin ? 'todas las sucursales' : `tienda ${userTienda}`}
+            </p>
+          </div>
+          <div style={{ 
+            background: 'rgba(255, 109, 77, 0.1)', 
+            color: 'var(--accent-coral)', 
+            padding: '12px 20px', 
+            borderRadius: 'var(--radius-md)',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tasa de Conversión Anual</div>
+            <div style={{ fontSize: '28px', fontWeight: '800' }}>{tasaConversionAnual}%</div>
           </div>
         </div>
-        <div style={{ height: '180px', position: 'relative' }}>
-          <FunnelMiniChart data={{
-            total: filteredProspecciones.length,
-            cotizado: filteredProspecciones.filter(p => ['cotizado', 'cerrado', 'perdido'].includes((p.Etapa || '').toLowerCase())).length,
-            seguimiento: filteredProspecciones.filter(p => ['contactado', 'cotizado', 'cerrado'].includes((p.Etapa || '').toLowerCase())).length,
-            cerrado: filteredProspecciones.filter(p => (p.Etapa || '').toLowerCase() === 'cerrado').length
-          }} />
+        
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, 1fr)',
+          gap: '16px',
+          marginTop: '20px'
+        }} className="kpis-annual-grid">
+          <div style={{ padding: '8px 4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>Prospectados</div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#475569', marginTop: '4px' }}>{totalAnual.prospectados}</div>
+          </div>
+          <div style={{ padding: '8px 4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>Contactados</div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#2563EB', marginTop: '4px' }}>{totalAnual.contactados}</div>
+          </div>
+          <div style={{ padding: '8px 4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>Cotizados</div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#B45309', marginTop: '4px' }}>{totalAnual.cotizados}</div>
+          </div>
+          <div style={{ padding: '8px 4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>Cerrados</div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#047857', marginTop: '4px' }}>{totalAnual.cerrados}</div>
+          </div>
+          <div style={{ padding: '8px 4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>Perdidos</div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#B91C1C', marginTop: '4px' }}>{totalAnual.perdidos}</div>
+          </div>
         </div>
       </div>
 
-      {/* TABLE CARD */}
-      <div className="card table-card" style={{ position: 'relative' }}>
-        
-        {/* Spinner Loader Overlay */}
-        <div className={`loader-overlay ${isLoading ? 'active' : ''}`} style={{
+      {/* Loader Spinner Overlay */}
+      {isLoading && (
+        <div style={{
           position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
-          opacity: isLoading ? 1 : 0, pointerEvents: isLoading ? 'all' : 'none', transition: 'opacity 0.2s'
+          borderRadius: 'var(--radius-lg)'
         }}>
-          <div className="spinner" style={{
-            width: '36px', height: '36px', border: '3.5px solid var(--border-light)',
+          <div style={{
+            width: '40px', height: '40px', border: '4px solid var(--border-light)',
             borderTopColor: 'var(--accent-coral)', borderRadius: '50%', animation: 'spin 0.8s linear infinite'
           }}></div>
         </div>
+      )}
 
-        <div className="table-card-header">
-          <div className="card-title">
-            <i className="fas fa-handshake" style={{ color: 'var(--accent-coral)' }}></i>
-            Registro de Prospectos Activos
-            <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '8px' }}>
-              · {isAdmin ? 'Perfil Administrador (Vista Consolidada)' : `Perfil Tienda: ${userTienda}`}
-            </span>
-          </div>
+      {/* ─── CUADRÍCULA DE MESES (4x3) ─── */}
+      <div className="months-grid" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        {MESES.map((month) => {
+          const stats = mesesAgg[month] || { prospectados: 0, contactados: 0, cotizados: 0, cerrados: 0, perdidos: 0 };
+          const conversion = stats.prospectados > 0 ? (stats.cerrados / stats.prospectados) * 100 : 0;
+          const isSelected = activeMonth === month;
           
-          {/* Los selectores y filtros (búsqueda y etapas) SOLO serán visibles para el usuario Administrador */}
-          {isAdmin && (
-            <div className="table-controls">
-              <div className="search-wrap">
-                <i className="fas fa-search"></i>
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Buscar por cliente o empresa..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+          return (
+            <div 
+              key={month}
+              onClick={() => setActiveMonth(isSelected ? null : month)}
+              className="card"
+              style={{
+                padding: '20px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease-in-out',
+                border: isSelected ? '2px solid var(--accent-coral)' : '1px solid var(--border-light)',
+                boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
+                transform: isSelected ? 'scale(1.02)' : 'none',
+                background: '#FFFFFF',
+                borderRadius: 'var(--radius-md)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-primary)' }}>{month}</span>
+                <span className="stage-badge" style={{ 
+                  background: `${getConversionColor(conversion)}15`, 
+                  color: getConversionColor(conversion),
+                  fontWeight: '700',
+                  fontSize: '11px',
+                  padding: '3px 8px',
+                  borderRadius: '12px'
+                }}>
+                  {conversion.toFixed(0)}% conv
+                </span>
               </div>
               
-              <select
-                className="select-filter"
-                value={filterTienda}
-                onChange={(e) => setFilterTienda(e.target.value)}
-              >
-                <option value="all">Filtrar por Tienda (Todas)</option>
-                {TIENDAS.map(store => (
-                  <option key={store} value={store}>Tienda {store}</option>
-                ))}
-              </select>
+              <div style={{ height: '4px', background: 'var(--border-light)', borderRadius: '2px', overflow: 'hidden', marginBottom: '12px' }}>
+                <div style={{ 
+                  height: '100%', 
+                  width: `${Math.min(conversion, 100)}%`, 
+                  background: getConversionColor(conversion),
+                  transition: 'width 0.3s ease-out'
+                }}></div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
+                <span>Prospectos: <strong>{stats.prospectados}</strong></span>
+                <span>Cerrados: <strong style={{ color: '#047857' }}>{stats.cerrados}</strong></span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-              <select
-                className="select-filter"
-                value={filterStage}
-                onChange={(e) => setFilterStage(e.target.value)}
-              >
-                <option value="all">Todas las etapas</option>
-                <option value="prospectado">Prospectado</option>
-                <option value="contactado">Contactado</option>
-                <option value="cotizado">Cotizado</option>
-                <option value="cerrado">Cerrado</option>
-                <option value="perdido">Perdido</option>
-              </select>
+      {/* ─── DETALLE DEL MES ACTIVO ─── */}
+      {activeMonth && (
+        <div className="card active-month-details" style={{
+          padding: '24px',
+          marginTop: '24px',
+          animation: 'fadeInUp 0.3s ease-out',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-md)',
+          background: '#FFFFFF',
+          borderTop: '4px solid var(--accent-coral)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '14px', marginBottom: '20px' }}>
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+                Detalles del Mes — {activeMonth}
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                {isAdmin ? 'Análisis comparativo de sucursales' : `Análisis mensual para Asesor ${userTienda}`}
+              </p>
+            </div>
+            <button 
+              className="topbar-btn btn-outline" 
+              onClick={() => setActiveMonth(null)}
+              style={{ padding: '6px 12px', fontSize: '11px' }}
+            >
+              Cerrar detalles
+            </button>
+          </div>
+
+          {/* VISTA ADMINISTRADOR: LISTA COMPARATIVA ORDENADA */}
+          {isAdmin && (
+            <div>
+              <div style={{ marginBottom: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                💡 <em>Las sucursales se muestran ordenadas ascendentemente (del rendimiento más bajo al más alto) basándose en su tasa de conversión mensual.</em>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {adminMonthDetails.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    No hay datos registrados para este mes.
+                  </div>
+                ) : (
+                  adminMonthDetails.map((storeData, idx) => (
+                    <div 
+                      key={storeData.tienda}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 18px',
+                        background: 'var(--bg-cream)',
+                        borderRadius: 'var(--radius-md)',
+                        borderLeft: `4px solid ${getConversionColor(storeData.conversion)}`
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', width: '30px' }}>
+                          #{idx + 1}
+                        </span>
+                        <span className="stage-badge" style={{ 
+                          background: 'rgba(59, 130, 246, 0.1)', 
+                          color: '#2563eb',
+                          fontWeight: '800',
+                          padding: '4px 10px',
+                          borderRadius: '6px'
+                        }}>
+                          Tienda {storeData.tienda}
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          Prospectados: <strong>{storeData.prospectados}</strong> | Cerrados: <strong>{storeData.cerrados}</strong>
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ width: '100px', background: 'rgba(0,0,0,0.05)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ 
+                            height: '100%', 
+                            width: `${Math.min(storeData.conversion, 100)}%`, 
+                            background: getConversionColor(storeData.conversion) 
+                          }}></div>
+                        </div>
+                        <span style={{ 
+                          fontSize: '13px', 
+                          fontWeight: '800', 
+                          color: getConversionColor(storeData.conversion),
+                          minWidth: '50px',
+                          textAlign: 'right'
+                        }}>
+                          {storeData.conversion.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VISTA TIENDA: DETALLE DE RENDIMIENTO PROPIO, GRÁFICO DE CONO Y BOTÓN ACTUALIZAR */}
+          {!isAdmin && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1.2fr 1.8fr',
+              gap: '24px'
+            }} className="store-month-details-layout">
+              {/* Desglose Métricas */}
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', marginBottom: '14px', color: 'var(--text-primary)' }}>
+                  Rendimiento y Métricas
+                </h4>
+                
+                {storeMonthDetails ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Prospectados Totales:</span>
+                      <span style={{ fontWeight: '700' }}>{storeMonthDetails.prospectados}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Contactados:</span>
+                      <span style={{ fontWeight: '700', color: '#2563EB' }}>{storeMonthDetails.contactados}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Cotizados:</span>
+                      <span style={{ fontWeight: '700', color: '#B45309' }}>{storeMonthDetails.cotizados}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Cerrados (Ventas):</span>
+                      <span style={{ fontWeight: '700', color: '#047857' }}>{storeMonthDetails.cerrados}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Perdidos:</span>
+                      <span style={{ fontWeight: '700', color: '#B91C1C' }}>{storeMonthDetails.perdidos}</span>
+                    </div>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      fontSize: '14px', 
+                      marginTop: '8px', 
+                      padding: '10px',
+                      background: 'var(--bg-cream)',
+                      borderRadius: '6px'
+                    }}>
+                      <span style={{ fontWeight: '700' }}>Porcentaje de Conversión:</span>
+                      <span style={{ fontWeight: '800', color: getConversionColor(storeMonthDetails.conversion) }}>
+                        {storeMonthDetails.conversion.toFixed(1)}%
+                      </span>
+                    </div>
+
+                    <button 
+                      className="topbar-btn btn-primary" 
+                      onClick={handleOpenEditModal}
+                      style={{ marginTop: '14px', width: '100%', justifyContent: 'center' }}
+                    >
+                      <i className="fas fa-edit"></i> Actualizar Totales del Mes
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-muted)' }}>No hay datos registrados para este mes.</div>
+                )}
+              </div>
+
+              {/* Gráfica de Embudo */}
+              <div>
+                <h4 style={{ fontSize: '14px', fontWeight: '800', marginBottom: '14px', color: 'var(--text-primary)' }}>
+                  Gráfica del Embudo Conversión ({activeMonth})
+                </h4>
+                <div style={{ height: '200px', position: 'relative' }}>
+                  {storeMonthDetails ? (
+                    <FunnelMiniChart data={{
+                      total: storeMonthDetails.prospectados,
+                      cotizado: storeMonthDetails.cotizados,
+                      seguimiento: storeMonthDetails.contactados,
+                      cerrado: storeMonthDetails.cerrados
+                    }} />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No hay datos suficientes para graficar</div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
+      )}
 
-        <div className="table-responsive">
-          <table className="deals-table" role="grid" aria-label="Tabla de prospecciones">
-            <thead>
-              <tr>
-                <th scope="col">Tienda/Sucursal</th>
-                <th scope="col">No.</th>
-                <th scope="col">Empresa o Entidad</th>
-                <th scope="col">Nombre del Cliente</th>
-                <th scope="col">Teléfono</th>
-                <th scope="col">E-mail</th>
-                <th scope="col">Etapa</th>
-                <th scope="col">Monto</th>
-                <th scope="col">Fecha</th>
-                <th scope="col">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProspecciones.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="empty-state">
-                    <i className="fas fa-search"></i>
-                    <br />
-                    No se encontraron prospectos
-                  </td>
-                </tr>
-              ) : (
-                filteredProspecciones.map(item => (
-                  <tr key={item.id} className="deal-row">
-                    <td style={{ fontWeight: '700', color: 'var(--accent-blue)' }}>
-                      <span className="stage-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb' }}>
-                        {item.Tienda || '—'}
-                      </span>
-                    </td>
-                    <td className="num-cell">{item.Numeración || item.id - 1}</td>
-                    <td className="company-cell">{item.Empresa || '—'}</td>
-                    <td className="client-cell">{item.Cliente || '—'}</td>
-                    <td className="phone-cell">{item.Teléfono || '—'}</td>
-                    <td className="email-cell">{item.Email || '—'}</td>
-                    <td>
-                      <span
-                        className="stage-badge"
-                        style={getStageBadgeColorStyle(item.Etapa)}
-                      >
-                        {item.Etapa || 'Prospectado'}
-                      </span>
-                    </td>
-                    <td className="amount-cell">{formatMoneda(item.Monto)}</td>
-                    <td className="date-cell">{formatFecha(item.Fecha)}</td>
-                    <td className="actions-cell">
-                      {/* Editar: Visible para todos */}
-                      <button
-                        className="action-btn edit-btn"
-                        title="Editar"
-                        onClick={() => handleOpenModal(item)}
-                      >
-                        <i className="fas fa-pencil-alt"></i>
-                      </button>
-
-                      {/* Eliminar: Visible ÚNICAMENTE para Administrador */}
-                      {isAdmin && (
-                        <button
-                          className="action-btn delete-btn"
-                          title="Eliminar permanentemente"
-                          onClick={() => handleDelete(item)}
-                        >
-                          <i className="fas fa-trash-alt"></i>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ─── MODAL DIALOG ────────────────────────────────────── */}
+      {/* ─── MODAL DE INGRESO (SOLO PARA TIENDAS) ─── */}
       {isModalOpen && (
-        <div
-          className={`modal-overlay ${isModalOpen ? 'active' : ''}`}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="modal-title"
-          onClick={(e) => {
-            if (e.target.className.includes('modal-overlay')) handleCloseModal();
-          }}
-        >
-          <div className="modal-box">
-            <div className="modal-head">
-              <h3 id="modal-title">{formId ? 'Editar Prospección' : 'Nueva Prospección'}</h3>
-              <button className="modal-close" aria-label="Cerrar modal" onClick={handleCloseModal}>
-                <i className="fas fa-times"></i>
+        <div className="modal-backdrop" style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
+        }}>
+          <div className="card" style={{
+            width: '100%', maxWidth: '420px', padding: '24px',
+            animation: 'zoomIn 0.2s ease-out', borderRadius: 'var(--radius-lg)', background: '#FFFFFF'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)' }}>
+                Actualizar Datos — {formMes}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                &times;
               </button>
             </div>
 
-            <form onSubmit={handleSave} className={wasValidated ? 'was-validated' : ''} noValidate>
-              <div className="modal-body">
-                
-                <div className="form-group">
-                  <label className="form-label" htmlFor="field-empresa">
-                    Empresa o Entidad
-                  </label>
-                  <input
-                    type="text"
-                    id="field-empresa"
-                    className="form-control"
-                    placeholder="Ej: Embotelladora Central"
-                    value={formEmpresa}
-                    onChange={(e) => setFormEmpresa(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label" htmlFor="field-cliente">
-                    Nombre del Cliente
-                  </label>
-                  <input
-                    type="text"
-                    id="field-cliente"
-                    className="form-control"
-                    placeholder="Ej: Ing. René Arriola"
-                    value={formCliente}
-                    onChange={(e) => setFormCliente(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="modal-row">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="field-telefono">
-                      Teléfono
-                    </label>
-                    <input
-                      type="tel"
-                      id="field-telefono"
-                      className="form-control"
-                      placeholder="Ej: 502 5555-4321"
-                      value={formTelefono}
-                      onChange={(e) => setFormTelefono(e.target.value)}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="field-email">
-                      E-mail
-                    </label>
-                    <input
-                      type="email"
-                      id="field-email"
-                      className="form-control"
-                      placeholder="Ej: cliente@correo.com"
-                      value={formEmail}
-                      onChange={(e) => setFormEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="modal-row">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="field-etapa">
-                      Etapa
-                    </label>
-                    <select
-                      id="field-etapa"
-                      className="form-control"
-                      value={formEtapa}
-                      onChange={(e) => setFormEtapa(e.target.value)}
-                      required
-                    >
-                      <option value="" disabled>Seleccione una etapa</option>
-                      <option value="Prospectado">Prospectado</option>
-                      <option value="Contactado">Contactado</option>
-                      <option value="Cotizado">Cotizado</option>
-                      <option value="Cerrado">Cerrado</option>
-                      <option value="Perdido">Perdido</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group" style={{ display: formEtapa === 'Cotizado' ? 'block' : 'none' }}>
-                    <label className="form-label" htmlFor="field-monto">
-                      Monto (Q)
-                    </label>
-                    <input
-                      type="number"
-                      id="field-monto"
-                      className="form-control"
-                      placeholder="Ej: 15500.00"
-                      value={formMonto}
-                      onChange={(e) => setFormMonto(e.target.value)}
-                      min="0"
-                      step="0.01"
-                      disabled={formEtapa !== 'Cotizado'}
-                      required={formEtapa === 'Cotizado'}
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label" htmlFor="field-fecha">
-                    Fecha de Registro
-                  </label>
-                  <input
-                    type="date"
-                    id="field-fecha"
-                    className="form-control"
-                    value={formFecha}
-                    readOnly
-                    required
-                  />
-                </div>
-
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '12px' }}>Total Prospectados</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  min="0"
+                  step="1"
+                  required
+                  value={formProspectados}
+                  onChange={(e) => setFormProspectados(e.target.value)}
+                  placeholder="Ej: 50"
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                />
               </div>
 
-              <div className="modal-foot">
-                <button type="button" className="topbar-btn btn-outline" onClick={handleCloseModal}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '12px' }}>Total Contactados</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  min="0"
+                  step="1"
+                  required
+                  value={formContactados}
+                  onChange={(e) => setFormContactados(e.target.value)}
+                  placeholder="Ej: 40"
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '12px' }}>Total Cotizados</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  min="0"
+                  step="1"
+                  required
+                  value={formCotizados}
+                  onChange={(e) => setFormCotizados(e.target.value)}
+                  placeholder="Ej: 30"
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '12px' }}>Total Cerrados (Ventas)</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  min="0"
+                  step="1"
+                  required
+                  value={formCerrados}
+                  onChange={(e) => setFormCerrados(e.target.value)}
+                  placeholder="Ej: 15"
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '600', fontSize: '12px' }}>Total Perdidos</label>
+                <input 
+                  type="number" 
+                  className="form-control" 
+                  min="0"
+                  step="1"
+                  required
+                  value={formPerdidos}
+                  onChange={(e) => setFormPerdidos(e.target.value)}
+                  placeholder="Ej: 5"
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button type="button" className="topbar-btn btn-outline" onClick={() => setIsModalOpen(false)} style={{ flex: 1, justifyContent: 'center' }}>
                   Cancelar
                 </button>
-                <button type="submit" className="topbar-btn btn-primary">
-                  <i className="fas fa-save"></i> Guardar
+                <button type="submit" className="topbar-btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                  Guardar Cambios
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }
