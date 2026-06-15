@@ -567,6 +567,28 @@
       .table-card-header { padding: 14px 16px; }
       .search-input { width: 100%; }
     }
+
+    /* ─── ANIMATIONS ────────────────────────────────────────── */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    @keyframes zoomIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
   </style>
 </head>
 <body>
@@ -649,124 +671,77 @@
 
       <!-- PAGE CONTENT -->
       <main class="page-content">
-        <p class="section-label">Ventas — Prospecciones de Clientes</p>
+        <p class="section-label" id="section-view-subtitle">Ventas — Control de Prospecciones Mensuales</p>
 
-        <!-- KPI CARDS GRID -->
-        <div class="kpis-grid">
-          <!-- Prospectado Card -->
-          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-blue);">
-            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Prospectados</div>
-            <div id="kpi-prospectado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+        <!-- ─── BANNER DE TOTAL ANUAL ─── -->
+        <div class="card" style="background: linear-gradient(135deg, #FFF8F5 0%, #FFFFFF 100%); border-left: 5px solid var(--accent-coral); padding: 24px; margin-bottom: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <h3 style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 0;">
+                Resumen Acumulado Anual
+              </h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;" id="annual-summary-subtitle">
+                Consolidado general del año
+              </p>
+            </div>
+            <div style="background: rgba(255, 109, 77, 0.1); color: var(--accent-coral); padding: 12px 20px; border-radius: var(--radius-md); text-align: center;">
+              <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Tasa de Conversión Anual</div>
+              <div style="font-size: 28px; font-weight: 800;" id="annual-conversion-badge">0%</div>
+            </div>
           </div>
-          <!-- Contactado Card -->
-          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-orange);">
-            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Contactados</div>
-            <div id="kpi-contactado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
-          </div>
-          <!-- Cotizado Card -->
-          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-purple);">
-            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Cotizados</div>
-            <div id="kpi-cotizado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
-          </div>
-          <!-- Cerrado Card -->
-          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-green);">
-            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Cerrados</div>
-            <div id="kpi-cerrado" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
-          </div>
-          <!-- Perdido Card -->
-          <div class="card" style="padding: 16px; border-top: 4px solid var(--accent-red);">
-            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Perdidos</div>
-            <div id="kpi-perdido" style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 6px;">0</div>
+          
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 20px;" class="kpis-annual-grid">
+            <div style="padding: 8px 4px;">
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Prospectados</div>
+              <div style="font-size: 20px; font-weight: 800; color: #475569; margin-top: 4px;" id="annual-prospectados">0</div>
+            </div>
+            <div style="padding: 8px 4px;">
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Contactados</div>
+              <div style="font-size: 20px; font-weight: 800; color: #2563EB; margin-top: 4px;" id="annual-contactados">0</div>
+            </div>
+            <div style="padding: 8px 4px;">
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Cotizados</div>
+              <div style="font-size: 20px; font-weight: 800; color: #B45309; margin-top: 4px;" id="annual-cotizados">0</div>
+            </div>
+            <div style="padding: 8px 4px;">
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Cerrados</div>
+              <div style="font-size: 20px; font-weight: 800; color: #047857; margin-top: 4px;" id="annual-cerrados">0</div>
+            </div>
+            <div style="padding: 8px 4px;">
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Perdidos</div>
+              <div style="font-size: 20px; font-weight: 800; color: #B91C1C; margin-top: 4px;" id="annual-perdidos">0</div>
+            </div>
           </div>
         </div>
 
-        <!-- MINIDASHBOARD CARD: Funnel Chart -->
-        <div class="card" style="margin-bottom: 20px; padding: 20px;">
-          <div class="table-card-header" style="margin-bottom: 14px; border-bottom: none; padding: 0;">
-            <div class="card-title">
-              <span class="card-title-dot" style="background: var(--accent-coral);"></span>
-              Embudo de Prospecciones Comerciales
-              <span style="font-size: 10px; font-weight: 500; color: var(--text-muted); margin-left: 8px;">· Estatus acumulado de conversión</span>
-            </div>
-          </div>
-          <div style="height: 180px; position: relative;">
-            <div id="funnel-placeholder" style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 10px; min-height: 180px;">
-              <i class="fas fa-chart-bar fa-2x"></i>
-              <span style="font-size: 13px;">No hay datos suficientes para graficar el embudo</span>
-            </div>
-            <canvas id="funnel-chart-canvas" style="display: none;"></canvas>
-          </div>
+        <!-- Loader Spinner Overlay -->
+        <div id="table-loader" class="loader-overlay" style="display: none; position: absolute; inset: 0; background: rgba(255,255,255,0.7); align-items: center; justify-content: center; z-index: 10;">
+          <div class="spinner"></div>
         </div>
 
-        <!-- TABLE CARD -->
-        <div class="card table-card" style="position: relative;">
-          <!-- Loader Overlay -->
-          <div id="table-loader" class="loader-overlay">
-            <div class="spinner"></div>
-          </div>
+        <!-- ─── CUADRÍCULA DE MESES (4x3) ─── -->
+        <div id="months-grid-container" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;">
+          <!-- Se renderiza dinámicamente -->
+        </div>
 
-          <div class="table-card-header">
-            <div class="card-title">
-              <i class="fas fa-handshake" style="color: var(--accent-coral);"></i>
-              Registro de Prospectos Activos
-              <span id="active-profile-label" style="font-size: 10px; font-weight: 500; color: var(--text-muted); margin-left: 8px;"></span>
+        <!-- ─── DETALLE DEL MES ACTIVO ─── -->
+        <div id="active-month-details-card" class="card" style="display: none; padding: 24px; margin-top: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); background: #FFFFFF; border-top: 4px solid var(--accent-coral);">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 14px; margin-bottom: 20px;">
+            <div>
+              <h3 style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin: 0;" id="details-month-title">
+                Detalles del Mes
+              </h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 4px 0 0 0;" id="details-month-subtitle">
+                Análisis comparativo de sucursales
+              </p>
             </div>
-            
-            <div class="table-controls">
-              <div class="search-wrap">
-                <i class="fas fa-search"></i>
-                <input type="text" class="search-input" id="table-search" placeholder="Buscar por cliente o empresa..." oninput="filtrarTabla()">
-              </div>
-              
-              <select class="select-filter" id="filter-tienda" onchange="filtrarTabla()" style="display: none;">
-                <option value="all">Filtrar por Tienda (Todas)</option>
-                <option value="CB">Tienda CB</option>
-                <option value="CHM">Tienda CHM</option>
-                <option value="CHQ">Tienda CHQ</option>
-                <option value="ESC">Tienda ESC</option>
-                <option value="HH">Tienda HH</option>
-                <option value="JT">Tienda JT</option>
-                <option value="MZ">Tienda MZ</option>
-                <option value="PT">Tienda PT</option>
-                <option value="PTB">Tienda PTB</option>
-                <option value="SJ">Tienda SJ</option>
-                <option value="SMA">Tienda SMA</option>
-                <option value="VN">Tienda VN</option>
-                <option value="XL">Tienda XL</option>
-                <option value="Z3">Tienda Z3</option>
-              </select>
-
-              <select class="select-filter" id="filter-stage" onchange="filtrarTabla()">
-                <option value="all">Todas las etapas</option>
-                <option value="prospectado">Prospectado</option>
-                <option value="contactado">Contactado</option>
-                <option value="cotizado">Cotizado</option>
-                <option value="cerrado">Cerrado</option>
-                <option value="perdido">Perdido</option>
-              </select>
-            </div>
+            <button class="topbar-btn btn-outline" onclick="cerrarDetallesMes()" style="padding: 6px 12px; font-size: 11px;">
+              Cerrar detalles
+            </button>
           </div>
 
-          <div class="table-responsive">
-            <table class="deals-table">
-              <thead>
-                <tr id="table-headers">
-                  <th>No.</th>
-                  <th>Empresa o Entidad</th>
-                  <th>Nombre del Cliente</th>
-                  <th>Teléfono</th>
-                  <th>E-mail</th>
-                  <th>Etapa</th>
-                  <th>Monto</th>
-                  <th>Fecha</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="prospects-tbody">
-                <!-- Se pobla dinámicamente -->
-              </tbody>
-            </table>
-          </div>
+          <!-- Contenido dinámico según el Rol -->
+          <div id="details-month-content"></div>
         </div>
 
       </main>
@@ -774,74 +749,53 @@
 
   </div>
 
-  <!-- ─── MODAL: AGREGAR / EDITAR PROSPECCIÓN ──────────────── -->
+  <!-- ─── MODAL: ACTUALIZAR TOTALES MENSUALES (Solo Tiendas) ─── -->
   <div class="modal-overlay" id="prospect-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width: 420px;">
       
       <div class="modal-head">
-        <h3 id="modal-title">Nueva Prospección</h3>
+        <h3 id="modal-title">Actualizar Datos Mensuales</h3>
         <button class="modal-close" onclick="cerrarModal()" aria-label="Cerrar modal">
           <i class="fas fa-times"></i>
         </button>
       </div>
 
-      <form id="prospect-form" onsubmit="guardarProspeccion(event)" novalidate>
-        <div class="modal-body">
+      <form id="prospect-form" onsubmit="guardarValores(event)" novalidate>
+        <div class="modal-body" style="display: flex; flexDirection: column; gap: 14px;">
           
-          <input type="hidden" id="field-id">
+          <input type="hidden" id="field-mes">
 
           <div class="form-group">
-            <label class="form-label" for="field-empresa">Empresa o Entidad</label>
-            <input type="text" id="field-empresa" class="form-control" placeholder="Ej: Embotelladora Central" required>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="field-cliente">Nombre del Cliente</label>
-            <input type="text" id="field-cliente" class="form-control" placeholder="Ej: Ing. René Arriola" required>
-          </div>
-
-          <div class="modal-row">
-            <div class="form-group">
-              <label class="form-label" for="field-telefono">Teléfono</label>
-              <input type="tel" id="field-telefono" class="form-control" placeholder="Ej: 502 5555-4321" required>
-            </div>
-            
-            <div class="form-group">
-              <label class="form-label" for="field-email">E-mail</label>
-              <input type="email" id="field-email" class="form-control" placeholder="Ej: cliente@correo.com" required>
-            </div>
-          </div>
-
-          <div class="modal-row">
-            <div class="form-group">
-              <label class="form-label" for="field-etapa">Etapa</label>
-              <select id="field-etapa" class="form-control" required onchange="actualizarVisibilidadMonto(this.value)">
-                <option value="" disabled selected>Seleccione una etapa</option>
-                <option value="Prospectado">Prospectado</option>
-                <option value="Contactado">Contactado</option>
-                <option value="Cotizado">Cotizado</option>
-                <option value="Cerrado">Cerrado</option>
-                <option value="Perdido">Perdido</option>
-              </select>
-            </div>
-
-            <div class="form-group" id="monto-group" style="display: none;">
-              <label class="form-label" for="field-monto">Monto (Q)</label>
-              <input type="number" id="field-monto" class="form-control" placeholder="Ej: 15500.00" min="0" step="0.01" disabled required>
-            </div>
+            <label class="form-label" for="field-prospectados" style="font-weight: 600; font-size: 12px;">Total Prospectados</label>
+            <input type="number" id="field-prospectados" class="form-control" min="0" step="1" required placeholder="Ej: 50">
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="field-fecha">Fecha de Registro</label>
-            <input type="date" id="field-fecha" class="form-control" readonly required>
+            <label class="form-label" for="field-contactados" style="font-weight: 600; font-size: 12px;">Total Contactados</label>
+            <input type="number" id="field-contactados" class="form-control" min="0" step="1" required placeholder="Ej: 40">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-cotizados" style="font-weight: 600; font-size: 12px;">Total Cotizados</label>
+            <input type="number" id="field-cotizados" class="form-control" min="0" step="1" required placeholder="Ej: 30">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-cerrados" style="font-weight: 600; font-size: 12px;">Total Cerrados (Ventas)</label>
+            <input type="number" id="field-cerrados" class="form-control" min="0" step="1" required placeholder="Ej: 15">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="field-perdidos" style="font-weight: 600; font-size: 12px;">Total Perdidos</label>
+            <input type="number" id="field-perdidos" class="form-control" min="0" step="1" required placeholder="Ej: 5">
           </div>
 
         </div>
 
-        <div class="modal-foot">
-          <button type="button" class="topbar-btn btn-outline" onclick="cerrarModal()">Cancelar</button>
-          <button type="submit" class="topbar-btn btn-primary" id="btn-save">
-            <i class="fas fa-save"></i> Guardar
+        <div class="modal-foot" style="display: flex; gap: 10px;">
+          <button type="button" class="topbar-btn btn-outline" onclick="cerrarModal()" style="flex: 1; justify-content: center;">Cancelar</button>
+          <button type="submit" class="topbar-btn btn-primary" style="flex: 1; justify-content: center;">
+            <i class="fas fa-save"></i> Guardar Cambios
           </button>
         </div>
       </form>
@@ -854,158 +808,114 @@
 
   <!-- ─── JAVASCRIPT CONTROLLER ──────────────────────────── -->
   <script>
-    // Memoria local de prospecciones (Se alimenta del backend o de mock en desarrollo local)
-    let LISTA_PROSPECCIONES = [];
-    let userRol = "Vendedor"; // 'Administrador' o 'Vendedor' - Inicia como Vendedor por defecto para evitar ocultar controles
-    let userTienda = ""; // Código de tienda
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const TIENDAS = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
-    // Variables exclusivas para simulación/pruebas locales
+    let LISTA_PROSPECCIONES = [];
+    let userRol = "Vendedor";
+    let userTienda = "";
+    
+    // Variables de simulación para desarrollo local
     let mockUserRol = "Vendedor";
     let mockUserTienda = "CB";
 
-    // Datos iniciales de simulación si se ejecuta fuera de Google Apps Script
-    const MOCK_PROSPECCIONES = [
-      { id: 2, Numeración: 1, Empresa: "Distribuidora El Sol", Cliente: "Carlos Gómez", Teléfono: "+502 5555-1234", Email: "carlos@elsol.com.gt", Etapa: "Cotizado", Monto: 12500.00, Fecha: "2026-06-08", Tienda: "CB" },
-      { id: 3, Numeración: 2, Empresa: "Constructora Alfa", Cliente: "Ana Martínez", Teléfono: "+502 4444-5678", Email: "amartinez@alfa.com.gt", Etapa: "Cerrado", Monto: 45000.00, Fecha: "2026-06-09", Tienda: "CHQ" },
-      { id: 4, Numeración: 3, Empresa: "Tecnología Avanzada", Cliente: "Luis Rodríguez", Teléfono: "+502 3333-9012", Email: "lrodriguez@tec.com.gt", Etapa: "Prospectado", Monto: 8000.00, Fecha: "2026-06-07", Tienda: "JT" },
-      { id: 5, Numeración: 4, Empresa: "Supermercados La Torre", Cliente: "Marta Estrada", Teléfono: "+502 2222-3456", Email: "mestrada@latorre.com.gt", Etapa: "Contactado", Monto: 15000.00, Fecha: "2026-06-08", Tienda: "CB" },
-      { id: 6, Numeración: 5, Empresa: "Restaurante Portal", Cliente: "Juan Pérez", Teléfono: "+502 7777-7890", Email: "jperez@portal.com.gt", Etapa: "Perdido", Monto: 5000.00, Fecha: "2026-06-05", Tienda: "PTB" }
-    ];
+    // Generar base de datos simulada inicial
+    const generarMockProspecciones = () => {
+      const db = [];
+      let num = 1;
+      TIENDAS.forEach((store, sIdx) => {
+        MESES.forEach((month, mIdx) => {
+          const seed = (sIdx * 12 + mIdx) * 31;
+          const prospectados = 20 + (seed % 30);
+          const contactados = Math.floor(prospectados * 0.75);
+          const cotizados = Math.floor(contactados * 0.6);
+          const cerrados = Math.floor(cotizados * 0.5) + 1;
+          const perdidos = Math.floor((prospectados - cerrados) * 0.25);
+          
+          db.push({
+            id: num,
+            Numeración: num++,
+            Mes: month,
+            Tienda: store,
+            Prospectados: prospectados,
+            Contactados: contactados,
+            Cotizados: cotizados,
+            Cerrados: cerrados,
+            Perdidos: perdidos
+          });
+        });
+      });
+      return db;
+    };
 
-    // ── STUBS PARA DESARROLLO LOCAL ─────────────────────────
+    // Stubs para desarrollo local
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       console.warn("NexusCRM: Entorno de Google Apps Script no detectado. Utilizando emulador local con LocalStorage.");
       
       if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
-        localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(MOCK_PROSPECCIONES));
+        localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(generarMockProspecciones()));
       }
 
       window.google = {
         script: {
           run: {
             handlers: {},
-            withSuccessHandler: function(onSuccess) {
-              this.handlers.success = onSuccess;
-              return this;
-            },
-            withFailureHandler: function(onFailure) {
-              this.handlers.failure = onFailure;
-              return this;
-            },
+            withSuccessHandler: function(onSuccess) { this.handlers.success = onSuccess; return this; },
+            withFailureHandler: function(onFailure) { this.handlers.failure = onFailure; return this; },
             obtenerProspecciones: function() {
               setTimeout(() => {
                 const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
                 const dataFiltrada = mockUserRol === 'Administrador'
                   ? db
                   : db.filter(item => item.Tienda === mockUserTienda);
-                
-                google.script.run.handlers.success({
-                  rol: mockUserRol,
-                  tienda: mockUserTienda,
-                  data: dataFiltrada
-                });
-              }, 500);
+                this.handlers.success({ rol: mockUserRol, tienda: mockUserTienda, data: dataFiltrada });
+              }, 400);
             },
-            agregarProspeccion: function(prospecto) {
-              setTimeout(() => {
-                if (mockUserRol === 'Administrador') {
-                  google.script.run.handlers.failure(new Error("Permiso denegado. El Administrador no agrega nuevas prospecciones."));
-                  return;
-                }
-                const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                const newId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 2;
-                const newNum = db.length > 0 ? Math.max(...db.map(d => d.Numeración)) + 1 : 1;
-                
-                const record = {
-                  id: newId,
-                  Numeración: newNum,
-                  Empresa: prospecto.empresa,
-                  Cliente: prospecto.cliente,
-                  Teléfono: prospecto.telefono,
-                  Email: prospecto.email,
-                  Etapa: prospecto.etapa,
-                  Monto: (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0,
-                  Fecha: new Date().toISOString().slice(0, 10), // Inyectado del servidor
-                  Tienda: mockUserTienda
-                };
-                db.push(record);
-                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-                
-                const dataFiltrada = db.filter(item => item.Tienda === mockUserTienda);
-                google.script.run.handlers.success({
-                  status: "success",
-                  message: "Guardado exitoso.",
-                  response: {
-                    rol: mockUserRol,
-                    tienda: mockUserTienda,
-                    data: dataFiltrada
-                  }
-                });
-              }, 600);
-            },
-            editarProspeccion: function(id, prospecto) {
+            guardarValoresMensuales: function(payload) {
               setTimeout(() => {
                 let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                let originalTienda = 'CB';
-                
-                db = db.map(d => {
-                  if (d.id == id) {
-                    originalTienda = d.Tienda || 'CB';
-                    if (mockUserRol !== 'Administrador' && originalTienda !== mockUserTienda) {
-                      return d;
-                    }
+                let found = false;
+                db = db.map(item => {
+                  if (item.Mes.toLowerCase() === payload.mes.toLowerCase() && item.Tienda.toLowerCase() === payload.tienda.toLowerCase()) {
+                    found = true;
                     return {
-                      ...d,
-                      Empresa: prospecto.empresa,
-                      Cliente: prospecto.cliente,
-                      Teléfono: prospecto.telefono,
-                      Email: prospecto.email,
-                      Etapa: prospecto.etapa,
-                      Monto: (String(prospecto.etapa).trim().toLowerCase() === "cotizado") ? (parseFloat(prospecto.monto) || 0) : 0,
-                      Fecha: d.Fecha, // Preservar la fecha original
-                      Tienda: originalTienda
+                      ...item,
+                      Prospectados: payload.prospectados,
+                      Contactados: payload.contactados,
+                      Cotizados: payload.cotizados,
+                      Cerrados: payload.cerrados,
+                      Perdidos: payload.perdidos
                     };
                   }
-                  return d;
+                  return item;
                 });
-                
+
+                if (!found) {
+                  const nextId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 1;
+                  db.push({
+                    id: nextId,
+                    Numeración: nextId,
+                    Mes: payload.mes,
+                    Tienda: payload.tienda,
+                    Prospectados: payload.prospectados,
+                    Contactados: payload.contactados,
+                    Cotizados: payload.cotizados,
+                    Cerrados: payload.cerrados,
+                    Perdidos: payload.perdidos
+                  });
+                }
+
                 localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-                
                 const dataFiltrada = mockUserRol === 'Administrador'
                   ? db
                   : db.filter(item => item.Tienda === mockUserTienda);
-                
-                google.script.run.handlers.success({
+
+                this.handlers.success({
                   status: "success",
-                  message: "Guardado exitoso.",
                   response: {
                     rol: mockUserRol,
                     tienda: mockUserTienda,
                     data: dataFiltrada
-                  }
-                });
-              }, 600);
-            },
-            eliminarProspeccion: function(id) {
-              setTimeout(() => {
-                if (mockUserRol !== 'Administrador') {
-                  google.script.run.handlers.failure(new Error("Permiso denegado. Solo el Administrador tiene autorización para eliminar en la base de datos."));
-                  return;
-                }
-                let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-                db = db.filter(d => d.id != id);
-                db.forEach((d, idx) => {
-                  d.Numeración = idx + 1;
-                });
-                localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-                
-                google.script.run.handlers.success({
-                  status: "success",
-                  message: "Eliminado correctamente.",
-                  response: {
-                    rol: mockUserRol,
-                    tienda: mockUserTienda,
-                    data: db
                   }
                 });
               }, 500);
@@ -1014,6 +924,22 @@
         }
       };
     }
+
+    let activeMonthSelected = null;
+    let funnelChartInstance = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const isGas = typeof google !== 'undefined' && google.script && google.script.run;
+      if (!isGas) {
+        userRol = mockUserRol;
+        userTienda = mockUserTienda;
+      }
+      
+      const fileUploadInput = document.getElementById('file-upload');
+      if (fileUploadInput) fileUploadInput.addEventListener('change', importarExcel);
+      
+      cargarProspecciones();
+    });
 
     function handleMockRoleChange(val) {
       if (val === 'Administrador') {
@@ -1028,18 +954,10 @@
       }
       userRol = mockUserRol;
       userTienda = mockUserTienda;
+      activeMonthSelected = null;
+      document.getElementById('active-month-details-card').style.display = 'none';
       cargarProspecciones();
     }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
-      const isGas = typeof google !== 'undefined' && google.script && google.script.run;
-      if (!isGas) {
-        userRol = mockUserRol;
-        userTienda = mockUserTienda;
-      }
-      cargarProspecciones();
-    });
 
     function cargarProspecciones() {
       mostrarCargando(true);
@@ -1050,7 +968,13 @@
           LISTA_PROSPECCIONES = response.data || [];
           
           actualizarUIFiltrosYRoles();
-          renderizarTabla(LISTA_PROSPECCIONES);
+          calcularTotalAnual();
+          renderizarCuadriculaMeses();
+          
+          if (activeMonthSelected) {
+            mostrarDetallesMes(activeMonthSelected);
+          }
+          
           mostrarCargando(false);
         })
         .withFailureHandler(function(err) {
@@ -1063,24 +987,8 @@
     function recargarTablaManual() {
       const syncIcon = document.getElementById('sync-icon');
       syncIcon.classList.add('fa-spin');
-      showToast("Actualizando datos desde la hoja...", "info");
-      
-      google.script.run
-        .withSuccessHandler(function(response) {
-          userRol = response.rol;
-          userTienda = response.tienda;
-          LISTA_PROSPECCIONES = response.data || [];
-          
-          actualizarUIFiltrosYRoles();
-          renderizarTabla(LISTA_PROSPECCIONES);
-          syncIcon.classList.remove('fa-spin');
-          showToast("Datos actualizados correctamente.", "success");
-        })
-        .withFailureHandler(function(err) {
-          syncIcon.classList.remove('fa-spin');
-          showToast("Error al actualizar vista: " + err.message, "error");
-        })
-        .obtenerProspecciones();
+      cargarProspecciones();
+      setTimeout(() => { syncIcon.classList.remove('fa-spin'); }, 600);
     }
 
     function actualizarUIFiltrosYRoles() {
@@ -1092,24 +1000,14 @@
 
       const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
 
-      const btnNuevaEl = document.getElementById('btn-nueva-prospeccion');
-      if (btnNuevaEl) {
-        btnNuevaEl.style.display = isAdmin ? 'none' : 'inline-flex';
-      }
-
       const btnImportarEl = document.getElementById('btn-importar-excel');
       if (btnImportarEl) {
         btnImportarEl.style.display = isAdmin ? 'none' : 'inline-flex';
       }
 
-      // Los selectores y filtros (búsqueda y etapas) SOLO serán visibles para el usuario Administrador
-      const tableControlsEl = document.querySelector('.table-controls');
-      if (tableControlsEl) {
-        tableControlsEl.style.display = isAdmin ? 'flex' : 'none';
-      }
-      const filterTiendaEl = document.getElementById('filter-tienda');
-      if (filterTiendaEl) {
-        filterTiendaEl.style.display = isAdmin ? 'inline-block' : 'none';
+      const btnNuevaProspeccion = document.getElementById('btn-nueva-prospeccion');
+      if (btnNuevaProspeccion) {
+        btnNuevaProspeccion.style.display = isAdmin ? 'none' : 'inline-flex';
       }
 
       const profileLabelEl = document.getElementById('active-profile-label');
@@ -1125,288 +1023,311 @@
       if (emailEl) {
         emailEl.textContent = isAdmin ? 'admin@trofex.com' : `${userTienda.toLowerCase()}@trofex.com`;
       }
-
-      const headersRow = document.getElementById('table-headers');
-      if (headersRow) {
-        headersRow.innerHTML = `
-          <th scope="col">Tienda/Sucursal</th>
-          <th scope="col">No.</th>
-          <th scope="col">Empresa o Entidad</th>
-          <th scope="col">Nombre del Cliente</th>
-          <th scope="col">Teléfono</th>
-          <th scope="col">E-mail</th>
-          <th scope="col">Etapa</th>
-          <th scope="col">Monto</th>
-          <th scope="col">Fecha</th>
-          <th scope="col">Acciones</th>
-        `;
-      }
     }
 
-    function actualizarKPIs(datos) {
-      const prospectados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'prospectado').length;
-      const contactados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'contactado').length;
-      const cotizados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'cotizado').length;
-      const cerrados = datos.filter(item => (item.Etapa || '').toLowerCase() === 'cerrado').length;
-      const perdidos = datos.filter(item => (item.Etapa || '').toLowerCase() === 'perdido').length;
+    function calcularTotalAnual() {
+      let prospectados = 0;
+      let contactados = 0;
+      let cotizados = 0;
+      let cerrados = 0;
+      let perdidos = 0;
 
-      document.getElementById('kpi-prospectado').textContent = prospectados;
-      document.getElementById('kpi-contactado').textContent = contactados;
-      document.getElementById('kpi-cotizado').textContent = cotizados;
-      document.getElementById('kpi-cerrado').textContent = cerrados;
-      document.getElementById('kpi-perdido').textContent = perdidos;
-    }
+      LISTA_PROSPECCIONES.forEach(p => {
+        prospectados += parseInt(p.Prospectados) || 0;
+        contactados += parseInt(p.Contactados) || 0;
+        cotizados += parseInt(p.Cotizados) || 0;
+        cerrados += parseInt(p.Cerrados) || 0;
+        perdidos += parseInt(p.Perdidos) || 0;
+      });
 
-    function renderizarTabla(lista) {
-      const tbody = document.getElementById('prospects-tbody');
-      tbody.innerHTML = '';
+      const conversion = prospectados > 0 ? ((cerrados / prospectados) * 100).toFixed(1) : "0.0";
+
+      const conversionEl = document.getElementById('annual-conversion-badge');
+      if (conversionEl) conversionEl.textContent = `${conversion}%`;
+
+      const prospectadosEl = document.getElementById('annual-prospectados');
+      if (prospectadosEl) prospectadosEl.textContent = prospectados;
+
+      const contactadosEl = document.getElementById('annual-contactados');
+      if (contactadosEl) contactadosEl.textContent = contactados;
+
+      const cotizadosEl = document.getElementById('annual-cotizados');
+      if (cotizadosEl) cotizadosEl.textContent = cotizados;
+
+      const cerradosEl = document.getElementById('annual-cerrados');
+      if (cerradosEl) cerradosEl.textContent = cerrados;
+
+      const perdidosEl = document.getElementById('annual-perdidos');
+      if (perdidosEl) perdidosEl.textContent = perdidos;
 
       const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
-      if (lista.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colSpan="10" class="empty-state">
-              <i class="fas fa-handshake"></i>
-              <br />
-              No hay prospecciones registradas
-            </td>
-          </tr>
-        `;
-        renderizarEmbudo([]);
-        actualizarKPIs([]);
-        return;
+      const subtitleEl = document.getElementById('annual-summary-subtitle');
+      if (subtitleEl) {
+        subtitleEl.textContent = isAdmin 
+          ? "Consolidado general del año para todas las sucursales" 
+          : `Consolidado general del año para tienda ${userTienda}`;
       }
+    }
 
-      lista.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.className = 'deal-row';
-        tr.id = `prospect-row-${item.id}`;
+    function getConversionColor(percentage) {
+      if (percentage >= 50) return '#10B981'; // Verde
+      if (percentage >= 25) return '#F59E0B'; // Naranja/Ambar
+      return '#EF4444'; // Rojo
+    }
 
-        const etapaLower = (item.Etapa || '').toLowerCase();
-        let badgeClass = 'badge-prospectado';
-        if (etapaLower === 'contactado') badgeClass = 'badge-contactado';
-        else if (etapaLower === 'cotizado') badgeClass = 'badge-cotizado';
-        else if (etapaLower === 'cerrado') badgeClass = 'badge-cerrado';
-        else if (etapaLower === 'perdido') badgeClass = 'badge-perdido';
+    function renderizarCuadriculaMeses() {
+      const container = document.getElementById('months-grid-container');
+      if (!container) return;
+      container.innerHTML = '';
 
-        const montoFormateado = formatMoneda(item.Monto);
-        const fechaFormateada = formatFecha(item.Fecha);
-
-        let rowHtml = `
-          <td style="font-weight: 700; color: var(--accent-blue);">
-            <span class="stage-badge" style="background: rgba(59, 130, 246, 0.1); color: #2563eb;">
-              ${item.Tienda || '—'}
-            </span>
-          </td>
-        `;
-
-        rowHtml += `
-          <td class="num-cell">${item.Numeración || item.id - 1}</td>
-          <td class="company-cell">${item.Empresa || '—'}</td>
-          <td class="client-cell">${item.Cliente || '—'}</td>
-          <td class="phone-cell">${item.Teléfono || '—'}</td>
-          <td class="email-cell">${item.Email || '—'}</td>
-          <td><span class="stage-badge ${badgeClass}">${item.Etapa || 'Prospectado'}</span></td>
-          <td class="amount-cell">${montoFormateado}</td>
-          <td class="date-cell">${fechaFormateada}</td>
-          <td class="actions-cell">
-            <button class="action-btn edit-btn" onclick="editarProspeccion(${item.id})" title="Editar"><i class="fas fa-pencil-alt"></i></button>
-        `;
-
-        if (isAdmin) {
-          rowHtml += `
-            <button class="action-btn delete-btn" onclick="confirmarEliminar(${item.id})" title="Eliminar"><i class="fas fa-trash-alt"></i></button>
-          `;
-        }
-
-        rowHtml += `</td>`;
-        tr.innerHTML = rowHtml;
-        tbody.appendChild(tr);
+      // Agrupar por mes
+      const mesesAgg = {};
+      MESES.forEach(m => {
+        mesesAgg[m] = { prospectados: 0, contactados: 0, cotizados: 0, cerrados: 0, perdidos: 0 };
       });
 
-      renderizarEmbudo(lista);
-      actualizarKPIs(lista);
-    }
+      LISTA_PROSPECCIONES.forEach(p => {
+        const m = p.Mes;
+        if (mesesAgg[m]) {
+          mesesAgg[m].prospectados += parseInt(p.Prospectados) || 0;
+          mesesAgg[m].contactados += parseInt(p.Contactados) || 0;
+          mesesAgg[m].cotizados += parseInt(p.Cotizados) || 0;
+          mesesAgg[m].cerrados += parseInt(p.Cerrados) || 0;
+          mesesAgg[m].perdidos += parseInt(p.Perdidos) || 0;
+        }
+      });
 
-    function abrirModal(id = null) {
-      const modal = document.getElementById('prospect-modal');
-      const form = document.getElementById('prospect-form');
-      const titleEl = document.getElementById('modal-title');
-      
-      form.classList.remove('was-validated');
+      MESES.forEach(month => {
+        const stats = mesesAgg[month];
+        const conversion = stats.prospectados > 0 ? (stats.cerrados / stats.prospectados) * 100 : 0;
+        const isSelected = activeMonthSelected === month;
 
-      if (id) {
-        titleEl.textContent = "Editar Prospección";
-        const item = LISTA_PROSPECCIONES.find(p => p.id == id);
-        if (item) {
-          document.getElementById('field-id').value = item.id;
-          document.getElementById('field-empresa').value = item.Empresa || '';
-          document.getElementById('field-cliente').value = item.Cliente || '';
-          document.getElementById('field-telefono').value = item.Teléfono || '';
-          document.getElementById('field-email').value = item.Email || '';
-          document.getElementById('field-etapa').value = item.Etapa || 'Prospectado';
-          document.getElementById('field-monto').value = item.Monto || '';
-          document.getElementById('field-fecha').value = item.Fecha ? item.Fecha.slice(0, 10) : new Date().toISOString().slice(0, 10);
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.padding = '20px';
+        card.style.cursor = 'pointer';
+        card.style.transition = 'all 0.2s ease-in-out';
+        card.style.border = isSelected ? '2px solid var(--accent-coral)' : '1px solid var(--border-light)';
+        card.style.boxShadow = isSelected ? 'var(--shadow-sm)' : 'none';
+        card.style.transform = isSelected ? 'scale(1.02)' : 'none';
+        card.style.background = '#FFFFFF';
+        card.style.borderRadius = 'var(--radius-md)';
+
+        card.onclick = () => {
+          if (isSelected) {
+            cerrarDetallesMes();
+          } else {
+            mostrarDetallesMes(month);
+          }
+        };
+
+        const color = getConversionColor(conversion);
+
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 15px; font-weight: 800; color: var(--text-primary);">${month}</span>
+            <span class="stage-badge" style="background: ${color}15; color: ${color}; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 12px;">
+              ${conversion.toFixed(0)}% conv
+            </span>
+          </div>
           
-          actualizarVisibilidadMonto(item.Etapa || 'Prospectado');
-        }
-      } else {
-        titleEl.textContent = "Nueva Prospección";
-        form.reset();
-        document.getElementById('field-id').value = '';
-        document.getElementById('field-fecha').value = new Date().toISOString().slice(0, 10);
-        
-        actualizarVisibilidadMonto('');
-      }
-      modal.classList.add('active');
+          <div style="height: 4px; background: var(--border-light); border-radius: 2px; overflow: hidden; margin-bottom: 12px;">
+            <div style="height: 100%; width: ${Math.min(conversion, 100)}%; background: ${color}; transition: width 0.3s ease-out;"></div>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+            <span>Prospectos: <strong>${stats.prospectados}</strong></span>
+            <span>Cerrados: <strong style="color: #047857;">${stats.cerrados}</strong></span>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
     }
 
-    function cerrarModal() {
-      document.getElementById('prospect-modal').classList.remove('active');
-    }
+    function mostrarDetallesMes(month) {
+      activeMonthSelected = month;
+      
+      // Re-render grid to show highlighted border
+      renderizarCuadriculaMeses();
 
-    function actualizarVisibilidadMonto(etapa) {
-      const isCotizado = etapa === 'Cotizado';
-      const montoGroup = document.getElementById('monto-group');
-      const fieldMonto = document.getElementById('field-monto');
-      if (montoGroup && fieldMonto) {
-        if (isCotizado) {
-          montoGroup.style.display = 'block';
-          fieldMonto.removeAttribute('disabled');
-          fieldMonto.setAttribute('required', 'true');
-        } else {
-          montoGroup.style.display = 'none';
-          fieldMonto.setAttribute('disabled', 'true');
-          fieldMonto.removeAttribute('required');
-          fieldMonto.value = ''; // limpiar monto si no es cotizado
-        }
-      }
-    }
+      const detailsCard = document.getElementById('active-month-details-card');
+      const detailsTitle = document.getElementById('details-month-title');
+      const detailsSubtitle = document.getElementById('details-month-subtitle');
+      const detailsContent = document.getElementById('details-month-content');
 
-    function guardarProspeccion(event) {
-      event.preventDefault();
-      const form = document.getElementById('prospect-form');
-      if (!form.checkValidity()) {
-        form.classList.add('was-validated');
-        showToast("Por favor complete los campos obligatorios.", "error");
-        return;
-      }
+      if (!detailsCard || !detailsContent) return;
 
-      const id = document.getElementById('field-id').value;
-      const datos = {
-        empresa: document.getElementById('field-empresa').value.trim(),
-        cliente: document.getElementById('field-cliente').value.trim(),
-        telefono: document.getElementById('field-telefono').value.trim(),
-        email: document.getElementById('field-email').value.trim(),
-        etapa: document.getElementById('field-etapa').value,
-        monto: parseFloat(document.getElementById('field-monto').value) || 0,
-        fecha: document.getElementById('field-fecha').value
-      };
+      detailsCard.style.display = 'block';
+      detailsTitle.textContent = `Detalles del Mes — ${month}`;
 
-      mostrarCargando(true);
-      cerrarModal();
+      const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+      detailsSubtitle.textContent = isAdmin 
+        ? "Análisis comparativo de sucursales" 
+        : `Análisis mensual para Asesor ${userTienda}`;
 
-      if (id) {
-        google.script.run
-          .withSuccessHandler(function(response) {
-            if (response.status === 'success') {
-              showToast("Guardado exitoso.", "success");
-              userRol = response.response.rol;
-              userTienda = response.response.tienda;
-              LISTA_PROSPECCIONES = response.response.data || [];
-              actualizarUIFiltrosYRoles();
-              renderizarTabla(LISTA_PROSPECCIONES);
-            } else {
-              showToast("Error: " + response.message, "error");
-            }
-            mostrarCargando(false);
-          })
-          .withFailureHandler(function(err) {
-            showToast("Error: " + err.message, "error");
-            mostrarCargando(false);
-          })
-          .editarProspeccion(id, datos);
-      } else {
-        const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
-        if (isAdmin) {
-          showToast("Error: El Administrador no puede agregar registros.", "error");
-          mostrarCargando(false);
+      if (isAdmin) {
+        // VISTA ADMINISTRADOR
+        const records = LISTA_PROSPECCIONES.filter(p => p.Mes.toLowerCase() === month.toLowerCase());
+        const mapped = records.map(r => {
+          const prospectados = parseInt(r.Prospectados) || 0;
+          const cerrados = parseInt(r.Cerrados) || 0;
+          const conversion = prospectados > 0 ? (cerrados / prospectados) * 100 : 0;
+          return {
+            tienda: r.Tienda,
+            prospectados,
+            contactados: parseInt(r.Contactados) || 0,
+            cotizados: parseInt(r.Cotizados) || 0,
+            cerrados,
+            perdidos: parseInt(r.Perdidos) || 0,
+            conversion
+          };
+        });
+
+        // Ordenar de menor a mayor conversión
+        mapped.sort((a, b) => a.conversion - b.conversion);
+
+        if (mapped.length === 0) {
+          detailsContent.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: var(--text-muted);">
+              No hay datos registrados para este mes.
+            </div>
+          `;
           return;
         }
-        google.script.run
-          .withSuccessHandler(function(response) {
-            if (response.status === 'success') {
-              showToast("Guardado exitoso.", "success");
-              userRol = response.response.rol;
-              userTienda = response.response.tienda;
-              LISTA_PROSPECCIONES = response.response.data || [];
-              actualizarUIFiltrosYRoles();
-              renderizarTabla(LISTA_PROSPECCIONES);
-            } else {
-              showToast("Error: " + response.message, "error");
-            }
-            mostrarCargando(false);
-          })
-          .withFailureHandler(function(err) {
-            showToast("Error: " + err.message, "error");
-            mostrarCargando(false);
-          })
-          .agregarProspeccion(datos);
+
+        let listHtml = `
+          <div style="margin-bottom: 16px; font-size: 12px; color: var(--text-muted);">
+            💡 <em>Las sucursales se muestran ordenadas ascendentemente (del rendimiento más bajo al más alto) basándose en su tasa de conversión mensual.</em>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+        `;
+
+        mapped.forEach((storeData, idx) => {
+          const color = getConversionColor(storeData.conversion);
+          listHtml += `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: #FAF9F6; border-radius: var(--radius-md); border-left: 4px solid ${color};">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--text-primary); width: 30px;">
+                  #${idx + 1}
+                </span>
+                <span class="stage-badge" style="background: rgba(59, 130, 246, 0.1); color: #2563eb; font-weight: 800; padding: 4px 10px; border-radius: 6px;">
+                  Tienda ${storeData.tienda}
+                </span>
+                <span style="font-size: 12px; color: var(--text-muted);">
+                  Prospectados: <strong>${storeData.prospectados}</strong> | Cerrados: <strong>${storeData.cerrados}</strong>
+                </span>
+              </div>
+              
+              <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="width: 100px; background: rgba(0,0,0,0.05); height: 6px; border-radius: 3px; overflow: hidden;">
+                  <div style="height: 100%; width: ${Math.min(storeData.conversion, 100)}%; background: ${color};"></div>
+                </div>
+                <span style="font-size: 13px; font-weight: 800; color: ${color}; min-width: 50px; text-align: right;">
+                  ${storeData.conversion.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          `;
+        });
+
+        listHtml += `</div>`;
+        detailsContent.innerHTML = listHtml;
+
+      } else {
+        // VISTA TIENDA
+        const record = LISTA_PROSPECCIONES.find(p => p.Mes.toLowerCase() === month.toLowerCase());
+        
+        if (!record) {
+          detailsContent.innerHTML = `<div style="color: var(--text-muted);">No hay datos registrados para este mes.</div>`;
+          return;
+        }
+
+        const prospectados = parseInt(record.Prospectados) || 0;
+        const contactados = parseInt(record.Contactados) || 0;
+        const cotizados = parseInt(record.Cotizados) || 0;
+        const cerrados = parseInt(record.Cerrados) || 0;
+        const perdidos = parseInt(record.Perdidos) || 0;
+        const conversion = prospectados > 0 ? (cerrados / prospectados) * 100 : 0;
+        const color = getConversionColor(conversion);
+
+        detailsContent.innerHTML = `
+          <div style="display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 24px;" class="store-month-details-layout">
+            <!-- Desglose Métricas -->
+            <div>
+              <h4 style="font-size: 14px; font-weight: 800; margin-bottom: 14px; color: var(--text-primary);">
+                Rendimiento y Métricas
+              </h4>
+              
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 6px;">
+                  <span style="color: var(--text-muted);">Prospectados Totales:</span>
+                  <span style="font-weight: 700;">${prospectados}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 6px;">
+                  <span style="color: var(--text-muted);">Contactados:</span>
+                  <span style="font-weight: 700; color: #2563EB;">${contactados}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 6px;">
+                  <span style="color: var(--text-muted);">Cotizados:</span>
+                  <span style="font-weight: 700; color: #B45309;">${cotizados}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 6px;">
+                  <span style="color: var(--text-muted);">Cerrados (Ventas):</span>
+                  <span style="font-weight: 700; color: #047857;">${cerrados}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 6px;">
+                  <span style="color: var(--text-muted);">Perdidos:</span>
+                  <span style="font-weight: 700; color: #B91C1C;">${perdidos}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 8px; padding: 10px; background: #FAF9F6; border-radius: 6px;">
+                  <span style="font-weight: 700;">Porcentaje de Conversión:</span>
+                  <span style="font-weight: 800; color: ${color};">
+                    ${conversion.toFixed(1)}%
+                  </span>
+                </div>
+
+                <button class="topbar-btn btn-primary" onclick="abrirModal('${month}')" style="margin-top: 14px; width: 100%; justify-content: center;">
+                  <i class="fas fa-edit"></i> Actualizar Totales del Mes
+                </button>
+              </div>
+            </div>
+
+            <!-- Gráfica de Embudo -->
+            <div>
+              <h4 style="font-size: 14px; font-weight: 800; margin-bottom: 14px; color: var(--text-primary);">
+                Gráfica del Embudo Conversión (${month})
+              </h4>
+              <div style="height: 200px; position: relative;">
+                <div id="funnel-placeholder" style="height: 100%; display: none; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 10px; min-height: 180px;">
+                  <i class="fas fa-chart-bar fa-2x"></i>
+                  <span style="font-size: 13px;">No hay datos suficientes para graficar el embudo</span>
+                </div>
+                <canvas id="funnel-chart-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+        `;
+
+        renderizarEmbudo(prospectados, contactados, cotizados, cerrados);
       }
     }
 
-    function editarProspeccion(id) { abrirModal(id); }
-
-    function confirmarEliminar(id) {
-      const item = LISTA_PROSPECCIONES.find(p => p.id == id);
-      if (confirm(`¿Eliminar la prospección para ${item.Empresa}?`)) {
-        mostrarCargando(true);
-        google.script.run
-          .withSuccessHandler(function(response) {
-            if (response.status === 'success') {
-              showToast("Eliminado correctamente.", "success");
-              userRol = response.response.rol;
-              userTienda = response.response.tienda;
-              LISTA_PROSPECCIONES = response.response.data || [];
-              actualizarUIFiltrosYRoles();
-              renderizarTabla(LISTA_PROSPECCIONES);
-            } else {
-              showToast("Error: " + response.message, "error");
-            }
-            mostrarCargando(false);
-          })
-          .withFailureHandler(function(err) {
-            showToast("Error: " + err.message, "error");
-            mostrarCargando(false);
-          })
-          .eliminarProspeccion(id);
-      }
+    function cerrarDetallesMes() {
+      activeMonthSelected = null;
+      const detailsCard = document.getElementById('active-month-details-card');
+      if (detailsCard) detailsCard.style.display = 'none';
+      renderizarCuadriculaMeses();
     }
 
-    function filtrarTabla() {
-      const query = document.getElementById('table-search').value.toLowerCase().trim();
-      const stageFilter = document.getElementById('filter-stage').value.toLowerCase();
-      const tiendaFilter = document.getElementById('filter-tienda') ? document.getElementById('filter-tienda').value : 'all';
-
-      const filtrada = LISTA_PROSPECCIONES.filter(item => {
-        const matchQuery = !query || (item.Empresa || '').toLowerCase().includes(query) || (item.Cliente || '').toLowerCase().includes(query) || (item.Email || '').toLowerCase().includes(query);
-        const matchStage = stageFilter === 'all' || (item.Etapa || '').toLowerCase() === stageFilter;
-        const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
-        const matchTienda = !isAdmin || tiendaFilter === 'all' || (item.Tienda || '').toUpperCase() === tiendaFilter.toUpperCase();
-        return matchQuery && matchStage && matchTienda;
-      });
-      renderizarTabla(filtrada);
-    }
-
-    let funnelChartInstance = null;
-    function renderizarEmbudo(lista) {
-      const total = lista.length;
+    function renderizarEmbudo(prospectados, contactados, cotizados, cerrados) {
       const placeholder = document.getElementById('funnel-placeholder');
       const canvas = document.getElementById('funnel-chart-canvas');
-      
-      if (total === 0) {
+      if (!canvas) return;
+
+      if (prospectados === 0) {
         if (placeholder) placeholder.style.display = 'flex';
-        if (canvas) canvas.style.display = 'none';
+        canvas.style.display = 'none';
         if (funnelChartInstance) {
           funnelChartInstance.destroy();
           funnelChartInstance = null;
@@ -1415,20 +1336,15 @@
       }
 
       if (placeholder) placeholder.style.display = 'none';
-      if (canvas) canvas.style.display = 'block';
+      canvas.style.display = 'block';
 
-      // Calcular niveles de embudo
-      const cotizaciones = lista.filter(p => ['cotizado', 'cerrado', 'perdido'].includes((p.Etapa || '').toLowerCase())).length;
-      const seguimiento = lista.filter(p => ['contactado', 'cotizado', 'cerrado'].includes((p.Etapa || '').toLowerCase())).length;
-      const cerrados = lista.filter(p => (p.Etapa || '').toLowerCase() === 'cerrado').length;
-
-      const labels = ['1. Prospecciones', '2. Cotizaciones', '3. Seguimiento', '4. Cerrados'];
-      const values = [total, cotizaciones, seguimiento, cerrados];
-      const colors = ['#94A3B8', '#F59E0B', '#FF6D4D', '#10B981'];
+      const labels = ['1. Prospectados', '2. Contactados', '3. Cotizados', '4. Cerrados'];
+      const values = [prospectados, contactados, cotizados, cerrados];
+      const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#10B981'];
 
       // Alinear centrado simulando embudo
       const dataValues = values.map(val => {
-        const start = (total - val) / 2;
+        const start = (prospectados - val) / 2;
         const end = start + val;
         return [start, end];
       });
@@ -1527,11 +1443,130 @@
       });
     }
 
-    // ─── UTILITIES ──────────────────────────────────────────
+    function abrirModal(month = null) {
+      const isAdmin = String(userRol).trim().toLowerCase() === 'administrador';
+      if (isAdmin) return;
+
+      const modal = document.getElementById('prospect-modal');
+      const form = document.getElementById('prospect-form');
+      const titleEl = document.getElementById('modal-title');
+
+      if (!modal || !form) return;
+
+      form.classList.remove('was-validated');
+
+      if (!month || typeof month !== 'string') {
+        if (activeMonthSelected) {
+          month = activeMonthSelected;
+        } else {
+          const currentMonthIdx = new Date().getMonth();
+          month = MESES[currentMonthIdx];
+        }
+      }
+
+      document.getElementById('field-mes').value = month;
+      titleEl.textContent = `Actualizar Datos — ${month}`;
+
+      const record = LISTA_PROSPECCIONES.find(p => p.Mes.toLowerCase() === month.toLowerCase());
+      if (record) {
+        document.getElementById('field-prospectados').value = record.Prospectados || 0;
+        document.getElementById('field-contactados').value = record.Contactados || 0;
+        document.getElementById('field-cotizados').value = record.Cotizados || 0;
+        document.getElementById('field-cerrados').value = record.Cerrados || 0;
+        document.getElementById('field-perdidos').value = record.Perdidos || 0;
+      } else {
+        document.getElementById('field-prospectados').value = 0;
+        document.getElementById('field-contactados').value = 0;
+        document.getElementById('field-cotizados').value = 0;
+        document.getElementById('field-cerrados').value = 0;
+        document.getElementById('field-perdidos').value = 0;
+      }
+
+      modal.classList.add('active');
+    }
+
+    function cerrarModal() {
+      const modal = document.getElementById('prospect-modal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function guardarValores(event) {
+      event.preventDefault();
+      const form = document.getElementById('prospect-form');
+      if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        showToast("Por favor complete los campos obligatorios.", "error");
+        return;
+      }
+
+      const mes = document.getElementById('field-mes').value;
+      const prospectadosVal = parseInt(document.getElementById('field-prospectados').value);
+      const contactadosVal = parseInt(document.getElementById('field-contactados').value);
+      const cotizadosVal = parseInt(document.getElementById('field-cotizados').value);
+      const cerradosVal = parseInt(document.getElementById('field-cerrados').value);
+      const perdidosVal = parseInt(document.getElementById('field-perdidos').value);
+
+      if (isNaN(prospectadosVal) || isNaN(contactadosVal) || isNaN(cotizadosVal) || isNaN(cerradosVal) || isNaN(perdidosVal)) {
+        showToast("Por favor ingresa únicamente valores numéricos enteros.", "error");
+        return;
+      }
+      
+      if (prospectadosVal < 0 || contactadosVal < 0 || cotizadosVal < 0 || cerradosVal < 0 || perdidosVal < 0) {
+        showToast("Los valores numéricos no pueden ser negativos.", "error");
+        return;
+      }
+
+      const payload = {
+        mes: mes,
+        tienda: userTienda || mockUserTienda,
+        prospectados: prospectadosVal,
+        contactados: contactadosVal,
+        cotizados: cotizadosVal,
+        cerrados: cerradosVal,
+        perdidos: perdidosVal
+      };
+
+      mostrarCargando(true);
+      cerrarModal();
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          if (response.status === 'success') {
+            showToast("Valores mensuales actualizados exitosamente.", "success");
+            userRol = response.response.rol;
+            userTienda = response.response.tienda;
+            LISTA_PROSPECCIONES = response.response.data || [];
+            
+            actualizarUIFiltrosYRoles();
+            calcularTotalAnual();
+            renderizarCuadriculaMeses();
+            
+            if (activeMonthSelected) {
+              mostrarDetallesMes(activeMonthSelected);
+            }
+          } else {
+            showToast("Error al guardar: " + response.message, "error");
+          }
+          mostrarCargando(false);
+        })
+        .withFailureHandler(function(err) {
+          showToast("Error al guardar: " + err.message, "error");
+          mostrarCargando(false);
+        })
+        .guardarValoresMensuales(payload);
+    }
+
     function mostrarCargando(mostrar) {
       const loader = document.getElementById('table-loader');
-      if (mostrar) loader.classList.add('active');
-      else loader.classList.remove('active');
+      if (loader) {
+        if (mostrar) {
+          loader.classList.add('active');
+          loader.style.display = 'flex';
+        } else {
+          loader.classList.remove('active');
+          loader.style.display = 'none';
+        }
+      }
     }
 
     function formatMoneda(monto) {
@@ -1543,7 +1578,6 @@
     function formatFecha(fechaStr) {
       if (!fechaStr) return '—';
       try {
-        // fechaStr es tipo yyyy-MM-dd
         const partes = fechaStr.split('-');
         if (partes.length === 3) {
           return `${partes[2]}/${partes[1]}/${partes[0].slice(-2)}`;
@@ -1559,6 +1593,7 @@
     // Sistema de notificaciones tipo Toast
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
+      if (!container) return;
       const toast = document.createElement('div');
       toast.className = `toast toast-${type}`;
       
@@ -1581,18 +1616,12 @@
       setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => {
-          container.removeChild(toast);
+          if (container.contains(toast)) {
+            container.removeChild(toast);
+          }
         }, 300);
       }, 4000);
     }
-
-    // LÓGICA DE IMPORTACIÓN MASIVA DESDE EXCEL
-    window.addEventListener('DOMContentLoaded', () => {
-      const fileUploadInput = document.getElementById('file-upload');
-      if (fileUploadInput) {
-        fileUploadInput.addEventListener('change', importarExcel);
-      }
-    });
 
     function importarExcel(e) {
       const file = e.target.files[0];
@@ -1609,54 +1638,89 @@
           const worksheet = workbook.Sheets[firstSheetName];
           const sheetData = XLSX.utils.sheet_to_json(worksheet);
 
-          let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-          
-          sheetData.forEach((row) => {
-            const empresa = row.Empresa || row.empresa || row['Empresa o Entidad'] || '—';
-            const cliente = row.Cliente || row.cliente || row['Nombre del Cliente'] || '—';
-            const telefono = row.Telefono || row.telefono || row['Teléfono'] || '—';
-            const email = row.Email || row.email || row['E-mail'] || '—';
-            const etapa = row.Etapa || row.etapa || 'Prospectado';
+          if (sheetData.length === 0) {
+            showToast("El archivo de Excel está vacío", "error");
+            mostrarCargando(false);
+            return;
+          }
+
+          // Procesar las filas válidas
+          const pendingPayloads = [];
+          sheetData.forEach(row => {
+            const mesRaw = row.Mes || row.mes || row['Mes del Año'] || row['Month'] || '';
+            const mesStr = String(mesRaw).trim();
             
-            let monto = 0;
-            if (String(etapa).trim().toLowerCase() === 'cotizado') {
-              monto = parseFloat(row.Monto || row.monto || 0) || 0;
-            }
+            // Buscar coincidencia en meses
+            const matchedMonth = MESES.find(m => m.toLowerCase() === mesStr.toLowerCase());
+            if (!matchedMonth) return; // mes no válido
 
-            const newId = Date.now() + Math.floor(Math.random() * 1000);
-            const newNum = db.length > 0 ? Math.max(...db.map(d => d.Numeración || 0)) + 1 : 1;
+            const prospectados = parseInt(row.Prospectados || row.prospectados || row['Prospectados Totales'] || 0) || 0;
+            const contactados = parseInt(row.Contactados || row.contactados || row['Contactados'] || 0) || 0;
+            const cotizados = parseInt(row.Cotizados || row.cotizados || row['Cotizados'] || 0) || 0;
+            const cerrados = parseInt(row.Cerrados || row.cerrados || row['Cerrados'] || 0) || 0;
+            const perdidos = parseInt(row.Perdidos || row.perdidos || row['Perdidos'] || 0) || 0;
 
-            const record = {
-              id: newId,
-              Numeración: newNum,
-              Empresa: empresa,
-              Cliente: cliente,
-              Teléfono: telefono,
-              Email: email,
-              Etapa: etapa,
-              Monto: monto,
-              Fecha: new Date().toISOString().slice(0, 10),
-              Tienda: userTienda || 'CB'
-            };
-
-            db.push(record);
+            pendingPayloads.push({
+              mes: matchedMonth,
+              tienda: userTienda || mockUserTienda,
+              prospectados,
+              contactados,
+              cotizados,
+              cerrados,
+              perdidos
+            });
           });
 
-          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+          if (pendingPayloads.length === 0) {
+            showToast("No se encontraron registros de meses válidos en el archivo.", "error");
+            mostrarCargando(false);
+            return;
+          }
+
+          // Ejecutar secuencialmente para actualizar
+          let currentIndex = 0;
           
-          showToast("Importación exitosa", "success");
-          fileUploadInput.value = '';
-          cargarDatos();
+          function uploadNext() {
+            if (currentIndex >= pendingPayloads.length) {
+              showToast(`Importación completada: ${pendingPayloads.length} meses actualizados.`, "success");
+              document.getElementById('file-upload').value = '';
+              cargarProspecciones();
+              return;
+            }
+
+            const payload = pendingPayloads[currentIndex];
+            google.script.run
+              .withSuccessHandler(function(response) {
+                if (response.status === 'success') {
+                  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                    LISTA_PROSPECCIONES = response.response.data || [];
+                  }
+                  currentIndex++;
+                  uploadNext();
+                } else {
+                  showToast("Error al importar fila: " + response.message, "error");
+                  mostrarCargando(false);
+                }
+              })
+              .withFailureHandler(function(err) {
+                showToast("Error en importación: " + err.message, "error");
+                mostrarCargando(false);
+              })
+              .guardarValoresMensuales(payload);
+          }
+
+          uploadNext();
+
         } catch (err) {
-          showToast("Error al importar archivo: " + err.message, "error");
-          fileUploadInput.value = '';
+          showToast("Error al procesar archivo: " + err.message, "error");
+          document.getElementById('file-upload').value = '';
           mostrarCargando(false);
         }
       };
 
       reader.onerror = function() {
         showToast("Error al leer el archivo", "error");
-        fileUploadInput.value = '';
+        document.getElementById('file-upload').value = '';
         mostrarCargando(false);
       };
 
