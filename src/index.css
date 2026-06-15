@@ -806,3 +806,45 @@ body {
   background: linear-gradient(135deg, rgba(255, 109, 77, 0.18), rgba(255, 109, 77, 0.06));
 }
 
+/* ── PROSPECCIONES — ACORDEÓN ──────────────────────────────── */
+@keyframes accordionSlideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.month-accordion-panel {
+  border: 1px solid var(--border-light);
+}
+
+.table-row-hover:hover {
+  background: var(--bg-cream, #FFF8F5);
+  transition: background 0.15s ease;
+}
+
+/* Responsive: cuadrícula a 2 cols en pantallas menores */
+@media (max-width: 768px) {
+  .months-grid-responsive { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpis-annual-grid       { grid-template-columns: repeat(3, 1fr) !important; }
+}
+
+/* Shadow utilities usados en ProspeccionesView */
+:root {
+  --shadow-sm:  0 1px 6px rgba(30,41,59,0.06);
+  --shadow-md:  0 4px 18px rgba(30,41,59,0.10);
+  --shadow-xl:  0 16px 48px rgba(30,41,59,0.18);
+  --bg-cream:   #FFF8F5;
+}
