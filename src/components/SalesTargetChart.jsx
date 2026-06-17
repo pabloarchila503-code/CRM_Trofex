@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 const formatCurrencyFull = (val) => {
+  if (val == null) return 'Q0';
   return 'Q' + Math.round(val).toLocaleString('es-GT');
 };
 
@@ -17,22 +18,34 @@ export default function SalesTargetChart({ data, onOpenEditor, activeStore }) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
-  // Calculate monthly sums for Venta and Meta
-  const monthlySums = data.map(monthData => {
-    const filteredMonthData = activeStore === 'Todos'
-      ? monthData
-      : monthData.filter(curr => curr.store === activeStore);
+  const { ventaValues, metaValues } = useMemo(() => {
+    const sums = data.map(monthData => {
+      const filteredMonthData = activeStore === 'Todos'
+        ? monthData
+        : monthData.filter(curr => curr.store === activeStore);
 
-    return filteredMonthData.reduce((acc, curr) => {
-      return {
-        venta: acc.venta + curr.venta,
-        meta: acc.meta + curr.meta
-      };
-    }, { venta: 0, meta: 0 });
-  });
+      return filteredMonthData.reduce((acc, curr) => {
+        return {
+          venta: acc.venta + curr.venta,
+          meta: acc.meta + curr.meta
+        };
+      }, { venta: 0, meta: 0 });
+    });
 
-  const ventaValues = monthlySums.map(m => m.venta);
-  const metaValues = monthlySums.map(m => m.meta);
+    // Find the last month index that has real sales data (venta > 0)
+    let lastActiveIdx = -1;
+    for (let i = sums.length - 1; i >= 0; i--) {
+      if (sums[i].venta > 0) {
+        lastActiveIdx = i;
+        break;
+      }
+    }
+
+    const ventaValues = sums.map((m, idx) => (idx <= lastActiveIdx ? m.venta : null));
+    const metaValues = sums.map(m => m.meta);
+
+    return { ventaValues, metaValues };
+  }, [data, activeStore]);
 
   useEffect(() => {
     if (!canvasRef.current) return;

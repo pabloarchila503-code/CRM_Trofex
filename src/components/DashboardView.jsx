@@ -23,6 +23,7 @@ export default function DashboardView({
   userRole,
   selectedStores,
   selectedMonths,
+  prospecciones = [],
 }) {
   const isAdmin = userRole === 'admin';
 
@@ -48,27 +49,55 @@ export default function DashboardView({
     return result;
   }, [deals, selectedStores, selectedMonths, isAdmin]);
 
+  // ── Filtrar prospecciones por stores y meses seleccionados (respetando rol y aislamiento) ──
+  const filteredProspecciones = useMemo(() => {
+    let result = prospecciones;
+
+    if (isAdmin) {
+      // Filtro por tiendas seleccionadas
+      if (selectedStores && selectedStores.length > 0) {
+        result = result.filter(p => selectedStores.includes(p.Tienda));
+      }
+      // Filtro por meses seleccionados
+      if (selectedMonths && selectedMonths.length > 0) {
+        result = result.filter(p => selectedMonths.includes(p.Mes));
+      }
+    } else {
+      // Store user: solo su propia tienda
+      const storeCode = activeStore || 'CB';
+      result = result.filter(p => p.Tienda === storeCode);
+    }
+    return result;
+  }, [prospecciones, userRole, activeStore, selectedStores, selectedMonths, isAdmin]);
+
   // ── Calcular KPIs ejecutivos (registros únicos + efectividad) ────────────────
   const areaSummary = useMemo(() => {
     const d = filteredDeals;
 
     const cerrados = d.filter(x => x.status === 'won').length;
     // Total registros únicos por área
-    const totalProspecciones = d.length;                                  // todos los deals = embudo nivel 1
     const total8020          = d.length;                                  // mismos registros, vista 80/20
     const totalProyectos     = new Set(d.map(x => x.customer_id)).size;  // empresas únicas
     const totalCarreras      = d.length;                                  // registros totales de carreras
+
+    // Prospecciones values from the master database
+    let totalProsp = 0;
+    let cerradosProsp = 0;
+    filteredProspecciones.forEach(p => {
+      totalProsp += (parseInt(p.Prospectados) || 0);
+      cerradosProsp += (parseInt(p.Cerrados) || 0);
+    });
 
     const pct = (cerr, tot) =>
       tot > 0 ? Math.round((cerr / tot) * 100) : 0;
 
     return {
-      prospecciones: { total: totalProspecciones, cerrados, efectividad: pct(cerrados, totalProspecciones) },
+      prospecciones: { total: totalProsp, cerrados: cerradosProsp, efectividad: pct(cerradosProsp, totalProsp) },
       '8020':        { total: total8020,          cerrados, efectividad: pct(cerrados, total8020) },
       proyectos:     { total: totalProyectos,     cerrados, efectividad: pct(cerrados, totalProyectos) },
       carreras:      { total: totalCarreras,      cerrados, efectividad: pct(cerrados, totalCarreras) },
     };
-  }, [filteredDeals]);
+  }, [filteredDeals, filteredProspecciones]);
 
   return (
     <div className="view-section active" id="view-dashboard">
@@ -117,7 +146,7 @@ export default function DashboardView({
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
-              <ProspectosChart deals={filteredDeals} />
+              <ProspectosChart prospecciones={filteredProspecciones} />
             </div>
           </div>
         </div>

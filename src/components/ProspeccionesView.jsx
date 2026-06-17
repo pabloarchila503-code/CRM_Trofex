@@ -182,15 +182,25 @@ const convColor = (pct) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function ProspeccionesView({ showToast, userRole, activeStore }) {
+export default function ProspeccionesView({
+  showToast,
+  userRole,
+  activeStore,
+  prospecciones = [],
+  setProspecciones
+}) {
   // ── Rol y tienda reales (desde props de sesión)
   const isAdmin   = String(userRole).trim().toLowerCase() === 'admin';
   const storeName = isAdmin ? 'Todos' : (activeStore || 'CB');
 
   // ── Estado de datos
-  const [prospecciones, setProspecciones] = useState([]);
   const [isLoading,  setIsLoading]  = useState(false);
   const [isSyncing,  setIsSyncing]  = useState(false);
+
+  // ── Local filtered version for accordion and tables
+  const filteredProspecciones = useMemo(() => {
+    return isAdmin ? prospecciones : prospecciones.filter(r => r.Tienda === storeName);
+  }, [prospecciones, isAdmin, storeName]);
 
   // ── Acordeón: mes activo
   const [activeMonth, setActiveMonth] = useState(null);
@@ -230,8 +240,7 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
           localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(generarMockProspecciones()));
         }
         const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-        const filtrado = isAdmin ? db : db.filter(r => r.Tienda === storeName);
-        setProspecciones(filtrado);
+        setProspecciones(db);
         setIsLoading(false);
         setIsSyncing(false);
       }, 400);
@@ -248,14 +257,14 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
 
   // ── Totales anuales ─────────────────────────────────────────────────────────
   const totalAnual = useMemo(() =>
-    prospecciones.reduce((acc, r) => ({
+    filteredProspecciones.reduce((acc, r) => ({
       prospectados: acc.prospectados + (parseInt(r.Prospectados) || 0),
       contactados:  acc.contactados  + (parseInt(r.Contactados)  || 0),
       cotizados:    acc.cotizados    + (parseInt(r.Cotizados)    || 0),
       cerrados:     acc.cerrados     + (parseInt(r.Cerrados)     || 0),
       perdidos:     acc.perdidos     + (parseInt(r.Perdidos)     || 0),
     }), { prospectados: 0, contactados: 0, cotizados: 0, cerrados: 0, perdidos: 0 }),
-  [prospecciones]);
+  [filteredProspecciones]);
 
   const tasaAnual = useMemo(() =>
     totalAnual.prospectados > 0
@@ -267,7 +276,7 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
   const mesesAgg = useMemo(() => {
     const res = {};
     MESES.forEach(m => { res[m] = { prospectados: 0, contactados: 0, cotizados: 0, cerrados: 0, perdidos: 0 }; });
-    prospecciones.forEach(r => {
+    filteredProspecciones.forEach(r => {
       const m = r.Mes;
       if (res[m]) {
         res[m].prospectados += (parseInt(r.Prospectados) || 0);
@@ -278,12 +287,12 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
       }
     });
     return res;
-  }, [prospecciones]);
+  }, [filteredProspecciones]);
 
   // ── Detalle mes: Admin → todas sucursales ordenadas; Tienda → solo la propia ─
   const adminMonthDetails = useMemo(() => {
     if (!activeMonth || !isAdmin) return [];
-    return prospecciones
+    return filteredProspecciones
       .filter(r => r.Mes.toLowerCase() === activeMonth.toLowerCase())
       .map((r, idx) => {
         const prosp = parseInt(r.Prospectados) || 0;
@@ -301,11 +310,11 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
       })
       .sort((a, b) => a.conversion - b.conversion)
       .map((r, idx) => ({ ...r, num: idx + 1 }));
-  }, [activeMonth, prospecciones, isAdmin]);
+  }, [activeMonth, filteredProspecciones, isAdmin]);
 
   const storeMonthDetail = useMemo(() => {
     if (!activeMonth || isAdmin) return null;
-    const r = prospecciones.find(p => p.Mes.toLowerCase() === activeMonth.toLowerCase());
+    const r = filteredProspecciones.find(p => p.Mes.toLowerCase() === activeMonth.toLowerCase());
     if (!r) return null;
     const prosp = parseInt(r.Prospectados) || 0;
     const cerr  = parseInt(r.Cerrados)     || 0;
@@ -318,7 +327,7 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
       perdidos:     parseInt(r.Perdidos)    || 0,
       conversion:   prosp > 0 ? (cerr / prosp) * 100 : 0,
     };
-  }, [activeMonth, prospecciones, isAdmin]);
+  }, [activeMonth, filteredProspecciones, isAdmin]);
 
   // ── Modal: abrir con mes ────────────────────────────────────────────────────
   const handleOpenAddModal = (mes) => {
@@ -390,8 +399,7 @@ export default function ProspeccionesView({ showToast, userRole, activeStore }) 
                          Cotizados: vals.cotizados, Cerrados: vals.cerrados, Perdidos: vals.perdidos } });
         }
         localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-        const filtrado = isAdmin ? db : db.filter(r => r.Tienda === storeName);
-        setProspecciones(filtrado);
+        setProspecciones(db);
         showToast('Valores mensuales actualizados exitosamente.', 'success');
         setIsLoading(false);
       }, 400);

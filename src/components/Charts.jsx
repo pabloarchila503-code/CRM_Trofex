@@ -190,19 +190,26 @@ export function PipelineChart({ deals, stages }) {
 }
 
 // ── Gráfica 1 (Reordenado): Prospectos/Prospecciones (Cono / Funnel Chart) ────
-export function ProspectosChart({ deals }) {
+export function ProspectosChart({ prospecciones = [] }) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // Niveles: 1. Prospecciones (Total), 2. Contactados, 3. Cotizaciones, 4. Seguimiento, 5. Cerrados
-    const total       = deals.length;
-    const contactados = deals.filter(d => ['s2','s3','s4','s5'].includes(d.stage_id)).length;
-    const cotizaciones= deals.filter(d => d.stage_id === 's3' || d.status === 'won' || d.status === 'lost').length;
-    const seguimiento = deals.filter(d => d.stage_id === 's2' || d.stage_id === 's3').length;
-    const cerrados    = deals.filter(d => d.status === 'won').length;
+    let total = 0;
+    let contactados = 0;
+    let cotizaciones = 0;
+    let cerrados = 0;
+
+    prospecciones.forEach(p => {
+      total        += (parseInt(p.Prospectados) || 0);
+      contactados  += (parseInt(p.Contactados) || 0);
+      cotizaciones += (parseInt(p.Cotizados) || 0);
+      cerrados     += (parseInt(p.Cerrados) || 0);
+    });
+
+    const seguimiento = Math.round(cerrados + (cotizaciones - cerrados) * 0.5);
 
     const labels = ['1. Prospecciones', '2. Contactados', '3. Cotizaciones', '4. Seguimiento', '5. Cerrados'];
     const values = [total, contactados, cotizaciones, seguimiento, cerrados];

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { mockData } from './data/mockData';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -78,6 +78,55 @@ export default function App() {
     XL: {},
     Z3: {}
   });
+
+  // Prospecciones State (Shared Single Source of Truth)
+  const [prospecciones, setProspecciones] = useState(() => {
+    if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
+      const db = [];
+      let num = 1;
+      const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      STORES.forEach((store, sIdx) => {
+        meses.forEach((month, mIdx) => {
+          const seed = (sIdx * 12 + mIdx) * 31;
+          const prospectados = 20 + (seed % 30);
+          const contactados  = Math.floor(prospectados * 0.75);
+          const cotizados    = Math.floor(contactados  * 0.6);
+          const cerrados     = Math.floor(cotizados    * 0.5) + 1;
+          const perdidos     = Math.floor((prospectados - cerrados) * 0.25);
+          db.push({
+            id: num,
+            Numeración: num++,
+            Mes: month,
+            Tienda: store,
+            Prospectados: prospectados,
+            Contactados:  contactados,
+            Cotizados:    cotizados,
+            Cerrados:     cerrados,
+            Perdidos:     perdidos,
+          });
+        });
+      });
+      localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
+      return db;
+    }
+    return JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
+  });
+
+  useEffect(() => {
+    const isGas = typeof google !== 'undefined' && google.script && google.script.run;
+    if (isGas) {
+      google.script.run
+        .withSuccessHandler((response) => {
+          if (response && response.data) {
+            setProspecciones(response.data);
+          }
+        })
+        .withFailureHandler((err) => {
+          console.error('Error loading prospecciones from Google Sheets:', err);
+        })
+        .obtenerProspecciones();
+    }
+  }, []);
 
   // Venta/Meta state
   const [salesTargetData, setSalesTargetData] = useState(getInitialSalesTargetData());
@@ -421,6 +470,7 @@ export default function App() {
               userRole={userRole}
               selectedStores={selectedStores}
               selectedMonths={selectedMonths}
+              prospecciones={prospecciones}
             />
           )}
 
@@ -467,6 +517,8 @@ export default function App() {
               showToast={showToast} 
               userRole={userRole}
               activeStore={activeStore}
+              prospecciones={prospecciones}
+              setProspecciones={setProspecciones}
             />
           )}
 
