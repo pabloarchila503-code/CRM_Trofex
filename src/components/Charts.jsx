@@ -276,7 +276,7 @@ export function ProspectosChart({ prospecciones = [] }) {
     return () => {
       if (chartInstanceRef.current) chartInstanceRef.current.destroy();
     };
-  }, [deals]);
+  }, [prospecciones]);
 
   return <canvas ref={canvasRef} />;
 }

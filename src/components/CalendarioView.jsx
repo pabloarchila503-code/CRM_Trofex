@@ -143,69 +143,6 @@ export default function CalendarioView({
       return evt.tienda === activeStore || evt.tienda === 'Todos' || evt.replicarGlobal;
     });
   }, [events, activeStore]);
-
-  // Admin tasks management handlers
-  const handleSaveAdminTask = (e) => {
-    e.preventDefault();
-    if (!adminActividad.trim()) return;
-
-    setWeeklyTasks(prev => {
-      const dayTasks = [...(prev[activeTab] || [])];
-      if (editingTaskId !== null) {
-        const updated = dayTasks.map(t => {
-          if (t.id === editingTaskId) {
-            return {
-              ...t,
-              name: adminActividad,
-              desc: adminDescripcion,
-              obligatoria: adminObligatorio === 'Sí',
-              icon: t.icon || '📋'
-            };
-          }
-          return t;
-        });
-        return { ...prev, [activeTab]: updated };
-      } else {
-        const newId = dayTasks.length > 0 ? Math.max(...dayTasks.map(t => t.id)) + 1 : 1;
-        const newTask = {
-          id: newId,
-          name: adminActividad,
-          desc: adminDescripcion,
-          obligatoria: adminObligatorio === 'Sí',
-          icon: '📋'
-        };
-        return { ...prev, [activeTab]: [...dayTasks, newTask] };
-      }
-    });
-
-    setAdminActividad('');
-    setAdminDescripcion('');
-    setAdminObligatorio('Sí');
-    setEditingTaskId(null);
-  };
-
-  const handleEditAdminTask = (task) => {
-    setAdminActividad(task.name);
-    setAdminDescripcion(task.desc || '');
-    setAdminObligatorio(task.obligatoria ? 'Sí' : 'No');
-    setEditingTaskId(task.id);
-  };
-
-  const handleDeleteAdminTask = (taskId) => {
-    if (window.confirm('¿Seguro que deseas eliminar esta actividad?')) {
-      setWeeklyTasks(prev => {
-        const filtered = (prev[activeTab] || []).filter(t => t.id !== taskId);
-        return { ...prev, [activeTab]: filtered };
-      });
-      if (editingTaskId === taskId) {
-        setEditingTaskId(null);
-        setAdminActividad('');
-        setAdminDescripcion('');
-        setAdminObligatorio('Sí');
-      }
-    }
-  };
-
   return (
     <div className="view-section active">
       <p className="section-label">Operaciones Administrativas — Calendario de Eventos</p>
