@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import logoImg from '../assets/logo.png';
 import KPICards from './KPICards';
 import SalesTargetChart from './SalesTargetChart';
 import { AnalisisChart, ProyectosChart, ProspectosChart, CarretasChart } from './Charts';
@@ -104,6 +105,20 @@ export default function DashboardView({
 
   return (
     <div className="view-section active" id="view-dashboard">
+      {/* ── Print-only Header ── */}
+      <div className="print-header" style={{ display: 'none' }}>
+        <div className="print-header-top" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '10px' }}>
+          <img src={logoImg} alt="Trofex Logo" className="print-logo" style={{ maxHeight: '55px', objectFit: 'contain' }} />
+          <div className="print-title-area">
+            <h1 className="print-main-title" style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: '#1E293B' }}>RESUMEN DE RENDIMIENTO</h1>
+            <p className="print-subtitle" style={{ fontSize: '12px', margin: '2px 0 0 0', color: '#64748B' }}>Reporte Ejecutivo Comercial de Trofex</p>
+          </div>
+        </div>
+        <div className="print-filters-active" style={{ fontSize: '11px', color: '#475569', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px', marginBottom: '16px' }}>
+          <strong>Filtrado por:</strong> Tiendas ({userRole === 'admin' ? (selectedStores.length > 0 ? selectedStores.join(', ') : 'Todas') : activeStore}) | Meses: {selectedMonths.length > 0 ? selectedMonths.join(', ') : 'Todos'}
+        </div>
+      </div>
+
       <p className="section-label">
         RESUMEN DE RENDIMIENTO <span style={{ fontWeight: '500', opacity: 0.7 }}>(Prospecciones, 80/20, Proyecto y Carreras)</span>
       </p>

@@ -1,4 +1,5 @@
 import React from 'react';
+import logoImg from '../assets/logo.png';
 
 export default function Sidebar({ currentView, setView, openCount, onLogout, userRole, activeStore }) {
   const navItems = [
@@ -24,26 +25,12 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
   return (
     <aside className="sidebar">
       {/* Brand */}
-      <div className="sidebar-brand">
-        <div className="sidebar-brand-icon" style={{
-          background: 'linear-gradient(135deg, #d32f2f 50%, #111111 50%)',
-          boxShadow: '0 4px 12px rgba(211, 47, 47, 0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: '9px'
-        }}>
-          {/* Trophy SVG */}
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="#FFFFFF">
-            <path d="M19 2H5c-1.1 0-2 .9-2 2v3c0 2.2 1.8 4 4 4h1.2c.6 1.8 2.2 3.2 4.1 3.7V18H9c-1.1 0-2 .9-2 2v2h10v-2c0-1.1-.9-2-2-2h-3.3v-3.3c1.9-.5 3.5-1.9 4.1-3.7H17c2.2 0 4-1.8 4-4V4c0-1.1-.9-2-2-2zm-12 7c-1.1 0-2-.9-2-2V4h4v3c0 1.1-.9 2-2 2zm10 0c-1.1 0-2-.9-2-2V4h4v3c0 1.1-.9 2-2 2z" />
-          </svg>
-        </div>
-        <div className="sidebar-brand-name" style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Trofex
-          <span style={{ color: '#d32f2f', fontSize: '9px', fontWeight: '800', letterSpacing: '1px', marginTop: '2px' }}>
-            Trofeos y Más
-          </span>
-        </div>
+      <div className="sidebar-brand" style={{ padding: '16px 15px', justifyContent: 'center', display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <img 
+          src={logoImg} 
+          alt="Trofex Logo" 
+          style={{ maxWidth: '100%', maxHeight: '42px', objectFit: 'contain' }} 
+        />
       </div>
 
       {/* Navigation */}

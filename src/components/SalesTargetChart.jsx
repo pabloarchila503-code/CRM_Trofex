@@ -80,6 +80,79 @@ export default function SalesTargetChart({
     return { ventaValues, metaValues };
   }, [data, activeStore, selectedStores, selectedMonths, userRole]);
 
+  const isSingleMonth = selectedMonths && selectedMonths.length === 1;
+
+  const chartData = useMemo(() => {
+    if (isSingleMonth) {
+      const monthsFullNames = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ];
+      const selectedMonthName = selectedMonths[0];
+      const monthIdx = monthsFullNames.indexOf(selectedMonthName);
+      const shortLabel = MONTH_LABELS[monthIdx] || selectedMonthName.slice(0, 3);
+
+      const isAdmin = userRole === 'admin';
+      const monthData = data[monthIdx] || [];
+      let filteredMonthData = monthData;
+
+      if (isAdmin) {
+        if (selectedStores && selectedStores.length > 0) {
+          filteredMonthData = filteredMonthData.filter(curr => selectedStores.includes(curr.store));
+        }
+      } else {
+        const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
+        filteredMonthData = filteredMonthData.filter(curr => curr.store === storeCode);
+      }
+
+      const totals = filteredMonthData.reduce((acc, curr) => {
+        return {
+          venta: acc.venta + curr.venta,
+          meta: acc.meta + curr.meta
+        };
+      }, { venta: 0, meta: 0 });
+
+      // Check if this month is active (<= last month with actual sales in the whole dataset)
+      const allSums = data.map(mD => {
+        let fD = mD;
+        if (isAdmin) {
+          if (selectedStores && selectedStores.length > 0) {
+            fD = fD.filter(curr => selectedStores.includes(curr.store));
+          }
+        } else {
+          const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
+          fD = fD.filter(curr => curr.store === storeCode);
+        }
+        return fD.reduce((acc, curr) => ({ venta: acc.venta + curr.venta, meta: acc.meta + curr.meta }), { venta: 0, meta: 0 });
+      });
+
+      let lastActiveIdx = -1;
+      for (let i = allSums.length - 1; i >= 0; i--) {
+        if (allSums[i].venta > 0) {
+          lastActiveIdx = i;
+          break;
+        }
+      }
+
+      const ventaVal = (monthIdx <= lastActiveIdx) ? totals.venta : null;
+      const metaVal = totals.meta;
+
+      return {
+        type: 'bar',
+        labels: [shortLabel],
+        venta: [ventaVal],
+        meta: [metaVal]
+      };
+    } else {
+      return {
+        type: 'line',
+        labels: MONTH_LABELS,
+        venta: ventaValues,
+        meta: metaValues
+      };
+    }
+  }, [isSingleMonth, selectedMonths, data, userRole, selectedStores, activeStore, ventaValues, metaValues]);
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -94,38 +167,43 @@ export default function SalesTargetChart({
     gradient.addColorStop(0, 'rgba(139, 92, 246, 0.28)'); // var(--accent-purple)
     gradient.addColorStop(1, 'rgba(139, 92, 246, 0.01)');
 
+    const isLine = chartData.type === 'line';
+
     chartInstanceRef.current = new Chart(ctx, {
-      type: 'line',
+      type: chartData.type,
       data: {
-        labels: MONTH_LABELS,
+        labels: chartData.labels,
         datasets: [
           {
             label: 'Venta',
-            data: ventaValues,
+            data: chartData.venta,
             borderColor: '#8B5CF6', // var(--accent-purple)
             borderWidth: 3,
-            backgroundColor: gradient,
-            fill: true,
+            backgroundColor: isLine ? gradient : 'rgba(139, 92, 246, 0.85)',
+            fill: isLine,
             tension: 0.4,
+            borderRadius: isLine ? 0 : 8,
             pointBackgroundColor: '#8B5CF6',
             pointBorderColor: '#fff',
             pointBorderWidth: 2,
-            pointRadius: 5,
-            pointHoverRadius: 8
+            pointRadius: isLine ? 5 : 0,
+            pointHoverRadius: isLine ? 8 : 0
           },
           {
             label: 'Meta',
-            data: metaValues,
+            data: chartData.meta,
             borderColor: '#10B981', // var(--accent-green)
             borderWidth: 2.5,
-            borderDash: [5, 5],
+            backgroundColor: isLine ? 'transparent' : 'rgba(16, 185, 129, 0.85)',
+            borderDash: isLine ? [5, 5] : [],
             fill: false,
             tension: 0.4,
+            borderRadius: isLine ? 0 : 8,
             pointBackgroundColor: '#10B981',
             pointBorderColor: '#fff',
             pointBorderWidth: 2,
-            pointRadius: 5,
-            pointHoverRadius: 8
+            pointRadius: isLine ? 5 : 0,
+            pointHoverRadius: isLine ? 8 : 0
           }
         ]
       },
@@ -172,7 +250,7 @@ export default function SalesTargetChart({
         chartInstanceRef.current.destroy();
       }
     };
-  }, [ventaValues, metaValues]);
+  }, [chartData]);
 
   return (
     <div className="card" style={{ marginBottom: '24px' }}>

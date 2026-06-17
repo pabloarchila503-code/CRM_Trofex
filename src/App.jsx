@@ -384,36 +384,9 @@ export default function App() {
     showToast('Ventas y metas actualizadas', 'success');
   };
 
-  // Export CSV handler
-  const handleExportCSV = () => {
-    const getCustomer = (id) => mockData.customers.find(c => c.id === id) || {};
-    const getUser = (id) => mockData.users.find(u => u.id === id) || {};
-    const getStage = (id) => mockData.stages.find(s => s.id === id) || {};
-
-    const headers = ['ID', 'Tienda', 'Titulo', 'Cliente', 'Responsable', 'Etapa', 'Importe', 'Estado', 'Creado'];
-    const rows = filteredDeals.map(d => [
-      d.id,
-      d.store_code || '',
-      d.title,
-      getCustomer(d.customer_id).company_name || '',
-      getUser(d.owner_id).full_name || '',
-      getStage(d.stage_id).name || '',
-      d.amount,
-      d.status,
-      d.created_at.slice(0, 10)
-    ]);
-    
-    const csvContent = [headers, ...rows].map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `crm_deals_export_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('CSV exportado exitosamente', 'success');
+  // Export PDF handler
+  const handleExportPDF = () => {
+    window.print();
   };
 
   if (!isLoggedIn) {
@@ -451,7 +424,7 @@ export default function App() {
       <div className="main-wrapper">
         <Topbar
           title={viewTitles[currentView] || 'Trofex CRM'}
-          onExportCSV={handleExportCSV}
+          onExportPDF={handleExportPDF}
           userRole={userRole}
           activeStore={activeStore}
           onStoreChange={(store) => setActiveStore(store)}

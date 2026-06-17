@@ -894,3 +894,128 @@ body {
 /* KPI exec cards: reset padding (handled inline) */
 .kpis-row .kpi-card { padding: 0; border: none; background: transparent; box-shadow: none; }
 
+/* ── ESTILOS DE IMPRESIÓN (PDF) ─────────────────────────────── */
+@media print {
+  /* Ocultar elementos interactivos de UI */
+  .sidebar,
+  .topbar,
+  .section-label,
+  .card-menu-btn,
+  #export-pdf-btn,
+  .toast-container,
+  button,
+  select {
+    display: none !important;
+  }
+
+  /* Mostrar encabezado oficial */
+  .print-header {
+    display: block !important;
+  }
+
+  /* Resetear márgenes y paddings para aprovechar la página entera */
+  html, body, .app-shell, .main-wrapper, .page-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #1e293b !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .app-shell {
+    display: block !important;
+  }
+
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
+
+  .page-content {
+    padding: 0 !important;
+  }
+
+  /* Estructura de impresión horizontal */
+  @page {
+    size: letter landscape;
+    margin: 10mm 12mm;
+  }
+
+  /* Ajustar las 4 tarjetas superiores */
+  .kpis-row {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 15px !important;
+  }
+
+  .kpi-card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 12px 14px !important;
+    box-shadow: none !important;
+  }
+
+  .kpi-card::before {
+    display: none !important;
+  }
+
+  /* Constreñir tamaño de la gráfica principal Venta/Meta */
+  #view-dashboard .card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    margin-bottom: 12px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Reducir espacio de la gráfica de líneas */
+  #view-dashboard .chart-wrap {
+    padding: 8px !important;
+  }
+
+  #view-dashboard .chart-wrap div {
+    height: 200px !important;
+  }
+
+  /* Cuadrícula 2x2 para las gráficas inferiores */
+  .charts-grid-2x2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-top: 0 !important;
+  }
+
+  .charts-grid-2x2 .card {
+    margin-bottom: 0 !important;
+    padding: 10px !important;
+  }
+
+  .charts-grid-2x2 .chart-wrap {
+    height: 140px !important;
+  }
+
+  .charts-grid-2x2 .chart-lg {
+    height: 130px !important;
+  }
+
+  .card-header {
+    margin-bottom: 8px !important;
+    padding-bottom: 4px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  .card-title {
+    font-size: 11px !important;
+  }
+
+  .card-subtitle {
+    font-size: 9px !important;
+  }
+}
+

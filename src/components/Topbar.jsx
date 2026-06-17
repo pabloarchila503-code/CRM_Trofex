@@ -4,7 +4,7 @@ const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 
 const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export default function Topbar({
-  title, onExportCSV, userRole, activeStore, onStoreChange,
+  title, onExportPDF, userRole, activeStore, onStoreChange,
   selectedStores, setSelectedStores,
   selectedMonths,  setSelectedMonths,
 }) {
@@ -202,8 +202,8 @@ export default function Topbar({
         <span className="topbar-time">{timeStr}</span>
       </div>
 
-      <button className="topbar-btn btn-outline" onClick={onExportCSV}>
-        <i className="fas fa-file-export" /> Exportar CSV
+      <button className="topbar-btn btn-outline" onClick={onExportPDF} id="export-pdf-btn">
+        <i className="fas fa-file-pdf" style={{ color: '#ef4444', marginRight: '6px' }} /> Exportar PDF
       </button>
     </header>
   );
