@@ -57,6 +57,10 @@ export default function App() {
   const [editingDealId, setEditingDealId] = useState(null);
   const [toasts, setToasts] = useState([]);
 
+  // Multi-select tag filters (Admin only)
+  const [selectedStores, setSelectedStores] = useState([]); // [] = all stores
+  const [selectedMonths, setSelectedMonths] = useState([]); // [] = all months
+
   // Tareas Checklist states for all 14 stores
   const [storeChecklists, setStoreChecklists] = useState({
     CB: {},
@@ -395,6 +399,10 @@ export default function App() {
           userRole={userRole}
           activeStore={activeStore}
           onStoreChange={(store) => setActiveStore(store)}
+          selectedStores={selectedStores}
+          setSelectedStores={setSelectedStores}
+          selectedMonths={selectedMonths}
+          setSelectedMonths={setSelectedMonths}
         />
 
         <main className="page-content">
@@ -411,6 +419,8 @@ export default function App() {
               onOpenStoreEditor={() => setIsStoreModalOpen(true)}
               activeStore={activeStore}
               userRole={userRole}
+              selectedStores={selectedStores}
+              selectedMonths={selectedMonths}
             />
           )}
 

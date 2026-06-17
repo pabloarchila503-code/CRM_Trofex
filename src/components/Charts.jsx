@@ -197,27 +197,29 @@ export function ProspectosChart({ deals }) {
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // Niveles: 1. Prospecciones (Total), 2. Cotizaciones, 3. Seguimiento, 4. Cerrados
-    const total = deals.length;
-    const cotizaciones = deals.filter(d => d.stage_id === 's3' || d.status === 'won' || d.status === 'lost').length;
+    // Niveles: 1. Prospecciones (Total), 2. Contactados, 3. Cotizaciones, 4. Seguimiento, 5. Cerrados
+    const total       = deals.length;
+    const contactados = deals.filter(d => ['s2','s3','s4','s5'].includes(d.stage_id)).length;
+    const cotizaciones= deals.filter(d => d.stage_id === 's3' || d.status === 'won' || d.status === 'lost').length;
     const seguimiento = deals.filter(d => d.stage_id === 's2' || d.stage_id === 's3').length;
-    const cerrados = deals.filter(d => d.status === 'won').length;
+    const cerrados    = deals.filter(d => d.status === 'won').length;
 
-    const labels = ['1. Prospecciones', '2. Cotizaciones', '3. Seguimiento', '4. Cerrados'];
-    const values = [total, cotizaciones, seguimiento, cerrados];
-    
+    const labels = ['1. Prospecciones', '2. Contactados', '3. Cotizaciones', '4. Seguimiento', '5. Cerrados'];
+    const values = [total, contactados, cotizaciones, seguimiento, cerrados];
+
     // Semáforo:
-    // Prospecciones -> Gris (#94A3B8)
-    // Cotizaciones -> Amarillo (#F59E0B)
-    // Seguimiento -> Naranja (#FF6D4D)
-    // Cerrados -> Verde (#10B981)
-    const colors = ['#94A3B8', '#F59E0B', '#FF6D4D', '#10B981'];
+    // Prospecciones → Gris    (#94A3B8)
+    // Contactados   → Azul    (#3B82F6)
+    // Cotizaciones  → Amarillo (#F59E0B)
+    // Seguimiento   → Naranja/Coral (#FF6D4D)
+    // Cerrados      → Verde   (#10B981)
+    const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#FF6D4D', '#10B981'];
 
     // Simular embudo flotante centrado
     const dataValues = values.map(val => {
       if (total === 0) return [0, 0];
       const start = (total - val) / 2;
-      const end = start + val;
+      const end   = start + val;
       return [start, end];
     });
 
@@ -248,24 +250,16 @@ export function ProspectosChart({ deals }) {
           tooltip: {
             callbacks: {
               title: (items) => labels[items[0].dataIndex],
-              label: (item) => ` Conteo: ${values[item.dataIndex]}`
+              label: (item)  => ` Conteo: ${values[item.dataIndex]}`
             }
           },
-          customDatalabels: {
-            isFunnel: true
-          }
+          customDatalabels: { isFunnel: true }
         },
         scales: {
-          x: {
-            grid: { display: false },
-            ticks: { display: false }
-          },
+          x: { grid: { display: false }, ticks: { display: false } },
           y: {
             grid: { display: false },
-            ticks: {
-              color: '#64748B',
-              font: { family: 'Inter', size: 10, weight: '600' }
-            }
+            ticks: { color: '#64748B', font: { family: 'Inter', size: 10, weight: '600' } }
           }
         }
       },
@@ -273,14 +267,13 @@ export function ProspectosChart({ deals }) {
     });
 
     return () => {
-      if (chartInstanceRef.current) {
-        chartInstanceRef.current.destroy();
-      }
+      if (chartInstanceRef.current) chartInstanceRef.current.destroy();
     };
   }, [deals]);
 
   return <canvas ref={canvasRef} />;
 }
+
 
 // ── Gráfica 2 (Reordenado): Análisis 80/20 (Donut) ───────────────────────────
 export function AnalisisChart({ deals }) {
