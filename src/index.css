@@ -891,4 +891,6 @@ body {
 .topbar { flex-wrap: wrap; min-height: 60px; height: auto; }
 
 /* KPI Cards con área: barras mini */
-.kpis-row .kpi-card { padding: 16px 18px; }
+/* KPI exec cards: reset padding (handled inline) */
+.kpis-row .kpi-card { padding: 0; border: none; background: transparent; box-shadow: none; }
+

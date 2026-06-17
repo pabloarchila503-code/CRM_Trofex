@@ -71,7 +71,9 @@ export default function DashboardView({
 
   return (
     <div className="view-section active" id="view-dashboard">
-      <p className="section-label">Resumen de rendimiento</p>
+      <p className="section-label">
+        RESUMEN DE RENDIMIENTO <span style={{ fontWeight: '500', opacity: 0.7 }}>(Prospecciones, 80/20, Proyecto y Carreras)</span>
+      </p>
 
       {/* ── KPI Cards (4 Áreas) ── */}
       <KPICards areaSummary={areaSummary} />
