@@ -57,9 +57,13 @@ export default function App() {
   const [editingDealId, setEditingDealId] = useState(null);
   const [toasts, setToasts] = useState([]);
 
-  // Multi-select tag filters (Admin only)
+  // Multi-select tag filters
   const [selectedStores, setSelectedStores] = useState([]); // [] = all stores
-  const [selectedMonths, setSelectedMonths] = useState([]); // [] = all months
+  const [selectedMonths, setSelectedMonths] = useState(() => {
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const currentMonthIdx = new Date().getMonth(); // 0-11
+    return [months[currentMonthIdx]];
+  });
 
   // Tareas Checklist states for all 14 stores
   const [storeChecklists, setStoreChecklists] = useState({
@@ -214,6 +218,9 @@ export default function App() {
     setIsLoggedIn(false);
     setUserRole(null);
     setActiveStore('Todos');
+    setSelectedStores([]);
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    setSelectedMonths([months[new Date().getMonth()]]);
     showToast('Sesión cerrada con éxito', 'info');
   };
 

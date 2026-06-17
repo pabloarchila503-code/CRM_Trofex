@@ -14,15 +14,37 @@ const formatCurrencyK = (val) => {
   return 'Q' + (val / 1000).toFixed(0) + 'k';
 };
 
-export default function SalesTargetChart({ data, onOpenEditor, activeStore }) {
+export default function SalesTargetChart({
+  data,
+  onOpenEditor,
+  activeStore,
+  selectedStores = [],
+  selectedMonths = [],
+  userRole
+}) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
   const { ventaValues, metaValues } = useMemo(() => {
+    const monthsFullNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    const isAdmin = userRole === 'admin';
+
     const sums = data.map(monthData => {
-      const filteredMonthData = activeStore === 'Todos'
-        ? monthData
-        : monthData.filter(curr => curr.store === activeStore);
+      let filteredMonthData = monthData;
+
+      // Filter by stores:
+      if (isAdmin) {
+        if (selectedStores && selectedStores.length > 0) {
+          filteredMonthData = filteredMonthData.filter(curr => selectedStores.includes(curr.store));
+        }
+      } else {
+        const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
+        filteredMonthData = filteredMonthData.filter(curr => curr.store === storeCode);
+      }
 
       return filteredMonthData.reduce((acc, curr) => {
         return {
@@ -41,11 +63,22 @@ export default function SalesTargetChart({ data, onOpenEditor, activeStore }) {
       }
     }
 
-    const ventaValues = sums.map((m, idx) => (idx <= lastActiveIdx ? m.venta : null));
-    const metaValues = sums.map(m => m.meta);
+    const hasMonthFilter = selectedMonths && selectedMonths.length > 0;
+
+    const ventaValues = sums.map((m, idx) => {
+      const monthName = monthsFullNames[idx];
+      const isMonthAllowed = !hasMonthFilter || selectedMonths.includes(monthName);
+      return (idx <= lastActiveIdx && isMonthAllowed) ? m.venta : null;
+    });
+
+    const metaValues = sums.map((m, idx) => {
+      const monthName = monthsFullNames[idx];
+      const isMonthAllowed = !hasMonthFilter || selectedMonths.includes(monthName);
+      return isMonthAllowed ? m.meta : null;
+    });
 
     return { ventaValues, metaValues };
-  }, [data, activeStore]);
+  }, [data, activeStore, selectedStores, selectedMonths, userRole]);
 
   useEffect(() => {
     if (!canvasRef.current) return;

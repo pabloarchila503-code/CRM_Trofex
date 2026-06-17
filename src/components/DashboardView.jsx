@@ -27,7 +27,7 @@ export default function DashboardView({
 }) {
   const isAdmin = userRole === 'admin';
 
-  // ── Filtrar deals por stores y meses seleccionados (solo Admin usa multi-select) ──
+  // ── Filtrar deals por stores (solo Admin) y meses (todos los usuarios) ──
   const filteredDeals = useMemo(() => {
     let result = deals;
 
@@ -36,16 +36,17 @@ export default function DashboardView({
       if (selectedStores && selectedStores.length > 0) {
         result = result.filter(d => selectedStores.includes(d.store_code));
       }
-      // Filtro por meses
-      if (selectedMonths && selectedMonths.length > 0) {
-        result = result.filter(d => {
-          const monthIdx  = new Date(d.created_at).getMonth(); // 0-11
-          const monthName = MONTH_NAMES[monthIdx];
-          return selectedMonths.includes(monthName);
-        });
-      }
     }
-    // Para rol Store, deals ya vienen filtrados desde App.jsx
+
+    // Filtro por meses para TODOS los roles
+    if (selectedMonths && selectedMonths.length > 0) {
+      result = result.filter(d => {
+        const monthIdx  = new Date(d.created_at).getMonth(); // 0-11
+        const monthName = MONTH_NAMES[monthIdx];
+        return selectedMonths.includes(monthName);
+      });
+    }
+
     return result;
   }, [deals, selectedStores, selectedMonths, isAdmin]);
 
@@ -58,15 +59,17 @@ export default function DashboardView({
       if (selectedStores && selectedStores.length > 0) {
         result = result.filter(p => selectedStores.includes(p.Tienda));
       }
-      // Filtro por meses seleccionados
-      if (selectedMonths && selectedMonths.length > 0) {
-        result = result.filter(p => selectedMonths.includes(p.Mes));
-      }
     } else {
       // Store user: solo su propia tienda
       const storeCode = activeStore || 'CB';
       result = result.filter(p => p.Tienda === storeCode);
     }
+
+    // Filtro por meses seleccionados para TODOS los roles
+    if (selectedMonths && selectedMonths.length > 0) {
+      result = result.filter(p => selectedMonths.includes(p.Mes));
+    }
+
     return result;
   }, [prospecciones, userRole, activeStore, selectedStores, selectedMonths, isAdmin]);
 
@@ -128,6 +131,9 @@ export default function DashboardView({
         data={salesTargetData}
         onOpenEditor={onOpenStoreEditor}
         activeStore={activeStore}
+        selectedStores={selectedStores}
+        selectedMonths={selectedMonths}
+        userRole={userRole}
       />
 
       {/* ── 4 Gráficas 2×2 ── */}
