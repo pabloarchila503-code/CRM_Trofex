@@ -48,24 +48,25 @@ export default function DashboardView({
     return result;
   }, [deals, selectedStores, selectedMonths, isAdmin]);
 
-  // ── Calcular sumatorias de las 4 áreas del CRM ─────────────────────────────
+  // ── Calcular KPIs ejecutivos (registros únicos + efectividad) ────────────────
   const areaSummary = useMemo(() => {
     const d = filteredDeals;
 
-    // Prospecciones: total prospectados = todos los deals del período
-    const prospectados  = d.length;
-    const contactados   = d.filter(x => ['s2','s3','s4','s5'].includes(x.stage_id)).length;
-    const cotizados     = d.filter(x => ['s3','s4','s5'].includes(x.stage_id)).length;
-    const cerrados      = d.filter(x => x.status === 'won').length;
-    const perdidos      = d.filter(x => x.status === 'lost').length;
-    const noContactados = d.filter(x => x.stage_id === 's1' && x.status === 'open').length;
-    const empresas      = new Set(d.map(x => x.customer_id)).size;
+    const cerrados = d.filter(x => x.status === 'won').length;
+    // Total registros únicos por área
+    const totalProspecciones = d.length;                                  // todos los deals = embudo nivel 1
+    const total8020          = d.length;                                  // mismos registros, vista 80/20
+    const totalProyectos     = new Set(d.map(x => x.customer_id)).size;  // empresas únicas
+    const totalCarreras      = d.length;                                  // registros totales de carreras
+
+    const pct = (cerr, tot) =>
+      tot > 0 ? Math.round((cerr / tot) * 100) : 0;
 
     return {
-      prospecciones: { prospectados, contactados, cotizados, cerrados, perdidos },
-      '8020':        { noContactados, contactados, cotizados, cerrados, perdidos },
-      proyectos:     { empresas, contactados, cotizados, cerrados, perdidos },
-      carreras:      { noContactados, contactados, cotizados, cerrados, perdidos },
+      prospecciones: { total: totalProspecciones, cerrados, efectividad: pct(cerrados, totalProspecciones) },
+      '8020':        { total: total8020,          cerrados, efectividad: pct(cerrados, total8020) },
+      proyectos:     { total: totalProyectos,     cerrados, efectividad: pct(cerrados, totalProyectos) },
+      carreras:      { total: totalCarreras,      cerrados, efectividad: pct(cerrados, totalCarreras) },
     };
   }, [filteredDeals]);
 
