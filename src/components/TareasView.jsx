@@ -78,20 +78,7 @@ export default function TareasView({
     return () => clearInterval(timer);
   }, [simulatedTimeChoice]);
 
-  // Alert Modal Check Effect
-  useEffect(() => {
-    const currentDay = new Date().getDay();
-    const isWorkDay = currentDay >= 1 && currentDay <= 6;
-    const todayTabLabel = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'][currentDay];
-    const isDaySaved = savedDays[storeCode]?.[todayTabLabel] || false;
-    const currentMinutesVal = hour * 60 + minute;
-
-    if (isWorkDay && currentMinutesVal >= 990 && !isDaySaved && !alertDismissedToday && !isAlertModalOpen) {
-      setIsAlertModalOpen(true);
-    }
-  }, [hour, minute, savedDays, storeCode, alertDismissedToday, isAlertModalOpen]);
-
-  // Compute active hour/minute based on choice
+  // Compute active hour/minute based on choice — MUST be before any useEffect that uses hour/minute
   const { hour, minute, timeStr } = useMemo(() => {
     if (simulatedTimeChoice === 'real') {
       return {
@@ -109,6 +96,23 @@ export default function TareasView({
     }
   }, [simulatedTimeChoice, systemTime]);
 
+  // Checklist for selected store — MUST be before any useEffect that uses storeCode
+  const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
+  const currentChecklist = storeChecklists[storeCode] || {};
+
+  // Alert Modal Check Effect
+  useEffect(() => {
+    const currentDay = new Date().getDay();
+    const isWorkDay = currentDay >= 1 && currentDay <= 6;
+    const todayTabLabel = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'][currentDay];
+    const isDaySaved = savedDays[storeCode]?.[todayTabLabel] || false;
+    const currentMinutesVal = hour * 60 + minute;
+
+    if (isWorkDay && currentMinutesVal >= 990 && !isDaySaved && !alertDismissedToday && !isAlertModalOpen) {
+      setIsAlertModalOpen(true);
+    }
+  }, [hour, minute, savedDays, storeCode, alertDismissedToday, isAlertModalOpen]);
+
   // Rule of freezing at 9:15 AM
   const aperturaFrozen = useMemo(() => {
     const currentMinutes = hour * 60 + minute;
@@ -125,10 +129,6 @@ export default function TareasView({
     if (minutes >= 990 && minutes < 1050) return 5;  // 16:30 - 17:30
     return null;
   }, [hour, minute]);
-
-  // Checklist for selected store
-  const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
-  const currentChecklist = storeChecklists[storeCode] || {};
 
   const completedCount = useMemo(() => {
     return Object.values(currentChecklist).filter(Boolean).length;
