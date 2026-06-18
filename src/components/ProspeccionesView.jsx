@@ -573,7 +573,7 @@ export default function ProspeccionesView({
 
                     <div style={{ display: 'flex', justifyContent: 'space-between',
                                   fontSize: '11px', color: 'var(--text-muted)' }}>
-                      <span>Prospectos: <strong>{stats.prospectados}</strong></span>
+                      <span>Prospectados: <strong>{stats.prospectados}</strong></span>
                       <span>Cerrados: <strong style={{ color: '#047857' }}>{stats.cerrados}</strong></span>
                     </div>
                   </div>

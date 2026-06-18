@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 
 // Helper to format currency
@@ -197,35 +197,35 @@ export function ProspectosChart({ prospecciones = [] }) {
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    let total = 0;
-    let contactados = 0;
-    let cotizaciones = 0;
-    let cerrados = 0;
+    let prospectados = 0;
+    let contactados  = 0;
+    let cotizados    = 0;
+    let cerrados     = 0;
+    let perdidos     = 0;
 
     prospecciones.forEach(p => {
-      total        += (parseInt(p.Prospectados) || 0);
+      prospectados += (parseInt(p.Prospectados) || 0);
       contactados  += (parseInt(p.Contactados) || 0);
-      cotizaciones += (parseInt(p.Cotizados) || 0);
+      cotizados    += (parseInt(p.Cotizados) || 0);
       cerrados     += (parseInt(p.Cerrados) || 0);
+      perdidos     += (parseInt(p.Perdidos) || 0);
     });
 
-    const seguimiento = Math.round(cerrados + (cotizaciones - cerrados) * 0.5);
-
-    const labels = ['1. Prospecciones', '2. Contactados', '3. Cotizaciones', '4. Seguimiento', '5. Cerrados'];
-    const values = [total, contactados, cotizaciones, seguimiento, cerrados];
+    const labels = ['Prospectados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
+    const values = [prospectados, contactados, cotizados, cerrados, perdidos];
 
     // Semáforo:
-    // Prospecciones → Gris    (#94A3B8)
-    // Contactados   → Azul    (#3B82F6)
-    // Cotizaciones  → Amarillo (#F59E0B)
-    // Seguimiento   → Naranja/Coral (#FF6D4D)
-    // Cerrados      → Verde   (#10B981)
-    const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#FF6D4D', '#10B981'];
+    // Prospectados → Gris (#94A3B8)
+    // Contactados → Azul (#3B82F6)
+    // Cotizados → Amarillo (#F59E0B)
+    // Cerrados → Verde (#10B981)
+    // Perdidos → Rojo (#EF4444)
+    const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#10B981', '#EF4444'];
 
     // Simular embudo flotante centrado
     const dataValues = values.map(val => {
-      if (total === 0) return [0, 0];
-      const start = (total - val) / 2;
+      if (prospectados === 0) return [0, 0];
+      const start = (prospectados - val) / 2;
       const end   = start + val;
       return [start, end];
     });

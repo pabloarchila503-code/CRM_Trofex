@@ -279,7 +279,7 @@ body {
 /* ── 7. KPI CARDS ─────────────────────────────────────────── */
 .kpis-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -943,10 +943,10 @@ body {
     margin: 10mm 12mm;
   }
 
-  /* Ajustar las 4 tarjetas superiores */
+  /* Ajustar las 5 tarjetas superiores */
   .kpis-row {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(5, 1fr) !important;
     gap: 12px !important;
     margin-bottom: 15px !important;
   }

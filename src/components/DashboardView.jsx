@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import logoImg from '../assets/logo.png';
 import KPICards from './KPICards';
 import SalesTargetChart from './SalesTargetChart';
@@ -12,12 +12,6 @@ const MONTH_NAMES = [
 
 export default function DashboardView({
   deals,
-  stages,
-  users,
-  customers,
-  kpis,
-  onEditDeal,
-  onDeleteDeal,
   salesTargetData,
   onOpenStoreEditor,
   activeStore,
@@ -72,36 +66,64 @@ export default function DashboardView({
     }
 
     return result;
-  }, [prospecciones, userRole, activeStore, selectedStores, selectedMonths, isAdmin]);
+  }, [prospecciones, activeStore, selectedStores, selectedMonths, isAdmin]);
 
-  // ── Calcular KPIs ejecutivos (registros únicos + efectividad) ────────────────
-  const areaSummary = useMemo(() => {
-    const d = filteredDeals;
+  // ── Calcular sumatorias globales para las 5 tarjetas del Embudo Maestro ──
+  const globalSums = useMemo(() => {
+    // 1. Prospecciones (Master DB)
+    let prospProsp = 0;
+    let contProsp  = 0;
+    let cotProsp   = 0;
+    let cerrProsp  = 0;
+    let perdProsp  = 0;
 
-    const cerrados = d.filter(x => x.status === 'won').length;
-    // Total registros únicos por área
-    const total8020          = d.length;                                  // mismos registros, vista 80/20
-    const totalProyectos     = new Set(d.map(x => x.customer_id)).size;  // empresas únicas
-    const totalCarreras      = d.length;                                  // registros totales de carreras
-
-    // Prospecciones values from the master database
-    let totalProsp = 0;
-    let cerradosProsp = 0;
     filteredProspecciones.forEach(p => {
-      totalProsp += (parseInt(p.Prospectados) || 0);
-      cerradosProsp += (parseInt(p.Cerrados) || 0);
+      prospProsp += (parseInt(p.Prospectados) || 0);
+      contProsp  += (parseInt(p.Contactados) || 0);
+      cotProsp   += (parseInt(p.Cotizados) || 0);
+      cerrProsp  += (parseInt(p.Cerrados) || 0);
+      perdProsp  += (parseInt(p.Perdidos) || 0);
     });
 
-    const pct = (cerr, tot) =>
-      tot > 0 ? Math.round((cerr / tot) * 100) : 0;
+    // 2. 80/20, Proyectos, y Carreras (se obtienen de filteredDeals)
+    const countByStage = (stageId) => {
+      return filteredDeals.filter(d => d.stage_id === stageId).length;
+    };
+
+    const prospDeals = countByStage('s1');
+    const contDeals  = countByStage('s2');
+    const cotDeals   = countByStage('s3');
+    const cerrDeals  = countByStage('s4');
+    const perdDeals  = countByStage('s5');
+
+    // Sumatoria global por etapa en las 4 áreas:
+    // Prospectados = Prospecciones + 80/20 + Proyectos + Carreras
+    const totalProspectados = prospProsp + prospDeals + prospDeals + prospDeals;
+    const totalContactados  = contProsp + contDeals + contDeals + contDeals;
+    const totalCotizados    = cotProsp + cotDeals + cotDeals + cotDeals;
+    const totalCerrados     = cerrProsp + cerrDeals + cerrDeals + cerrDeals;
+    const totalPerdidos     = perdProsp + perdDeals + perdDeals + perdDeals;
 
     return {
-      prospecciones: { total: totalProsp, cerrados: cerradosProsp, efectividad: pct(cerradosProsp, totalProsp) },
-      '8020':        { total: total8020,          cerrados, efectividad: pct(cerrados, total8020) },
-      proyectos:     { total: totalProyectos,     cerrados, efectividad: pct(cerrados, totalProyectos) },
-      carreras:      { total: totalCarreras,      cerrados, efectividad: pct(cerrados, totalCarreras) },
+      prospectados: totalProspectados,
+      contactados:  totalContactados,
+      cotizados:    totalCotizados,
+      cerrados:     totalCerrados,
+      perdidos:     totalPerdidos,
     };
   }, [filteredDeals, filteredProspecciones]);
+
+  // ── Calcular la efectividad de ventas para la gráfica de Prospecciones (Cerrados / Cotizados) ──
+  const prospeccionesEfectividad = useMemo(() => {
+    let cotizados = 0;
+    let cerrados = 0;
+    filteredProspecciones.forEach(p => {
+      cotizados += (parseInt(p.Cotizados) || 0);
+      cerrados  += (parseInt(p.Cerrados) || 0);
+    });
+    if (cotizados === 0) return 0;
+    return Math.round((cerrados / cotizados) * 100);
+  }, [filteredProspecciones]);
 
   return (
     <div className="view-section active" id="view-dashboard">
@@ -123,8 +145,8 @@ export default function DashboardView({
         RESUMEN DE RENDIMIENTO <span style={{ fontWeight: '500', opacity: 0.7 }}>(Prospecciones, 80/20, Proyecto y Carreras)</span>
       </p>
 
-      {/* ── KPI Cards (4 Áreas) ── */}
-      <KPICards areaSummary={areaSummary} />
+      {/* ── KPI Cards (5 Etapas / Embudo Maestro) ── */}
+      <KPICards globalSums={globalSums} />
 
       {/* ── Filtro activo indicador (Admin) ── */}
       {isAdmin && (selectedStores?.length > 0 || selectedMonths?.length > 0) && (
@@ -155,13 +177,26 @@ export default function DashboardView({
       <div className="charts-grid-2x2">
         {/* Gráfica 1: Prospecciones (Embudo) */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div className="card-title">
-                <span className="card-title-dot" style={{ background: '#94A3B8' }} />
-                Prospecciones
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div className="card-title" style={{ margin: 0 }}>
+                  <span className="card-title-dot" style={{ background: '#94A3B8' }} />
+                  Prospecciones
+                </div>
+                <span style={{
+                  background: 'rgba(16,185,129,0.12)',
+                  color: '#059669',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Efectividad de Cierre: {prospeccionesEfectividad}%
+                </span>
               </div>
-              <div className="card-subtitle">Embudo de clientes potenciales</div>
+              <div className="card-subtitle" style={{ marginTop: '4px' }}>Embudo de clientes potenciales</div>
             </div>
             <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
           </div>

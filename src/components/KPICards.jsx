@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // ── Animación de números ────────────────────────────────────────────────────
 function AnimatedNumber({ value, format }) {
@@ -26,72 +26,71 @@ function AnimatedNumber({ value, format }) {
   return <>{format(cur)}</>;
 }
 
-// ── Definición de las 4 Áreas ───────────────────────────────────────────────
-const AREAS = [
+// ── Definición de las 5 Etapas del Embudo ──────────────────────────────────────
+const STAGES = [
   {
-    key:         'prospecciones',
-    label:       'PROSPECCIONES',
-    sublabel:    'Total de Prospecciones',
-    icon:        'fas fa-funnel-dollar',
-    color:       '#94A3B8',
+    key:         'prospectados',
+    label:       'PROSPECTADOS',
+    sublabel:    'Total Prospectados',
+    icon:        'fas fa-users',
+    color:       '#94A3B8', // Gris
     colorLight:  'rgba(148,163,184,0.13)',
     borderColor: 'rgba(148,163,184,0.45)',
     gradientFrom:'#F8FAFC',
   },
   {
-    key:         '8020',
-    label:       'ANÁLISIS 80/20',
-    sublabel:    'Total de Registros',
-    icon:        'fas fa-chart-pie',
-    color:       '#3B82F6',
+    key:         'contactados',
+    label:       'CONTACTADOS',
+    sublabel:    'Total Contactados',
+    icon:        'fas fa-comments',
+    color:       '#3B82F6', // Azul
     colorLight:  'rgba(59,130,246,0.10)',
-    borderColor: 'rgba(59,130,246,0.35)',
+    borderColor: 'rgba(59,130,246,0.30)',
     gradientFrom:'#EFF6FF',
   },
   {
-    key:         'proyectos',
-    label:       'PROYECTOS',
-    sublabel:    'Total de Empresas',
-    icon:        'fas fa-building',
-    color:       '#F59E0B',
+    key:         'cotizados',
+    label:       'COTIZADOS',
+    sublabel:    'Total Cotizados',
+    icon:        'fas fa-file-invoice-dollar',
+    color:       '#F59E0B', // Amarillo
     colorLight:  'rgba(245,158,11,0.10)',
     borderColor: 'rgba(245,158,11,0.40)',
     gradientFrom:'#FFFBEB',
   },
   {
-    key:         'carreras',
-    label:       'CARRERAS',
-    sublabel:    'Total de Registros',
-    icon:        'fas fa-flag-checkered',
-    color:       '#EC4899',
-    colorLight:  'rgba(236,72,153,0.10)',
-    borderColor: 'rgba(236,72,153,0.35)',
-    gradientFrom:'#FDF2F8',
+    key:         'cerrados',
+    label:       'CERRADOS',
+    sublabel:    'Total Cerrados',
+    icon:        'fas fa-handshake',
+    color:       '#10B981', // Verde
+    colorLight:  'rgba(16,185,129,0.10)',
+    borderColor: 'rgba(16,185,129,0.35)',
+    gradientFrom:'#ECFDF5',
+  },
+  {
+    key:         'perdidos',
+    label:       'PERDIDOS',
+    sublabel:    'Total Perdidos',
+    icon:        'fas fa-ban',
+    color:       '#EF4444', // Rojo
+    colorLight:  'rgba(239,68,68,0.10)',
+    borderColor: 'rgba(239,68,68,0.30)',
+    gradientFrom:'#FEF2F2',
   },
 ];
 
 const fmt = (val) => Math.round(val).toLocaleString('es-GT');
 
-// ── Color del badge de efectividad ──────────────────────────────────────────
-const efectividadColor = (pct) => {
-  if (pct >= 50) return { bg: 'rgba(16,185,129,0.12)', text: '#059669' };  // Verde
-  if (pct >= 25) return { bg: 'rgba(245,158,11,0.12)', text: '#B45309' };  // Ámbar
-  return           { bg: 'rgba(239,68,68,0.12)',  text: '#DC2626' };        // Rojo
-};
-
-// ── Tarjeta KPI Ejecutiva ────────────────────────────────────────────────────
-function ExecCard({ area, summary }) {
-  const total       = summary.total       || 0;
-  const efectividad = summary.efectividad ?? 0;
-  const { bg, text } = efectividadColor(efectividad);
-
+// ── Tarjeta KPI Ejecutiva (Etapa del Embudo) ──────────────────────────────────
+function ExecCard({ stage, val, badgeText, badgeBg, badgeTextColor, isPositive }) {
   return (
     <div
       className="kpi-card"
       style={{
         padding: '22px 20px',
-        background: `linear-gradient(135deg, ${area.gradientFrom} 0%, #ffffff 100%)`,
-        border: `1.5px solid ${area.borderColor}`,
+        background: `linear-gradient(135deg, ${stage.gradientFrom} 0%, #ffffff 100%)`,
+        border: `1.5px solid ${stage.borderColor}`,
         borderRadius: 'var(--radius-md)',
         boxShadow: '0 2px 12px rgba(30,41,59,0.07)',
         display: 'flex',
@@ -104,7 +103,7 @@ function ExecCard({ area, summary }) {
       }}
       onMouseEnter={e => {
         e.currentTarget.style.transform = 'translateY(-3px)';
-        e.currentTarget.style.boxShadow = `0 8px 28px ${area.colorLight.replace('0.13','0.28').replace('0.10','0.22')}`;
+        e.currentTarget.style.boxShadow = `0 8px 28px ${stage.colorLight.replace('0.13','0.28').replace('0.10','0.22')}`;
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)';
@@ -115,22 +114,22 @@ function ExecCard({ area, summary }) {
       <div style={{
         width: '46px', height: '46px',
         borderRadius: '13px',
-        background: area.colorLight,
-        border: `1.5px solid ${area.borderColor}`,
+        background: stage.colorLight,
+        border: `1.5px solid ${stage.borderColor}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <i className={area.icon} style={{ color: area.color, fontSize: '19px' }} />
+        <i className={stage.icon} style={{ color: stage.color, fontSize: '19px' }} />
       </div>
 
-      {/* Título del área */}
+      {/* Título de la etapa */}
       <span style={{
         fontSize: '10px',
         fontWeight: '800',
         letterSpacing: '1.2px',
         textTransform: 'uppercase',
-        color: area.color,
+        color: stage.color,
       }}>
-        {area.label}
+        {stage.label}
       </span>
 
       {/* Número Total en grande */}
@@ -141,7 +140,7 @@ function ExecCard({ area, summary }) {
         lineHeight: 1,
         fontVariantNumeric: 'tabular-nums',
       }}>
-        <AnimatedNumber value={total} format={fmt} />
+        <AnimatedNumber value={val} format={fmt} />
       </div>
 
       {/* Sub-label discreto */}
@@ -151,30 +150,30 @@ function ExecCard({ area, summary }) {
         fontWeight: '500',
         marginTop: '-4px',
       }}>
-        {area.sublabel}
+        {stage.sublabel}
       </span>
 
-      {/* ── Badge de Efectividad ── */}
+      {/* ── Badge de Conversión / Avance ── */}
       <div style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: '5px',
         padding: '4px 12px',
         borderRadius: '20px',
-        background: bg,
+        background: badgeBg,
         marginTop: '2px',
       }}>
         <i
-          className={`fas fa-${efectividad >= 25 ? 'arrow-trend-up' : 'arrow-trend-down'}`}
-          style={{ fontSize: '10px', color: text }}
+          className={`fas fa-${isPositive ? 'arrow-trend-up' : 'arrow-trend-down'}`}
+          style={{ fontSize: '10px', color: badgeTextColor }}
         />
         <span style={{
           fontSize: '11px',
           fontWeight: '800',
-          color: text,
+          color: badgeTextColor,
           letterSpacing: '0.3px',
         }}>
-          {efectividad}% de efectividad
+          {badgeText}
         </span>
       </div>
     </div>
@@ -182,16 +181,53 @@ function ExecCard({ area, summary }) {
 }
 
 // ── Componente principal ────────────────────────────────────────────────────
-export default function KPICards({ areaSummary }) {
+export default function KPICards({ globalSums = {} }) {
+  const prosp = globalSums.prospectados || 0;
+
   return (
     <div className="kpis-row">
-      {AREAS.map(area => (
-        <ExecCard
-          key={area.key}
-          area={area}
-          summary={areaSummary[area.key] || { total: 0, cerrados: 0, efectividad: 0 }}
-        />
-      ))}
+      {STAGES.map(stage => {
+        const val = globalSums[stage.key] || 0;
+        const pct = prosp > 0 ? Math.round((val / prosp) * 100) : 0;
+        
+        let badgeText = '';
+        let badgeColorLight = stage.colorLight;
+        let badgeTextColor = stage.color;
+
+        if (stage.key === 'prospectados') {
+          badgeText = '100% del embudo';
+          badgeTextColor = '#64748B';
+          badgeColorLight = 'rgba(148,163,184,0.12)';
+        } else if (stage.key === 'contactados') {
+          badgeText = `${pct}% de contacto`;
+          badgeTextColor = '#2563EB';
+          badgeColorLight = 'rgba(59,130,246,0.12)';
+        } else if (stage.key === 'cotizados') {
+          badgeText = `${pct}% de cotización`;
+          badgeTextColor = '#B45309';
+          badgeColorLight = 'rgba(245,158,11,0.12)';
+        } else if (stage.key === 'cerrados') {
+          badgeText = `${pct}% de efectividad`;
+          badgeTextColor = '#059669';
+          badgeColorLight = 'rgba(16,185,129,0.12)';
+        } else if (stage.key === 'perdidos') {
+          badgeText = `${pct}% de pérdida`;
+          badgeTextColor = '#DC2626';
+          badgeColorLight = 'rgba(239,68,68,0.12)';
+        }
+
+        return (
+          <ExecCard
+            key={stage.key}
+            stage={stage}
+            val={val}
+            badgeText={badgeText}
+            badgeBg={badgeColorLight}
+            badgeTextColor={badgeTextColor}
+            isPositive={stage.key !== 'perdidos'}
+          />
+        );
+      })}
     </div>
   );
 }
