@@ -272,7 +272,7 @@ export default function App() {
     dashboard: 'Dashboard',
     tareas: 'Checklist y Bloques Horarios',
     calendario: 'Calendario de Operaciones',
-    'rendimiento-programado': 'Rendimiento Programado',
+    'rendimiento-programado': 'Análisis de Cumplimiento',
     prospecciones: 'Prospecciones Comerciales',
     '80-20': 'Análisis de Red 80/20',
     proyecto: 'Proyectos Corporativos',
@@ -415,8 +415,6 @@ export default function App() {
               selectedStores={selectedStores}
               selectedMonths={selectedMonths}
               prospecciones={prospecciones}
-              storeChecklists={storeChecklists}
-              setView={setView}
             />
           )}
 

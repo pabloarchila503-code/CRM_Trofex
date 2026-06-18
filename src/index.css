@@ -166,6 +166,24 @@ body {
   text-align: center;
 }
 
+.nav-sub-items {
+  padding-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  margin-left: 20px;
+}
+.nav-sub-items .nav-item {
+  font-size: 12.5px;
+  padding: 8px 10px;
+}
+.nav-item.active-parent {
+  color: #fff;
+  background: rgba(255,255,255,0.03);
+}
+
 .sidebar-footer {
   padding: 16px 12px;
   border-top: 1px solid rgba(255,255,255,0.07);

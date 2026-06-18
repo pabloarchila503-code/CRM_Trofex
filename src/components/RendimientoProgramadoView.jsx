@@ -159,7 +159,7 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
 
   return (
     <div className="view-section active">
-      <p className="section-label">Operaciones Administrativas — Rendimiento Programado</p>
+      <p className="section-label">Tareas Operativas — Análisis de Cumplimiento</p>
 
       {/* Dashboard de Rendimiento de Cronograma */}
       <div className="card" style={{ marginBottom: '24px' }}>

@@ -1,20 +1,18 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import logoImg from '../assets/logo.png';
 
 export default function Sidebar({ currentView, setView, openCount, onLogout, userRole, activeStore }) {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-th-large', section: 'Principal' },
-    { id: 'tareas', label: 'Tareas', icon: 'fas fa-tasks', section: 'Principal' },
-    { id: 'calendario', label: 'Calendario', icon: 'fas fa-calendar-alt', section: 'Operaciones Administrativas' },
-    { id: 'rendimiento-programado', label: 'Rendimiento Programado', icon: 'fas fa-chart-line', section: 'Operaciones Administrativas' },
-    { id: 'prospecciones', label: 'Prospecciones', icon: 'fas fa-handshake', section: 'Ventas', badge: true },
-    { id: '80-20', label: '80/20', icon: 'fas fa-percentage', section: 'Ventas' },
-    { id: 'proyecto', label: 'Proyecto', icon: 'fas fa-project-diagram', section: 'Ventas' },
-    { id: 'carreras', label: 'Carreras', icon: 'fas fa-store-alt', section: 'Ventas' }
-  ];
+  const [tareasOperativasOpen, setTareasOperativasOpen] = useState(
+    currentView === 'tareas' || currentView === 'rendimiento-programado'
+  );
 
-  // Group items by section
-  const sections = ['Principal', 'Operaciones Administrativas', 'Ventas'];
+  // Auto-expand menu when view changes
+  useEffect(() => {
+    if (currentView === 'tareas' || currentView === 'rendimiento-programado') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTareasOperativasOpen(true);
+    }
+  }, [currentView]);
 
   const profileName = userRole === 'admin' ? 'Rafael Herrera' : `Asesor Tienda ${activeStore}`;
   const profileRole = userRole === 'admin' ? 'Administrador' : 'Asesor de Ventas';
@@ -35,39 +33,107 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
 
       {/* Navigation */}
       <nav className="sidebar-nav">
-        {sections.map(sec => {
-          const items = navItems.filter(item => item.section === sec);
-          return (
-            <React.Fragment key={sec}>
-              <span className="nav-section-title">{sec}</span>
-              {items.map(item => {
-                const isActive = item.id === currentView;
-                const handleClick = (e) => {
-                  e.preventDefault();
-                  if (!item.disabled) {
-                    setView(item.id);
-                  }
-                };
+        {/* SECTION: Principal */}
+        <span className="nav-section-title">Principal</span>
+        <a
+          href="#"
+          className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('dashboard'); }}
+        >
+          <i className="fas fa-th-large"></i>
+          <span>Dashboard</span>
+        </a>
 
-                return (
-                  <a
-                    key={item.id}
-                    href="#"
-                    className={`nav-item ${isActive ? 'active' : ''} ${item.disabled ? 'disabled-nav-item' : ''}`}
-                    onClick={handleClick}
-                    style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                  >
-                    <i className={item.icon}></i>
-                    <span>{item.label}</span>
-                    {item.badge && openCount > 0 && (
-                      <span className="nav-badge" id="open-count">{openCount}</span>
-                    )}
-                  </a>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
+        {/* SECTION: Tareas Operativas (Collapsible Group) */}
+        <span className="nav-section-title">Tareas Operativas</span>
+        <a
+          href="#"
+          className={`nav-item ${(currentView === 'tareas' || currentView === 'rendimiento-programado') ? 'active-parent' : ''}`}
+          onClick={(e) => {
+            e.preventDefault();
+            setTareasOperativasOpen(!tareasOperativasOpen);
+          }}
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fas fa-toolbox" style={{ color: (currentView === 'tareas' || currentView === 'rendimiento-programado') ? 'var(--accent-coral)' : 'inherit' }}></i>
+            <span>Tareas Operativas</span>
+          </div>
+          <i
+            className={`fas fa-chevron-${tareasOperativasOpen ? 'down' : 'right'}`}
+            style={{ fontSize: '10px', opacity: 0.6 }}
+          ></i>
+        </a>
+
+        {tareasOperativasOpen && (
+          <div className="nav-sub-items">
+            <a
+              href="#"
+              className={`nav-item ${currentView === 'tareas' ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setView('tareas'); }}
+            >
+              <i className="fas fa-tasks"></i>
+              <span>Tareas</span>
+            </a>
+            <a
+              href="#"
+              className={`nav-item ${currentView === 'rendimiento-programado' ? 'active' : ''}`}
+              onClick={(e) => { e.preventDefault(); setView('rendimiento-programado'); }}
+            >
+              <i className="fas fa-chart-line"></i>
+              <span>Análisis de Cumplimiento</span>
+            </a>
+          </div>
+        )}
+
+        {/* SECTION: Operaciones Administrativas */}
+        <span className="nav-section-title">Operaciones Administrativas</span>
+        <a
+          href="#"
+          className={`nav-item ${currentView === 'calendario' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('calendario'); }}
+        >
+          <i className="fas fa-calendar-alt"></i>
+          <span>Calendario</span>
+        </a>
+
+        {/* SECTION: Ventas */}
+        <span className="nav-section-title">Ventas</span>
+        <a
+          href="#"
+          className={`nav-item ${currentView === 'prospecciones' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('prospecciones'); }}
+        >
+          <i className="fas fa-handshake"></i>
+          <span>Prospecciones</span>
+          {openCount > 0 && (
+            <span className="nav-badge" id="open-count">{openCount}</span>
+          )}
+        </a>
+        <a
+          href="#"
+          className={`nav-item ${currentView === '80-20' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('80-20'); }}
+        >
+          <i className="fas fa-percentage"></i>
+          <span>80/20</span>
+        </a>
+        <a
+          href="#"
+          className={`nav-item ${currentView === 'proyecto' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('proyecto'); }}
+        >
+          <i className="fas fa-project-diagram"></i>
+          <span>Proyecto</span>
+        </a>
+        <a
+          href="#"
+          className={`nav-item ${currentView === 'carreras' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('carreras'); }}
+        >
+          <i className="fas fa-store-alt"></i>
+          <span>Carreras</span>
+        </a>
       </nav>
 
       {/* Footer (User) */}

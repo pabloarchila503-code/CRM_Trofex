@@ -19,8 +19,6 @@ export default function DashboardView({
   selectedStores,
   selectedMonths,
   prospecciones = [],
-  storeChecklists = {},
-  setView,
 }) {
   const isAdmin = userRole === 'admin';
 
@@ -127,34 +125,13 @@ export default function DashboardView({
     return Math.round((cerrados / cotizados) * 100);
   }, [filteredProspecciones]);
 
-  // ── Filtrar tiendas objetivo según rol del usuario y filtros de la barra superior ──
-  const targetStores = useMemo(() => {
-    if (isAdmin) {
-      return selectedStores && selectedStores.length > 0
-        ? selectedStores
-        : ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
-    }
-    return [activeStore || 'CB'];
-  }, [isAdmin, selectedStores, activeStore]);
-
-  // ── Calcular métricas de Tareas y Rendimiento para la sección Operaciones ──
-  const { tareasCompletadas, tareasTotales, rendimientoPorcentaje } = useMemo(() => {
-    let completed = 0;
-    const total = targetStores.length * 7; // 7 tareas principales diarias por sucursal
-
-    targetStores.forEach(code => {
-      const checklist = storeChecklists[code] || {};
-      completed += Object.values(checklist).filter(Boolean).length;
-    });
-
-    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-    return {
-      tareasCompletadas: completed,
-      tareasTotales: total,
-      rendimientoPorcentaje: pct
-    };
-  }, [targetStores, storeChecklists]);
+  // ── Calcular la efectividad de ventas para las gráficas basadas en Deals (Cerrados / Cotizados) ──
+  const dealsEfectividad = useMemo(() => {
+    const cotizados = filteredDeals.filter(d => d.stage_id === 's3').length;
+    const cerrados  = filteredDeals.filter(d => d.status === 'won').length;
+    if (cotizados === 0) return 0;
+    return Math.round((cerrados / cotizados) * 100);
+  }, [filteredDeals]);
 
   return (
     <div className="view-section active" id="view-dashboard">
@@ -204,156 +181,6 @@ export default function DashboardView({
         userRole={userRole}
       />
 
-      {/* ── Nueva Sección: Operaciones ── */}
-      <p className="section-label" style={{ marginTop: '32px', marginBottom: '16px' }}>
-        OPERACIONES
-      </p>
-
-      <div className="operaciones-grid">
-        {/* Tarjeta 1: Tareas */}
-        <div className="card" style={{
-          padding: '24px',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          background: '#FFFFFF',
-          border: '1px solid var(--border-light)',
-          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-        }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: '800',
-                letterSpacing: '1.2px',
-                color: 'var(--text-secondary)',
-                textTransform: 'uppercase'
-              }}>
-                {isAdmin ? 'Tareas (Consolidado)' : 'Tareas de mi Tienda'}
-              </span>
-              <div style={{
-                width: '36px', height: '36px',
-                borderRadius: '10px',
-                background: 'rgba(255,109,77,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <i className="fas fa-tasks" style={{ color: 'var(--accent-coral)', fontSize: '16px' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '36px', fontWeight: '900', color: 'var(--text-primary)' }}>
-                {tareasCompletadas}
-              </span>
-              <span style={{ fontSize: '16px', color: 'var(--text-muted)', fontWeight: '500' }}>
-                / {tareasTotales} completadas
-              </span>
-            </div>
-            
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: '1.5' }}>
-              {isAdmin 
-                ? 'Monitorea el avance de checklists y cumplimiento operativo en toda la red de tiendas.' 
-                : 'Completa tu checklist diario de limpieza, WhatsApp y depósito bancario para hoy.'}
-            </p>
-          </div>
-
-          <button 
-            className="topbar-btn btn-primary" 
-            onClick={() => setView('tareas')}
-            style={{ width: '100%', justifyContent: 'center', padding: '10px 0', fontWeight: '700', fontSize: '13px' }}
-          >
-            <i className="fas fa-eye" style={{ marginRight: '6px' }} />
-            {isAdmin ? 'Ver Checklist Global' : 'Gestionar Mis Tareas'}
-          </button>
-        </div>
-
-        {/* Tarjeta 2: Rendimiento */}
-        <div className="card" style={{
-          padding: '24px',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          background: '#FFFFFF',
-          border: '1px solid var(--border-light)',
-          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-        }}>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: '800',
-                letterSpacing: '1.2px',
-                color: 'var(--text-secondary)',
-                textTransform: 'uppercase'
-              }}>
-                {isAdmin ? 'Análisis de Rendimiento' : 'Mi Rendimiento'}
-              </span>
-              <div style={{
-                width: '36px', height: '36px',
-                borderRadius: '10px',
-                background: 'rgba(59,130,246,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <i className="fas fa-chart-line" style={{ color: '#3B82F6', fontSize: '16px' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '36px', fontWeight: '900', color: 'var(--text-primary)' }}>
-                {rendimientoPorcentaje}%
-              </span>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: '800',
-                padding: '3px 8px',
-                borderRadius: '12px',
-                background: rendimientoPorcentaje >= 80 ? 'rgba(16,185,129,0.12)' : rendimientoPorcentaje >= 50 ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
-                color: rendimientoPorcentaje >= 80 ? '#059669' : rendimientoPorcentaje >= 50 ? '#B45309' : '#DC2626'
-              }}>
-                {rendimientoPorcentaje >= 80 ? 'ÓPTIMO' : rendimientoPorcentaje >= 50 ? 'ACEPTABLE' : 'BAJO'}
-              </span>
-            </div>
-
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: '1.5' }}>
-              {isAdmin 
-                ? 'Audita la efectividad, puntualidad y porcentaje de cumplimiento operativo en todas las sucursales.' 
-                : 'Mide tu nivel de cumplimiento operativo diario y efectividad comercial acumulada.'}
-            </p>
-          </div>
-
-          <button 
-            className="topbar-btn btn-primary" 
-            onClick={() => setView(isAdmin ? 'rendimiento-programado' : 'tareas')}
-            style={{ width: '100%', justifyContent: 'center', padding: '10px 0', fontWeight: '700', fontSize: '13px', background: '#3B82F6', borderColor: '#3B82F6' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#2563EB'}
-            onMouseLeave={e => e.currentTarget.style.background = '#3B82F6'}
-          >
-            <i className="fas fa-chart-bar" style={{ marginRight: '6px' }} />
-            {isAdmin ? 'Ver Métricas de Sucursales' : 'Ver Mi Historial de Rendimiento'}
-          </button>
-        </div>
-      </div>
-
       {/* ── 4 Gráficas 2×2 ── */}
       <div className="charts-grid-2x2">
         {/* Gráfica 1: Prospecciones (Embudo) */}
@@ -390,7 +217,7 @@ export default function DashboardView({
 
         {/* Gráfica 2: Análisis 80/20 */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div className="card-title">
                 <span className="card-title-dot" style={{ background: '#3B82F6' }} />
@@ -398,7 +225,20 @@ export default function DashboardView({
               </div>
               <div className="card-subtitle">Conversión de clientes y cotizaciones</div>
             </div>
-            <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                background: 'rgba(16,185,129,0.12)',
+                color: '#059669',
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                whiteSpace: 'nowrap',
+              }}>
+                Efectividad de Cierre: {dealsEfectividad}%
+              </span>
+              <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
@@ -409,7 +249,7 @@ export default function DashboardView({
 
         {/* Gráfica 3: Proyectos */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div className="card-title">
                 <span className="card-title-dot" style={{ background: '#F59E0B' }} />
@@ -417,7 +257,20 @@ export default function DashboardView({
               </div>
               <div className="card-subtitle">Estatus de cotizaciones corporativas</div>
             </div>
-            <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                background: 'rgba(16,185,129,0.12)',
+                color: '#059669',
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                whiteSpace: 'nowrap',
+              }}>
+                Efectividad de Cierre: {dealsEfectividad}%
+              </span>
+              <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
@@ -428,7 +281,7 @@ export default function DashboardView({
 
         {/* Gráfica 4: Carreras */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div className="card-title">
                 <span className="card-title-dot" style={{ background: '#EC4899' }} />
@@ -436,7 +289,20 @@ export default function DashboardView({
               </div>
               <div className="card-subtitle">Puntos de venta y kioscos</div>
             </div>
-            <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                background: 'rgba(16,185,129,0.12)',
+                color: '#059669',
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                whiteSpace: 'nowrap',
+              }}>
+                Efectividad de Cierre: {dealsEfectividad}%
+              </span>
+              <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
