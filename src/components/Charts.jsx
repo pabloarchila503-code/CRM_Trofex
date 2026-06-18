@@ -365,20 +365,22 @@ export function ProyectosChart({ deals }) {
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    const totalEmpresas = new Set(deals.map(d => d.customer_id)).size;
-    const contactados = deals.filter(d => d.stage_id === 's2').length;
-    const cotizados = deals.filter(d => d.stage_id === 's3').length;
-    const cerrados = deals.filter(d => d.status === 'won').length;
+    const prospectados = deals.filter(d => d.stage_id === 's1').length;
+    const contactados  = deals.filter(d => d.stage_id === 's2').length;
+    const cotizados    = deals.filter(d => d.stage_id === 's3').length;
+    const cerrados     = deals.filter(d => d.status === 'won').length;
+    const perdidos     = deals.filter(d => d.status === 'lost').length;
 
-    const labels = ['Total de Empresas', 'Contactados', 'Cotizados', 'Cerrados'];
-    const values = [totalEmpresas, contactados, cotizados, cerrados];
+    const labels = ['Prospectados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
+    const values = [prospectados, contactados, cotizados, cerrados, perdidos];
 
     // Semáforo:
-    // Total de Empresas -> Gris (#94A3B8)
-    // Contactados -> Azul (#3B82F6)
-    // Cotizados -> Amarillo (#F59E0B)
-    // Cerrados -> Verde (#10B981)
-    const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#10B981'];
+    // Prospectados → Gris (#94A3B8)
+    // Contactados → Azul (#3B82F6)
+    // Cotizados → Amarillo (#F59E0B)
+    // Cerrados → Verde (#10B981)
+    // Perdidos → Rojo (#EF4444)
+    const colors = ['#94A3B8', '#3B82F6', '#F59E0B', '#10B981', '#EF4444'];
 
     if (chartInstanceRef.current) {
       chartInstanceRef.current.destroy();
@@ -409,7 +411,7 @@ export function ProyectosChart({ deals }) {
             }
           },
           customDatalabels: {
-            totalValue: totalEmpresas
+            totalValue: prospectados
           }
         },
         scales: {

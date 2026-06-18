@@ -177,28 +177,28 @@ export default function DashboardView({
       <div className="charts-grid-2x2">
         {/* Gráfica 1: Prospecciones (Embudo) */}
         <div className="card">
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <div className="card-title" style={{ margin: 0 }}>
-                  <span className="card-title-dot" style={{ background: '#94A3B8' }} />
-                  Prospecciones
-                </div>
-                <span style={{
-                  background: 'rgba(16,185,129,0.12)',
-                  color: '#059669',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  padding: '3px 10px',
-                  borderRadius: '12px',
-                  whiteSpace: 'nowrap',
-                }}>
-                  Efectividad de Cierre: {prospeccionesEfectividad}%
-                </span>
+              <div className="card-title">
+                <span className="card-title-dot" style={{ background: '#94A3B8' }} />
+                Prospecciones
               </div>
-              <div className="card-subtitle" style={{ marginTop: '4px' }}>Embudo de clientes potenciales</div>
+              <div className="card-subtitle">Embudo de clientes potenciales</div>
             </div>
-            <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                background: 'rgba(16,185,129,0.12)',
+                color: '#059669',
+                fontSize: '11px',
+                fontWeight: '700',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                whiteSpace: 'nowrap',
+              }}>
+                Efectividad de Cierre: {prospeccionesEfectividad}%
+              </span>
+              <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
+            </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
