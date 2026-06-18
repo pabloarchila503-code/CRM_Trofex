@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+/* global google */
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────────────
@@ -247,6 +249,7 @@ export default function ProspeccionesView({
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, [isAdmin, storeName]);
 
   const handleSyncManual = () => {

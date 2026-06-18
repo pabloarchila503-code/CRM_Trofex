@@ -1,4 +1,3 @@
-import React from 'react';
 import { BigPipelineChart } from './Charts';
 import DealsTable from './DealsTable';
 

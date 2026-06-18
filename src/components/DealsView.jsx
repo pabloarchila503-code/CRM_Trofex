@@ -1,4 +1,3 @@
-import React from 'react';
 import DealsTable from './DealsTable';
 
 export default function DealsView({ deals, stages, users, customers, onEditDeal, onDeleteDeal }) {

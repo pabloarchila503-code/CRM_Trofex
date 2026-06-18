@@ -1,6 +1,5 @@
-import React from 'react';
 import DealsTable from './DealsTable';
-import { AnalisisChart, ProyectosChart, ProspectosChart, CarretasChart } from './Charts';
+import { ProyectosChart, CarretasChart } from './Charts';
 import Analisis8020View from './Analisis8020View';
 
 export default function VentasView({ 

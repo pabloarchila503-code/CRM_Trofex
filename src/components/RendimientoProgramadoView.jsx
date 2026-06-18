@@ -1,7 +1,7 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 
-export default function RendimientoProgramadoView({ activeStore = 'Todos', userRole = 'admin', checkedTasks = {}, weeklyTasks = {} }) {
+export default function RendimientoProgramadoView({ activeStore = 'Todos', checkedTasks = {}, weeklyTasks = {} }) {
   const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
 
   // Dynamic Cronograma History Simulation (30 days)

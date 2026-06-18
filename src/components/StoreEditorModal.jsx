@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -17,6 +17,7 @@ export default function StoreEditorModal({ isOpen, onClose, data, onSave, userRo
         monthData = monthData.filter(item => item.store === activeStore);
       }
       // Create a deep copy of the selected month's data
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalStoreData(JSON.parse(JSON.stringify(monthData)));
     }
   }, [isOpen, selectedMonthIdx, data, userRole, activeStore]);

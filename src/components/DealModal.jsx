@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect } from 'react';
 
 export default function DealModal({ isOpen, dealId, deals, stages, users, customers, onClose, onSave }) {
   const [title, setTitle] = useState('');

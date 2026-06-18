@@ -1,4 +1,3 @@
-import React from 'react';
 
 // Helper to format currency
 const formatCurrency = (val) => {

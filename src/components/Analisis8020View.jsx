@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+/* global google */
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 
 // Simple Donut Chart for Stage Distribution
@@ -22,7 +24,7 @@ function EtapasDonutChart({ datos }) {
 
     datos.forEach(item => {
       const etapa = item.Etapa || 'No contactado';
-      if (conteos.hasOwnProperty(etapa)) {
+      if (conteos[etapa] !== undefined) {
         conteos[etapa]++;
       }
     });
@@ -165,6 +167,7 @@ export default function Analisis8020View({ showToast }) {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mockUserRol, mockUserTienda]);
 
   const handleSyncManual = () => {

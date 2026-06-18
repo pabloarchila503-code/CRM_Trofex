@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+/* global google */
+import { useState, useMemo, useEffect } from 'react';
 import { mockData } from './data/mockData';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -245,12 +246,13 @@ export default function App() {
   };
 
   // Save to Google Sheets
-  const handleSaveToSheets = (store, completed, total, details) => {
+  const handleSaveToSheets = (store, completed, total) => {
     showToast(`Sincronizando con Google Sheets (Tienda ${store})...`, 'info');
     setTimeout(() => {
       showToast(`¡Conexión exitosa! Registro guardado en BD_OPERACIONES para ${store} (${Math.round((completed / total) * 100)}% cumplimiento)`, 'success');
     }, 1200);
   };
+
 
   // Filter deals based on active store selection
   const filteredDeals = useMemo(() => {
@@ -260,38 +262,6 @@ export default function App() {
     return deals.filter(d => d.store_code === activeStore);
   }, [deals, activeStore]);
 
-  // KPI calculations based on Deals store (memoized)
-  const kpis = useMemo(() => {
-    const openDeals = filteredDeals.filter(d => d.status === 'open');
-    const wonDeals = filteredDeals.filter(d => d.status === 'won');
-    
-    // 1. Total de Clientes: unique customers with won or open deals
-    const activeCustomerIds = new Set(
-      filteredDeals.filter(d => d.status !== 'lost').map(d => d.customer_id)
-    );
-    const totalCustomers = activeCustomerIds.size; // starts around 8 in our data
-
-    // 2. Total Contactados: count of active open deals + offset to match exactly 14
-    const totalContacted = openDeals.length + (activeStore === 'Todos' ? 3 : 0); // starts at 14
-
-    // 3. Cotizaciones Generadas: count of total deals - offset to match exactly 30
-    const totalQuotes = filteredDeals.length - (activeStore === 'Todos' ? 2 : 0); // starts at 30
-
-    // 4. Monto de Cotización: average of won deals + offset to match exactly Q29,458
-    const totalRevenue = wonDeals.reduce((s, d) => s + d.amount, 0);
-    const avgWon = wonDeals.length > 0 ? totalRevenue / wonDeals.length : 0;
-    const montoCotizacion = avgWon + (activeStore === 'Todos' ? 236 : 0); // starts at 29,458
-
-    // Trends matched to image 3
-    const trends = {
-      customers: 15,
-      contacted: 5,
-      quotes: -2,
-      monto: 8
-    };
-
-    return { totalCustomers, totalContacted, totalQuotes, montoCotizacion, trends, winRate: 60 };
-  }, [filteredDeals, activeStore]);
 
   const openCount = useMemo(() => {
     return filteredDeals.filter(d => d.status === 'open').length;
@@ -438,12 +408,6 @@ export default function App() {
           {currentView === 'dashboard' && (
             <DashboardView
               deals={filteredDeals}
-              stages={mockData.stages}
-              users={mockData.users}
-              customers={mockData.customers}
-              kpis={kpis}
-              onEditDeal={handleEditDeal}
-              onDeleteDeal={handleDeleteDeal}
               salesTargetData={salesTargetData}
               onOpenStoreEditor={() => setIsStoreModalOpen(true)}
               activeStore={activeStore}
@@ -451,6 +415,8 @@ export default function App() {
               selectedStores={selectedStores}
               selectedMonths={selectedMonths}
               prospecciones={prospecciones}
+              storeChecklists={storeChecklists}
+              setView={setView}
             />
           )}
 

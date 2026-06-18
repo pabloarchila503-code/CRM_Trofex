@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
+
+const EMPTY_OBJECT = {};
 
 // Core tasks list
 const CORE_TASKS = [
@@ -98,7 +100,7 @@ export default function TareasView({
 
   // Checklist for selected store — MUST be before any useEffect that uses storeCode
   const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
-  const currentChecklist = storeChecklists[storeCode] || {};
+  const currentChecklist = storeChecklists[storeCode] || EMPTY_OBJECT;
 
   // Alert Modal Check Effect
   useEffect(() => {
@@ -109,6 +111,7 @@ export default function TareasView({
     const currentMinutesVal = hour * 60 + minute;
 
     if (isWorkDay && currentMinutesVal >= 990 && !isDaySaved && !alertDismissedToday && !isAlertModalOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsAlertModalOpen(true);
     }
   }, [hour, minute, savedDays, storeCode, alertDismissedToday, isAlertModalOpen]);
@@ -201,7 +204,7 @@ export default function TareasView({
     });
     
     return history;
-  }, [storeCode, storeChecklists, completedCount]);
+  }, [storeCode, completedCount]);
 
   const avgStoreCompliance = useMemo(() => {
     if (storeHistory.length === 0) return 0;
