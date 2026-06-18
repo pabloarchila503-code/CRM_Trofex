@@ -19,10 +19,11 @@ export default function DashboardView({
   selectedStores,
   selectedMonths,
   prospecciones = [],
+  timeRange = 'Mensual',
 }) {
   const isAdmin = userRole === 'admin';
 
-  // ── Filtrar deals por stores (solo Admin) y meses (todos los usuarios) ──
+  // ── Filtrar deals por stores (solo Admin) y meses y rango de tiempo (todos los usuarios) ──
   const filteredDeals = useMemo(() => {
     let result = deals;
 
@@ -42,10 +43,32 @@ export default function DashboardView({
       });
     }
 
-    return result;
-  }, [deals, selectedStores, selectedMonths, isAdmin]);
+    // Filtro por rango de tiempo (1 día, 1 semana, Quincenal, Mensual)
+    result = result.filter(d => {
+      const createdDate = new Date(d.created_at);
+      const now = new Date();
+      const diffTime = now - createdDate;
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
-  // ── Filtrar prospecciones por stores y meses seleccionados (respetando rol y aislamiento) ──
+      if (timeRange === '1 día') {
+        return diffDays >= 0 && diffDays <= 1;
+      }
+      if (timeRange === '1 semana') {
+        return diffDays >= 0 && diffDays <= 7;
+      }
+      if (timeRange === 'Quincenal') {
+        return diffDays >= 0 && diffDays <= 15;
+      }
+      if (timeRange === 'Mensual') {
+        return diffDays >= 0 && diffDays <= 30;
+      }
+      return true;
+    });
+
+    return result;
+  }, [deals, selectedStores, selectedMonths, isAdmin, timeRange]);
+
+  // ── Filtrar prospecciones por stores y meses seleccionados (respetando rol y aislamiento) y escala de tiempo ──
   const filteredProspecciones = useMemo(() => {
     let result = prospecciones;
 
@@ -65,8 +88,25 @@ export default function DashboardView({
       result = result.filter(p => selectedMonths.includes(p.Mes));
     }
 
+    // Escalar los valores de las metas según el periodo de tiempo
+    const scaleFactor = 
+      timeRange === '1 día' ? (1 / 30) : 
+      timeRange === '1 semana' ? (7 / 30) : 
+      timeRange === 'Quincenal' ? (15 / 30) : 1;
+
+    if (scaleFactor !== 1) {
+      return result.map(p => ({
+        ...p,
+        Prospectados: Math.round((parseInt(p.Prospectados) || 0) * scaleFactor),
+        Contactados: Math.round((parseInt(p.Contactados) || 0) * scaleFactor),
+        Cotizados: Math.round((parseInt(p.Cotizados) || 0) * scaleFactor),
+        Cerrados: Math.round((parseInt(p.Cerrados) || 0) * scaleFactor),
+        Perdidos: Math.round((parseInt(p.Perdidos) || 0) * scaleFactor),
+      }));
+    }
+
     return result;
-  }, [prospecciones, activeStore, selectedStores, selectedMonths, isAdmin]);
+  }, [prospecciones, activeStore, selectedStores, selectedMonths, isAdmin, timeRange]);
 
   // ── Calcular sumatorias globales para las 5 tarjetas del Embudo Maestro ──
   const globalSums = useMemo(() => {

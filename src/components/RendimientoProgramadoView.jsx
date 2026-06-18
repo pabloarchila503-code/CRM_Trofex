@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 
-export default function RendimientoProgramadoView({ activeStore = 'Todos', checkedTasks = {}, weeklyTasks = {} }) {
+export default function RendimientoProgramadoView({ activeStore = 'Todos', checkedTasks = {}, weeklyTasks = {}, timeRange = 'Mensual' }) {
   const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
 
   // Dynamic Cronograma History Simulation (30 days)
@@ -87,20 +87,28 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
     return history;
   }, [storeCode, checkedTasks, weeklyTasks]);
 
+  const filteredCronogramaHistory = useMemo(() => {
+    const sliceCount = 
+      timeRange === '1 día' ? 1 :
+      timeRange === '1 semana' ? 7 :
+      timeRange === 'Quincenal' ? 15 : 30;
+    return cronogramaHistory.slice(-sliceCount);
+  }, [cronogramaHistory, timeRange]);
+
   // Calculate KPIs
   const avgCronogramaCompliance = useMemo(() => {
-    if (cronogramaHistory.length === 0) return 0;
-    const sum = cronogramaHistory.reduce((s, h) => s + h.pct, 0);
-    return Math.round(sum / cronogramaHistory.length);
-  }, [cronogramaHistory]);
+    if (filteredCronogramaHistory.length === 0) return 0;
+    const sum = filteredCronogramaHistory.reduce((s, h) => s + h.pct, 0);
+    return Math.round(sum / filteredCronogramaHistory.length);
+  }, [filteredCronogramaHistory]);
 
   const todayRecord = useMemo(() => {
     return cronogramaHistory[cronogramaHistory.length - 1] || { completed: 0, assigned: 0, pct: 0 };
   }, [cronogramaHistory]);
 
   const optimalDaysCount = useMemo(() => {
-    return cronogramaHistory.filter(h => h.pct >= 80).length;
-  }, [cronogramaHistory]);
+    return filteredCronogramaHistory.filter(h => h.pct >= 80).length;
+  }, [filteredCronogramaHistory]);
 
   const lineChartRef = useRef(null);
   const lineChartInstance = useRef(null);
@@ -113,8 +121,8 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
       }
       
       const ctx = lineChartRef.current.getContext('2d');
-      const labels = cronogramaHistory.map(h => h.displayDate);
-      const data = cronogramaHistory.map(h => h.pct);
+      const labels = filteredCronogramaHistory.map(h => h.displayDate);
+      const data = filteredCronogramaHistory.map(h => h.pct);
       
       const gradient = ctx.createLinearGradient(0, 0, 0, 200);
       gradient.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
@@ -155,7 +163,7 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
     return () => {
       if (lineChartInstance.current) lineChartInstance.current.destroy();
     };
-  }, [cronogramaHistory]);
+  }, [filteredCronogramaHistory]);
 
   return (
     <div className="view-section active">
@@ -175,7 +183,7 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>{storeCode}</span>
-            <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>Últimos 30 días</span>
+            <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>{timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}</span>
           </div>
         </div>
 
@@ -214,7 +222,7 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
                 {optimalDaysCount} días
               </div>
               <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                De {cronogramaHistory.length} días hábiles registrados
+                De {filteredCronogramaHistory.length} días hábiles registrados
               </div>
             </div>
           </div>
@@ -223,7 +231,7 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
           <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px', marginBottom: '24px' }}>
             <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3B82F6' }}></span>
-              Mi Evolución de Cumplimiento de Cronograma — Últimos 30 días
+              Mi Evolución de Cumplimiento de Cronograma — {timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}
             </div>
             <div style={{ height: '220px' }}>
               <canvas ref={lineChartRef} />
@@ -250,7 +258,7 @@ export default function RendimientoProgramadoView({ activeStore = 'Todos', check
                   </tr>
                 </thead>
                 <tbody>
-                  {[...cronogramaHistory].reverse().map((row, idx) => (
+                  {[...filteredCronogramaHistory].reverse().map((row, idx) => (
                     <tr key={idx} className="deal-row" style={row.isToday ? { background: 'rgba(255, 109, 77, 0.02)' } : {}}>
                       <td style={{ fontWeight: '600' }}>
                         {row.date}

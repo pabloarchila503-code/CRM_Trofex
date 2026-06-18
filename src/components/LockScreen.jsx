@@ -16,7 +16,7 @@ export default function LockScreen({ onLogin }) {
     }
 
     if (code === 'ADMIN123') {
-      onLogin('admin', 'Todos');
+      onLogin('admin', 'CB');
     } else if (STORES.includes(code)) {
       onLogin('store', code);
     } else {

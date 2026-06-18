@@ -5,8 +5,8 @@ const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 
 export default function Topbar({
   title, onExportPDF, userRole, activeStore,
-  selectedStores, setSelectedStores,
   selectedMonths,  setSelectedMonths,
+  onStoreChange, timeRange, onTimeRangeChange
 }) {
   const [timeStr, setTimeStr] = useState('--:--:--');
   const [dateStr, setDateStr] = useState('—');
@@ -40,12 +40,6 @@ export default function Topbar({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Toggle tag
-  const toggleStore = (s) => {
-    setSelectedStores(prev =>
-      prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
-    );
-  };
   const toggleMonth = (m) => {
     setSelectedMonths(prev =>
       prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
@@ -69,7 +63,7 @@ export default function Topbar({
             >
               <i className="fas fa-store" style={{ color: 'var(--accent-coral)', fontSize: '13px' }} />
               <span style={{ fontSize: '12px', fontWeight: '700' }}>
-                Tiendas {selectedStores.length > 0 ? `(${selectedStores.length})` : '(Todas)'}
+                Tienda: {activeStore}
               </span>
               <i className={`fas fa-chevron-${storeDropOpen ? 'up' : 'down'}`} style={{ fontSize: '9px', opacity: 0.6 }} />
             </button>
@@ -82,32 +76,27 @@ export default function Topbar({
                 padding: '8px', zIndex: 200, width: '220px',
                 display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px',
               }}>
-                <button
-                  onClick={() => setSelectedStores([])}
-                  style={{
-                    gridColumn: '1 / -1', padding: '6px', fontSize: '11px', fontWeight: '700',
-                    background: selectedStores.length === 0 ? 'var(--accent-coral)' : 'var(--bg-cream)',
-                    color: selectedStores.length === 0 ? '#fff' : 'var(--text-secondary)',
-                    border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '4px',
-                  }}
-                >
-                  Todas las Tiendas
-                </button>
-                {STORES.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => toggleStore(s)}
-                    style={{
-                      padding: '5px', fontSize: '11px', fontWeight: '700',
-                      background: selectedStores.includes(s) ? 'var(--accent-coral)' : '#F8F6F2',
-                      color: selectedStores.includes(s) ? '#fff' : 'var(--text-secondary)',
-                      border: '1px solid ' + (selectedStores.includes(s) ? 'var(--accent-coral)' : 'var(--border-light)'),
-                      borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
+                {STORES.map(s => {
+                  const isSelected = activeStore === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        if (onStoreChange) onStoreChange(s);
+                        setStoreDropOpen(false);
+                      }}
+                      style={{
+                        padding: '5px', fontSize: '11px', fontWeight: '700',
+                        background: isSelected ? 'var(--accent-coral)' : '#F8F6F2',
+                        color: isSelected ? '#fff' : 'var(--text-secondary)',
+                        border: '1px solid ' + (isSelected ? 'var(--accent-coral)' : 'var(--border-light)'),
+                        borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -165,15 +154,34 @@ export default function Topbar({
           )}
         </div>
 
+        {/* ── FILTRO TIEMPO (dropdown select) ── */}
+        <div style={{ position: 'relative' }}>
+          <select
+            value={timeRange}
+            onChange={(e) => onTimeRangeChange(e.target.value)}
+            className="select-filter"
+            style={{
+              padding: '7px 12px',
+              fontWeight: '700',
+              borderRadius: 'var(--radius-sm)',
+              border: '1.5px solid var(--border-light)',
+              background: '#fff',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'border-color var(--tr-fast)',
+            }}
+          >
+            <option value="1 día">1 día</option>
+            <option value="1 semana">1 semana</option>
+            <option value="Quincenal">Quincenal</option>
+            <option value="Mensual">Mensual</option>
+          </select>
+        </div>
+
         {/* ── TAGS ACTIVOS ── */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
-          {isAdmin && selectedStores.map(s => (
-            <span key={s} className="filter-tag filter-tag-store">
-              <i className="fas fa-store" style={{ fontSize: '9px' }} />
-              {s}
-              <button onClick={() => toggleStore(s)} className="tag-remove-btn">&times;</button>
-            </span>
-          ))}
           {selectedMonths.map(m => (
             <span key={m} className="filter-tag filter-tag-month">
               <i className="fas fa-calendar-alt" style={{ fontSize: '9px' }} />
@@ -191,7 +199,7 @@ export default function Topbar({
           <div className="store-pill-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px' }}>
             <i className="fas fa-store" style={{ color: 'var(--accent-coral)', fontSize: '13px' }} />
             <span style={{ fontSize: '12px', fontWeight: '700' }}>
-              Tienda: {activeStore === 'Todos' ? 'Todas' : activeStore}
+              Tienda: {activeStore}
             </span>
           </div>
         </div>

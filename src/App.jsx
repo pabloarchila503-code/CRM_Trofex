@@ -51,15 +51,16 @@ function getInitialSalesTargetData() {
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState(null); // 'admin' or 'store'
-  const [activeStore, setActiveStore] = useState('Todos'); // 'Todos' or store code
+  const [activeStore, setActiveStore] = useState('CB'); // 'CB' or store code
   const [deals, setDeals] = useState(mockData.deals);
   const [currentView, setView] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDealId, setEditingDealId] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [timeRange, setTimeRange] = useState('Mensual');
 
   // Multi-select tag filters
-  const [selectedStores, setSelectedStores] = useState([]); // [] = all stores
+  const [selectedStores, setSelectedStores] = useState(['CB']); // single selected store by default
   const [selectedMonths, setSelectedMonths] = useState(() => {
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const currentMonthIdx = new Date().getMonth(); // 0-11
@@ -208,18 +209,21 @@ export default function App() {
   // Auth handlers
   const handleLogin = (role, store) => {
     setUserRole(role);
-    setActiveStore(store);
+    const initialStore = role === 'admin' ? 'CB' : store;
+    setActiveStore(initialStore);
+    setSelectedStores([initialStore]);
     setIsLoggedIn(true);
     // Force direct landing depending on role
     setView('dashboard');
-    showToast(`Sesión iniciada como ${role === 'admin' ? 'Administrador' : `Asesor de Tienda (${store})`}`, 'success');
+    showToast(`Sesión iniciada como ${role === 'admin' ? 'Administrador' : `Asesor de Tienda (${initialStore})`}`, 'success');
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserRole(null);
-    setActiveStore('Todos');
-    setSelectedStores([]);
+    setActiveStore('CB');
+    setSelectedStores(['CB']);
+    setTimeRange('Mensual');
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     setSelectedMonths([months[new Date().getMonth()]]);
     showToast('Sesión cerrada con éxito', 'info');
@@ -254,13 +258,49 @@ export default function App() {
   };
 
 
-  // Filter deals based on active store selection
+  // Filter deals based on active store, selected months, and time range selection
   const filteredDeals = useMemo(() => {
-    if (activeStore === 'Todos') {
-      return deals;
+    let result = deals;
+
+    if (userRole === 'store') {
+      result = result.filter(d => d.store_code === activeStore);
+    } else if (userRole === 'admin') {
+      if (selectedStores && selectedStores.length > 0) {
+        result = result.filter(d => selectedStores.includes(d.store_code));
+      }
     }
-    return deals.filter(d => d.store_code === activeStore);
-  }, [deals, activeStore]);
+
+    if (selectedMonths && selectedMonths.length > 0) {
+      result = result.filter(d => {
+        const monthIdx  = new Date(d.created_at).getMonth(); // 0-11
+        const monthName = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][monthIdx];
+        return selectedMonths.includes(monthName);
+      });
+    }
+
+    result = result.filter(d => {
+      const createdDate = new Date(d.created_at);
+      const now = new Date();
+      const diffTime = now - createdDate;
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (timeRange === '1 día') {
+        return diffDays >= 0 && diffDays <= 1;
+      }
+      if (timeRange === '1 semana') {
+        return diffDays >= 0 && diffDays <= 7;
+      }
+      if (timeRange === 'Quincenal') {
+        return diffDays >= 0 && diffDays <= 15;
+      }
+      if (timeRange === 'Mensual') {
+        return diffDays >= 0 && diffDays <= 30;
+      }
+      return true;
+    });
+
+    return result;
+  }, [deals, activeStore, userRole, selectedStores, selectedMonths, timeRange]);
 
 
   const openCount = useMemo(() => {
@@ -397,11 +437,16 @@ export default function App() {
           onExportPDF={handleExportPDF}
           userRole={userRole}
           activeStore={activeStore}
-          onStoreChange={(store) => setActiveStore(store)}
+          onStoreChange={(store) => {
+            setActiveStore(store);
+            setSelectedStores([store]);
+          }}
           selectedStores={selectedStores}
           setSelectedStores={setSelectedStores}
           selectedMonths={selectedMonths}
           setSelectedMonths={setSelectedMonths}
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
         />
 
         <main className="page-content">
@@ -415,6 +460,7 @@ export default function App() {
               selectedStores={selectedStores}
               selectedMonths={selectedMonths}
               prospecciones={prospecciones}
+              timeRange={timeRange}
             />
           )}
 
@@ -431,6 +477,7 @@ export default function App() {
               setSavedDays={setSavedDays}
               weeklyTasks={weeklyTasks}
               setWeeklyTasks={setWeeklyTasks}
+              timeRange={timeRange}
             />
           )}
 
@@ -453,6 +500,7 @@ export default function App() {
               userRole={userRole}
               checkedTasks={checkedTasks}
               weeklyTasks={weeklyTasks}
+              timeRange={timeRange}
             />
           )}
 

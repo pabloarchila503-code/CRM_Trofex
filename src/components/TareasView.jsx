@@ -36,7 +36,8 @@ export default function TareasView({
   savedDays,
   setSavedDays,
   weeklyTasks,
-  setWeeklyTasks
+  setWeeklyTasks,
+  timeRange = 'Mensual'
 }) {
   // Simulated time states
   const [simulatedTimeChoice, setSimulatedTimeChoice] = useState('real'); // 'real' or simulated values
@@ -206,15 +207,23 @@ export default function TareasView({
     return history;
   }, [storeCode, completedCount]);
 
+  const filteredStoreHistory = useMemo(() => {
+    const sliceCount = 
+      timeRange === '1 día' ? 1 :
+      timeRange === '1 semana' ? 7 :
+      timeRange === 'Quincenal' ? 15 : 30;
+    return storeHistory.slice(-sliceCount);
+  }, [storeHistory, timeRange]);
+
   const avgStoreCompliance = useMemo(() => {
-    if (storeHistory.length === 0) return 0;
-    const sum = storeHistory.reduce((s, h) => s + h.pct, 0);
-    return Math.round(sum / storeHistory.length);
-  }, [storeHistory]);
+    if (filteredStoreHistory.length === 0) return 0;
+    const sum = filteredStoreHistory.reduce((s, h) => s + h.pct, 0);
+    return Math.round(sum / filteredStoreHistory.length);
+  }, [filteredStoreHistory]);
 
   const optimalDaysCount = useMemo(() => {
-    return storeHistory.filter(h => h.pct >= 80).length;
-  }, [storeHistory]);
+    return filteredStoreHistory.filter(h => h.pct >= 80).length;
+  }, [filteredStoreHistory]);
 
   const todayRecord = useMemo(() => {
     return storeHistory[storeHistory.length - 1];
@@ -319,10 +328,17 @@ export default function TareasView({
         }
         const ctx = lineChartRef.current.getContext('2d');
         
+        const sliceCount = 
+          timeRange === '1 día' ? 1 :
+          timeRange === '1 semana' ? 7 :
+          timeRange === 'Quincenal' ? 15 : 30;
+
         // Dates matching image 049b5e
-        const labels = ['09/05', '11/05', '13/05', '15/05', '17/05', '19/05', '21/05', '23/05', '25/05', '27/05', '29/05', '31/05', '02/06', '04/06', '06/06'];
-        // Mock progress showing flat progress rising to current network average at the end
-        const data = [2, 1, 3, 2, 2, 4, 3, 5, 4, 6, 8, 12, 16, 20, complianceAverages.avgCompliance];
+        const rawLabels = ['09/05', '11/05', '13/05', '15/05', '17/05', '19/05', '21/05', '23/05', '25/05', '27/05', '29/05', '31/05', '02/06', '04/06', '06/06'];
+        const rawData = [2, 1, 3, 2, 2, 4, 3, 5, 4, 6, 8, 12, 16, 20, complianceAverages.avgCompliance];
+
+        const labels = rawLabels.slice(-sliceCount);
+        const data = rawData.slice(-sliceCount);
         
         const gradient = ctx.createLinearGradient(0, 0, 0, 200);
         gradient.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
@@ -366,8 +382,8 @@ export default function TareasView({
           privateLineChartInstance.current.destroy();
         }
         const ctx = privateLineChartRef.current.getContext('2d');
-        const labels = storeHistory.map(h => h.displayDate);
-        const data = storeHistory.map(h => h.pct);
+        const labels = filteredStoreHistory.map(h => h.displayDate);
+        const data = filteredStoreHistory.map(h => h.pct);
         
         const gradient = ctx.createLinearGradient(0, 0, 0, 200);
         gradient.addColorStop(0, 'rgba(16, 185, 129, 0.15)');
@@ -411,7 +427,7 @@ export default function TareasView({
       if (lineChartInstance.current) lineChartInstance.current.destroy();
       if (privateLineChartInstance.current) privateLineChartInstance.current.destroy();
     };
-  }, [storeStatistics, complianceAverages, storeCode, userRole, storeHistory]);
+  }, [storeStatistics, complianceAverages, storeCode, userRole, filteredStoreHistory, timeRange]);
 
   // Get ISO week number
   const getWeekNumber = (d) => {
@@ -802,7 +818,325 @@ export default function TareasView({
         </div>
       </div>
 
-      {/* 2. Panel de Administración de Tareas Interactivo (Exclusivo para Admin, Trasladado) */}
+      {/* Compliance Analytics Section (Panel de Avance) - Visibilidad Condicionada por Rol */}
+      {userRole === 'admin' ? (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: '#d32f2f', fontSize: '18px' }}>
+                <i className="fas fa-database"></i>
+              </span>
+              <div>
+                <h3 className="card-title" style={{ fontSize: '15px' }}>BD_Operaciones — Análisis de Cumplimiento</h3>
+                <p className="card-subtitle">Monitoreo y registro diario de avance por sucursales</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>Tienda: {storeCode}</span>
+              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>{timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}</span>
+            </div>
+          </div>
+
+          <div style={{ padding: '24px' }}>
+            
+            {/* KPI Upper Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }} className="grid-responsive-sm">
+              
+              {/* Card 1 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Cumplimiento Promedio Red
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {complianceAverages.avgCompliance}%
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Todas las tiendas · periodo seleccionado
+                </div>
+              </div>
+
+              {/* Card 2 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Mejor Tienda del Día
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {complianceAverages.bestStore}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Hoy ({new Date().toISOString().slice(0, 10)})
+                </div>
+              </div>
+
+              {/* Card 3 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Tareas Completadas Hoy
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {complianceAverages.totalCompleted}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '600' }}>
+                  de {complianceAverages.totalAssigned} asignadas
+                </div>
+              </div>
+
+              {/* Card 4 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Tiendas con 80%+ Hoy
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {complianceAverages.storesAbove80} de 14
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  de 14 tiendas
+                </div>
+              </div>
+            </div>
+
+            {/* Charts Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }} className="grid-responsive-md">
+              
+              {/* Rendimiento por tienda hoy */}
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-coral)' }}></span>
+                  Rendimiento por Tienda — Hoy
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: 'auto' }}>
+                    {new Date().toLocaleDateString('es-ES')}
+                  </span>
+                </div>
+                <div style={{ height: '220px' }}>
+                  <canvas ref={barChartRef} />
+                </div>
+              </div>
+
+              {/* Evolución de cumplimiento red */}
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
+                  Evolución de Cumplimiento — Red Completa
+                </div>
+                <div style={{ height: '220px' }}>
+                  <canvas ref={lineChartRef} />
+                </div>
+              </div>
+            </div>
+
+            {/* Table: BD_OPERACIONES - REGISTROS RECIENTES */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-purple)' }}></span>
+                  BD_OPERACIONES — REGISTROS RECIENTES
+                </div>
+                <button className="topbar-btn btn-outline" style={{ padding: '6px 12px', fontSize: '11px' }}>
+                  <i className="fas fa-file-export" style={{ marginRight: '6px' }}></i> Exportar CSV
+                </button>
+              </div>
+
+              <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
+                <table className="deals-table">
+                  <thead>
+                    <tr style={{ background: 'var(--bg-body)' }}>
+                      <th>Fecha</th>
+                      <th>Código</th>
+                      <th>Tienda</th>
+                      <th style={{ textAlign: 'center' }}>Asignadas</th>
+                      <th style={{ textAlign: 'center' }}>Completadas</th>
+                      <th style={{ textAlign: 'center' }}>% Cumplimiento</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storeStatistics.map((row) => (
+                      <tr key={row.code} className="deal-row">
+                        <td style={{ fontWeight: '600' }}>
+                          {new Date().toISOString().slice(0, 10)}
+                          <span style={{ 
+                            fontSize: '8px', 
+                            fontWeight: '800', 
+                            color: '#FFFFFF', 
+                            background: '#3B82F6', 
+                            padding: '1px 4px', 
+                            borderRadius: '4px', 
+                            marginLeft: '6px',
+                            textTransform: 'uppercase'
+                          }}>
+                            VIVO
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: '700' }}>{row.code}</td>
+                        <td>{row.storeName}</td>
+                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{row.assigned}</td>
+                        <td style={{ textAlign: 'center', fontWeight: '700', color: row.completed > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                          {row.completed}
+                        </td>
+                        <td style={{ 
+                          textAlign: 'center', 
+                          fontWeight: '800',
+                          color: row.pct >= 80 ? '#059669' : '#EF4444'
+                        }}>
+                          {row.pct}%
+                        </td>
+                        <td>
+                          <span className={`status-badge ${row.pct >= 80 ? 'status-won' : 'status-lost'}`} style={{ fontSize: '9px', fontWeight: '800', padding: '2px 7px' }}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      ) : (
+        /* Panel de Rendimiento Privado de Tienda */
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ color: '#10B981', display: 'inline-flex', padding: '5px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px' }}>
+                <i className="fas fa-chart-line" style={{ fontSize: '14px' }}></i>
+              </span>
+              <div>
+                <h3 className="card-title" style={{ fontSize: '14px' }}>Mi Rendimiento — Análisis Individual de {storeCode}</h3>
+                <p className="card-subtitle">Historial de tareas y cumplimiento de la sucursal activa</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <span className="stage-badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '10px', fontWeight: '700' }}>Panel Privado (TX)</span>
+              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>{timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}</span>
+            </div>
+          </div>
+
+          <div style={{ padding: '24px' }}>
+            
+            {/* KPI Upper Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }} className="grid-responsive-sm">
+              
+              {/* Card 1 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Mi Cumplimiento Promedio
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {avgStoreCompliance}%
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Mes actual · promedio del historial
+                </div>
+              </div>
+
+              {/* Card 2 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Tareas Completadas Hoy
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {todayRecord.completed} de 13
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '600' }}>
+                  {completionPercent}% de checklist diario
+                </div>
+              </div>
+
+              {/* Card 3 */}
+              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Días con Cumplimiento Óptimo (80%+)
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {optimalDaysCount} de {filteredStoreHistory.length}
+                </div>
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  meta mensual de tienda
+                </div>
+              </div>
+            </div>
+
+            {/* Charts Row */}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }}></span>
+                  Mi Evolución de Cumplimiento — {timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}
+                </div>
+                <div style={{ height: '220px' }}>
+                  <canvas ref={privateLineChartRef} />
+                </div>
+              </div>
+            </div>
+
+            {/* Table: Mi Historial de Registros */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
+                  Mi Historial de Registros
+                </div>
+              </div>
+
+              <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
+                <table className="deals-table">
+                  <thead>
+                    <tr style={{ background: 'var(--bg-body)' }}>
+                      <th>Fecha</th>
+                      <th style={{ textAlign: 'center' }}>Asignadas</th>
+                      <th style={{ textAlign: 'center' }}>Completadas</th>
+                      <th style={{ textAlign: 'center' }}>% Cumplimiento</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...filteredStoreHistory].reverse().map((row, idx) => (
+                      <tr key={idx} className="deal-row" style={row.isToday ? { background: 'rgba(255, 109, 77, 0.03)' } : {}}>
+                        <td style={{ fontWeight: '600' }}>
+                          {row.date}
+                          {row.isToday && (
+                            <span style={{ 
+                              fontSize: '8px', 
+                              fontWeight: '800', 
+                              color: '#FFFFFF', 
+                              background: '#3B82F6', 
+                              padding: '1px 4px', 
+                              borderRadius: '4px', 
+                              marginLeft: '6px',
+                              textTransform: 'uppercase'
+                            }}>
+                              HOY (VIVO)
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{row.assigned}</td>
+                        <td style={{ textAlign: 'center', fontWeight: '700' }}>{row.completed}</td>
+                        <td style={{ 
+                          textAlign: 'center', 
+                          fontWeight: '800',
+                          color: row.pct >= 80 ? '#059669' : (row.pct >= 60 ? '#D97706' : '#EF4444')
+                        }}>
+                          {row.pct}%
+                        </td>
+                        <td>
+                          <span className={`status-badge ${row.pct >= 80 ? 'status-won' : (row.pct >= 60 ? 'status-open' : 'status-lost')}`} style={{ fontSize: '9px', fontWeight: '800', padding: '2px 7px' }}>
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+{/* 2. Panel de Administración de Tareas Interactivo (Exclusivo para Admin, Trasladado) */}
       {userRole === 'admin' && (
         <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
@@ -1152,323 +1486,6 @@ export default function TareasView({
         </div>
       </div>
 
-      {/* Compliance Analytics Section (Panel de Avance) - Visibilidad Condicionada por Rol */}
-      {userRole === 'admin' ? (
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: '#d32f2f', fontSize: '18px' }}>
-                <i className="fas fa-database"></i>
-              </span>
-              <div>
-                <h3 className="card-title" style={{ fontSize: '15px' }}>BD_Operaciones — Análisis de Cumplimiento</h3>
-                <p className="card-subtitle">Monitoreo y registro diario de avance por sucursales</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>Todas las Tiendas</span>
-              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>Últimos 30 días</span>
-            </div>
-          </div>
-
-          <div style={{ padding: '24px' }}>
-            
-            {/* KPI Upper Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }} className="grid-responsive-sm">
-              
-              {/* Card 1 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Cumplimiento Promedio Red
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.avgCompliance}%
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Todas las tiendas · periodo seleccionado
-                </div>
-              </div>
-
-              {/* Card 2 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Mejor Tienda del Día
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.bestStore}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Hoy ({new Date().toISOString().slice(0, 10)})
-                </div>
-              </div>
-
-              {/* Card 3 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Tareas Completadas Hoy
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.totalCompleted}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '600' }}>
-                  de {complianceAverages.totalAssigned} asignadas
-                </div>
-              </div>
-
-              {/* Card 4 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Tiendas con 80%+ Hoy
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.storesAbove80} de 14
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  de 14 tiendas
-                </div>
-              </div>
-            </div>
-
-            {/* Charts Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }} className="grid-responsive-md">
-              
-              {/* Rendimiento por tienda hoy */}
-              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-coral)' }}></span>
-                  Rendimiento por Tienda — Hoy
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: 'auto' }}>
-                    {new Date().toLocaleDateString('es-ES')}
-                  </span>
-                </div>
-                <div style={{ height: '220px' }}>
-                  <canvas ref={barChartRef} />
-                </div>
-              </div>
-
-              {/* Evolución de cumplimiento red */}
-              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
-                  Evolución de Cumplimiento — Red Completa
-                </div>
-                <div style={{ height: '220px' }}>
-                  <canvas ref={lineChartRef} />
-                </div>
-              </div>
-            </div>
-
-            {/* Table: BD_OPERACIONES - REGISTROS RECIENTES */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-purple)' }}></span>
-                  BD_OPERACIONES — REGISTROS RECIENTES
-                </div>
-                <button className="topbar-btn btn-outline" style={{ padding: '6px 12px', fontSize: '11px' }}>
-                  <i className="fas fa-file-export" style={{ marginRight: '6px' }}></i> Exportar CSV
-                </button>
-              </div>
-
-              <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
-                <table className="deals-table">
-                  <thead>
-                    <tr style={{ background: 'var(--bg-body)' }}>
-                      <th>Fecha</th>
-                      <th>Código</th>
-                      <th>Tienda</th>
-                      <th style={{ textAlign: 'center' }}>Asignadas</th>
-                      <th style={{ textAlign: 'center' }}>Completadas</th>
-                      <th style={{ textAlign: 'center' }}>% Cumplimiento</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {storeStatistics.map((row) => (
-                      <tr key={row.code} className="deal-row">
-                        <td style={{ fontWeight: '600' }}>
-                          {new Date().toISOString().slice(0, 10)}
-                          <span style={{ 
-                            fontSize: '8px', 
-                            fontWeight: '800', 
-                            color: '#FFFFFF', 
-                            background: '#3B82F6', 
-                            padding: '1px 4px', 
-                            borderRadius: '4px', 
-                            marginLeft: '6px',
-                            textTransform: 'uppercase'
-                          }}>
-                            VIVO
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: '700' }}>{row.code}</td>
-                        <td>{row.storeName}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{row.assigned}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '700', color: row.completed > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                          {row.completed}
-                        </td>
-                        <td style={{ 
-                          textAlign: 'center', 
-                          fontWeight: '800',
-                          color: row.pct >= 80 ? '#059669' : '#EF4444'
-                        }}>
-                          {row.pct}%
-                        </td>
-                        <td>
-                          <span className={`status-badge ${row.pct >= 80 ? 'status-won' : 'status-lost'}`} style={{ fontSize: '9px', fontWeight: '800', padding: '2px 7px' }}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      ) : (
-        /* Panel de Rendimiento Privado de Tienda */
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: '#10B981', display: 'inline-flex', padding: '5px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px' }}>
-                <i className="fas fa-chart-line" style={{ fontSize: '14px' }}></i>
-              </span>
-              <div>
-                <h3 className="card-title" style={{ fontSize: '14px' }}>Mi Rendimiento — Análisis Individual de {storeCode}</h3>
-                <p className="card-subtitle">Historial de tareas y cumplimiento de la sucursal activa</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span className="stage-badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '10px', fontWeight: '700' }}>Panel Privado (TX)</span>
-              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>Últimos 30 días</span>
-            </div>
-          </div>
-
-          <div style={{ padding: '24px' }}>
-            
-            {/* KPI Upper Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }} className="grid-responsive-sm">
-              
-              {/* Card 1 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Mi Cumplimiento Promedio
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {avgStoreCompliance}%
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Mes actual · promedio del historial
-                </div>
-              </div>
-
-              {/* Card 2 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Tareas Completadas Hoy
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {todayRecord.completed} de 13
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '600' }}>
-                  {completionPercent}% de checklist diario
-                </div>
-              </div>
-
-              {/* Card 3 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Días con Cumplimiento Óptimo (80%+)
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {optimalDaysCount} de {storeHistory.length}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  meta mensual de tienda
-                </div>
-              </div>
-            </div>
-
-            {/* Charts Row */}
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }}></span>
-                  Mi Evolución de Cumplimiento — Últimos 30 días
-                </div>
-                <div style={{ height: '220px' }}>
-                  <canvas ref={privateLineChartRef} />
-                </div>
-              </div>
-            </div>
-
-            {/* Table: Mi Historial de Registros */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
-                  Mi Historial de Registros
-                </div>
-              </div>
-
-              <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
-                <table className="deals-table">
-                  <thead>
-                    <tr style={{ background: 'var(--bg-body)' }}>
-                      <th>Fecha</th>
-                      <th style={{ textAlign: 'center' }}>Asignadas</th>
-                      <th style={{ textAlign: 'center' }}>Completadas</th>
-                      <th style={{ textAlign: 'center' }}>% Cumplimiento</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...storeHistory].reverse().map((row, idx) => (
-                      <tr key={idx} className="deal-row" style={row.isToday ? { background: 'rgba(255, 109, 77, 0.03)' } : {}}>
-                        <td style={{ fontWeight: '600' }}>
-                          {row.date}
-                          {row.isToday && (
-                            <span style={{ 
-                              fontSize: '8px', 
-                              fontWeight: '800', 
-                              color: '#FFFFFF', 
-                              background: '#3B82F6', 
-                              padding: '1px 4px', 
-                              borderRadius: '4px', 
-                              marginLeft: '6px',
-                              textTransform: 'uppercase'
-                            }}>
-                              HOY (VIVO)
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{row.assigned}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '700' }}>{row.completed}</td>
-                        <td style={{ 
-                          textAlign: 'center', 
-                          fontWeight: '800',
-                          color: row.pct >= 80 ? '#059669' : (row.pct >= 60 ? '#D97706' : '#EF4444')
-                        }}>
-                          {row.pct}%
-                        </td>
-                        <td>
-                          <span className={`status-badge ${row.pct >= 80 ? 'status-won' : (row.pct >= 60 ? 'status-open' : 'status-lost')}`} style={{ fontSize: '9px', fontWeight: '800', padding: '2px 7px' }}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
       {/* 5. MODAL: Critical 16:30 Warning Alert Modal */}
       {isAlertModalOpen && (
         <div className="modal-overlay active" style={{ zIndex: 11000, background: 'rgba(239, 68, 68, 0.4)', backdropFilter: 'blur(4px)' }}>
