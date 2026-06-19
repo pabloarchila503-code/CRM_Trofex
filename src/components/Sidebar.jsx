@@ -1,19 +1,6 @@
-import { useState, useEffect } from 'react';
 import logoImg from '../assets/logo.png';
 
 export default function Sidebar({ currentView, setView, openCount, onLogout, userRole, activeStore }) {
-  const [tareasOperativasOpen, setTareasOperativasOpen] = useState(
-    currentView === 'tareas' || currentView === 'rendimiento-programado'
-  );
-
-  // Auto-expand menu when view changes
-  useEffect(() => {
-    if (currentView === 'tareas' || currentView === 'rendimiento-programado') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTareasOperativasOpen(true);
-    }
-  }, [currentView]);
-
   const profileName = userRole === 'admin' ? 'Rafael Herrera' : `Asesor Tienda ${activeStore}`;
   const profileRole = userRole === 'admin' ? 'Administrador' : 'Asesor de Ventas';
   const profileAvatar = userRole === 'admin' 
@@ -44,47 +31,16 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
           <span>Dashboard</span>
         </a>
 
-        {/* SECTION: Tareas Operativas (Collapsible Group) */}
-        <span className="nav-section-title">Tareas Operativas</span>
+        {/* SECTION: Tareas */}
+        <span className="nav-section-title">Tareas</span>
         <a
           href="#"
-          className={`nav-item ${(currentView === 'tareas' || currentView === 'rendimiento-programado') ? 'active-parent' : ''}`}
-          onClick={(e) => {
-            e.preventDefault();
-            setTareasOperativasOpen(!tareasOperativasOpen);
-          }}
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          className={`nav-item ${currentView === 'tareas' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('tareas'); }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <i className="fas fa-toolbox" style={{ color: (currentView === 'tareas' || currentView === 'rendimiento-programado') ? 'var(--accent-coral)' : 'inherit' }}></i>
-            <span>Tareas Operativas</span>
-          </div>
-          <i
-            className={`fas fa-chevron-${tareasOperativasOpen ? 'down' : 'right'}`}
-            style={{ fontSize: '10px', opacity: 0.6 }}
-          ></i>
+          <i className="fas fa-tasks"></i>
+          <span>Tareas</span>
         </a>
-
-        {tareasOperativasOpen && (
-          <div className="nav-sub-items">
-            <a
-              href="#"
-              className={`nav-item ${currentView === 'tareas' ? 'active' : ''}`}
-              onClick={(e) => { e.preventDefault(); setView('tareas'); }}
-            >
-              <i className="fas fa-tasks"></i>
-              <span>Tareas</span>
-            </a>
-            <a
-              href="#"
-              className={`nav-item ${currentView === 'rendimiento-programado' ? 'active' : ''}`}
-              onClick={(e) => { e.preventDefault(); setView('rendimiento-programado'); }}
-            >
-              <i className="fas fa-chart-line"></i>
-              <span>Análisis de Cumplimiento</span>
-            </a>
-          </div>
-        )}
 
         {/* SECTION: Operaciones Administrativas */}
         <span className="nav-section-title">Operaciones Administrativas</span>
@@ -95,6 +51,14 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
         >
           <i className="fas fa-calendar-alt"></i>
           <span>Calendario</span>
+        </a>
+        <a
+          href="#"
+          className={`nav-item ${currentView === 'rendimiento-programado' ? 'active' : ''}`}
+          onClick={(e) => { e.preventDefault(); setView('rendimiento-programado'); }}
+        >
+          <i className="fas fa-chart-line"></i>
+          <span>Análisis de Cumplimiento</span>
         </a>
 
         {/* SECTION: Ventas */}

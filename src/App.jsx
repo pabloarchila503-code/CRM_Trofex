@@ -57,7 +57,7 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDealId, setEditingDealId] = useState(null);
   const [toasts, setToasts] = useState([]);
-  const [timeRange, setTimeRange] = useState('Mensual');
+  const [timeRange, setTimeRange] = useState('Quincenal');
 
   // Multi-select tag filters
   const [selectedStores, setSelectedStores] = useState(['CB']); // single selected store by default
@@ -223,7 +223,7 @@ export default function App() {
     setUserRole(null);
     setActiveStore('CB');
     setSelectedStores(['CB']);
-    setTimeRange('Mensual');
+    setTimeRange('Quincenal');
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     setSelectedMonths([months[new Date().getMonth()]]);
     showToast('Sesión cerrada con éxito', 'info');
