@@ -175,7 +175,6 @@ export default function Topbar({
           >
             <option value="1 día">1 día</option>
             <option value="1 semana">1 semana</option>
-            <option value="Quincenal">Quincenal</option>
           </select>
         </div>
 

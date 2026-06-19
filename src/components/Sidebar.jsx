@@ -41,14 +41,6 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
           <i className="fas fa-tasks"></i>
           <span>Tareas</span>
         </a>
-        <a
-          href="#"
-          className={`nav-item ${currentView === 'rendimiento-programado' ? 'active' : ''}`}
-          onClick={(e) => { e.preventDefault(); setView('rendimiento-programado'); }}
-        >
-          <i className="fas fa-database"></i>
-          <span>BD_Operaciones — Análisis de Cumplimiento</span>
-        </a>
 
         {/* SECTION: Operaciones Administrativas */}
         <span className="nav-section-title">Operaciones Administrativas</span>
