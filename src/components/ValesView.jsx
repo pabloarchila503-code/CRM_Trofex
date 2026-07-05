@@ -1,355 +1,397 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-// STORES
+// =====================================================================
+// CONFIGURACIÓN DEL BACKEND (Google Apps Script Web App)
+// =====================================================================
+// Pega aquí la URL de tu despliegue de Apps Script (Implementar > Nueva
+// implementación > Aplicación web), algo como:
+// https://script.google.com/macros/s/AKfycb..../exec
+// Mientras esto esté vacío, el módulo funciona en modo local/demo
+// (los archivos no se suben realmente a Drive).
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec';
+
+const PRODUCTOS = ['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'];
+const PROCESOS = ['en tiempo', 'tarde', 'Entregado'];
 const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
-// Inicial de vales ficticios para poblar si no hay en localStorage
-const INITIAL_VALES = [
-  { id: 'v1', tienda: 'CB', noVale: 'VAL-001', producto: 'Medalla Fundida', fechaIngreso: '2026-07-01', fechaSalida: '2026-07-05', proceso: 'Entregado', archivoCargaUrl: '', archivoDescargaUrl: '' },
-  { id: 'v2', tienda: 'JT', noVale: 'VAL-002', producto: 'Vidrio', fechaIngreso: '2026-07-03', fechaSalida: '2026-07-06', proceso: 'en tiempo', archivoCargaUrl: '', archivoDescargaUrl: '' },
-  { id: 'v3', tienda: 'Z3', noVale: 'VAL-003', producto: 'Pin Fundido', fechaIngreso: '2026-06-28', fechaSalida: '2026-07-02', proceso: 'tarde', archivoCargaUrl: '', archivoDescargaUrl: '' }
-];
+// Enlaces reales a las carpetas raíz de Drive (para el botón "Abrir Carpeta en Drive")
+const CARPETA_CARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
+// TODO: reemplaza este enlace por el real de tu carpeta "Vales de Descarga"
+const CARPETA_DESCARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
 
-export default function ValesView({ selectedStores = [], userRole = 'admin', userName = '' }) {
-  const [vales, setVales] = useState(() => {
-    const saved = localStorage.getItem('TROFEX_VALES_DB');
-    return saved ? JSON.parse(saved) : INITIAL_VALES;
+function mockValesIniciales() {
+  return [
+    { No: 1, Tienda: 'CB', NoVale: 'VAL-001', Producto: 'Medalla Fundida', FechaIngreso: '2026-07-01', FechaSalida: '2026-07-05', Proceso: 'tarde', ArchivoCargaUrl: '', ArchivoDescargaUrl: '' },
+    { No: 2, Tienda: 'JT', NoVale: 'VAL-002', Producto: 'Vidrio', FechaIngreso: '2026-07-03', FechaSalida: '2026-07-06', Proceso: 'tarde', ArchivoCargaUrl: '', ArchivoDescargaUrl: '' },
+    { No: 3, Tienda: 'Z3', NoVale: 'VAL-003', Producto: 'Pin Fundido', FechaIngreso: '2026-06-28', FechaSalida: '2026-07-02', Proceso: 'tarde', ArchivoCargaUrl: '', ArchivoDescargaUrl: '' },
+  ];
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
+}
 
-  const [isUploading, setIsUploading] = useState(false);
+export default function ValesView({ userRole, activeStore, selectedStores, showToast, userName }) {
+  const store = activeStore || (selectedStores && selectedStores[0]) || 'CB';
+  const isAdminOrDesign = userRole === 'admin' || userRole === 'diseno';
+  const [vales, setVales] = useState(mockValesIniciales());
+  const [isLoading, setIsLoading] = useState(Boolean(SCRIPT_URL));
+  const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [uploadingKey, setUploadingKey] = useState(null); // `${noVale}-${tipo}` mientras se sube un archivo
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Form para solicitar Vale (Tiendas o Admin)
-  const [form, setForm] = useState({
-    tienda: selectedStores[0] || 'CB',
-    noVale: '',
-    producto: 'Medalla Fundida',
-    fechaIngreso: new Date().toISOString().slice(0, 10),
-    fechaSalida: '',
-    proceso: 'en tiempo'
-  });
+  const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', producto: PRODUCTOS[0], fechaSalida: '' });
+
+  const notify = useCallback((msg, type = 'success') => {
+    if (showToast) showToast(msg, type);
+    else alert(msg);
+  }, [showToast]);
+
+  const cargarVales = useCallback(async () => {
+    if (!SCRIPT_URL) return; // Modo local/demo: se queda con el mock inicial
+    const rol = userRole === 'admin' ? 'admin' : userRole === 'diseno' ? 'diseno' : 'store';
+    const url = `${SCRIPT_URL}?action=vales&rol=${encodeURIComponent(rol)}&tienda=${encodeURIComponent(store || '')}`;
+    try {
+      const res = await fetch(url).then(r => r.json());
+      if (res.status === 'success') {
+        setVales(res.datos || []);
+        setIsBackendConnected(true);
+      } else {
+        notify('No se pudieron cargar los vales: ' + res.message, 'error');
+      }
+    } catch {
+      notify('No se pudo conectar con el backend de Drive. Mostrando datos de demostración.', 'error');
+      setIsBackendConnected(false);
+    }
+  }, [userRole, store, notify]);
 
   useEffect(() => {
-    localStorage.setItem('TROFEX_VALES_DB', JSON.stringify(vales));
-  }, [vales]);
+    let active = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial estándar de datos remotos
+    cargarVales().finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [cargarVales]);
 
-  const handleCreateVale = (e) => {
+  // Filtrado por rol: admin/diseño ven todo, la tienda solo ve lo suyo
+  const valesVisibles = isAdminOrDesign
+    ? vales
+    : vales.filter(v => String(v.Tienda).toUpperCase() === String(store).toUpperCase());
+
+  const handleCrearVale = (e) => {
     e.preventDefault();
-    if (!form.noVale.trim() || !form.fechaSalida) {
-      alert('Por favor, ingresa el número de vale y la fecha de salida estimada.');
+    const datos = {
+      tienda: nuevoVale.tienda,
+      producto: nuevoVale.producto,
+      fechaIngreso: new Date().toISOString().slice(0, 10),
+      fechaSalida: nuevoVale.fechaSalida,
+    };
+
+    if (!SCRIPT_URL) {
+      // Modo local/demo
+      const numero = vales.length + 1;
+      setVales(prev => [...prev, {
+        No: numero,
+        Tienda: datos.tienda,
+        NoVale: 'VAL-' + String(numero).padStart(3, '0'),
+        Producto: datos.producto,
+        FechaIngreso: datos.fechaIngreso,
+        FechaSalida: datos.fechaSalida,
+        Proceso: 'en tiempo',
+        ArchivoCargaUrl: '',
+        ArchivoDescargaUrl: '',
+      }]);
+      notify('Vale creado (modo demo, aún no conectado a Drive real).');
+      setIsModalOpen(false);
       return;
     }
 
-    const nuevoVale = {
-      id: 'val-' + Date.now(),
-      tienda: userRole === 'diseno' ? form.tienda : (selectedStores[0] || 'CB'),
-      noVale: form.noVale,
-      producto: form.producto,
-      fechaIngreso: form.fechaIngreso,
-      fechaSalida: form.fechaSalida,
-      proceso: form.proceso,
-      archivoCargaUrl: '',
-      archivoDescargaUrl: ''
-    };
-
-    setVales(prev => [nuevoVale, ...prev]);
-    setIsModalOpen(false);
-    setForm({
-      tienda: selectedStores[0] || 'CB',
-      noVale: '',
-      producto: 'Medalla Fundida',
-      fechaIngreso: new Date().toISOString().slice(0, 10),
-      fechaSalida: '',
-      proceso: 'en tiempo'
-    });
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'crearVale', datos }),
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.status === 'success') {
+          notify(res.message);
+          cargarVales();
+        } else {
+          notify('Error al crear el vale: ' + res.message, 'error');
+        }
+      })
+      .catch(() => notify('No se pudo contactar al backend para crear el vale.', 'error'))
+      .finally(() => setIsModalOpen(false));
   };
 
-  const handleUpdateProceso = (id, nuevoProceso) => {
-    setVales(prev => prev.map(v => v.id === id ? { ...v, proceso: nuevoProceso } : v));
+  const handleProcesoChange = (noVale, proceso) => {
+    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, Proceso: proceso } : v));
+    if (!SCRIPT_URL) return; // modo demo, solo cambia en memoria
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'actualizarProcesoVale', noVale, proceso }),
+    }).catch(() => notify('No se pudo guardar el cambio de proceso en el servidor.', 'error'));
   };
 
-  // Filtrado de vales:
-  // - Diseñador y Admin: ven todos.
-  // - Tiendas: solo los suyos.
-  const filteredVales = useMemo(() => {
-    if (userRole === 'admin' || userRole === 'diseno') {
-      return vales;
-    }
-    return vales.filter(v => selectedStores.includes(v.tienda));
-  }, [vales, userRole, selectedStores]);
-
-  // Manejo de la simulación de subida de archivos a Drive
-  const handleSimulatedUpload = (valeId, fieldName) => {
+  const handleUpload = (noVale, tipo) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '*/*';
-    input.onchange = (e) => {
-      const file = e.target.files[0];
+    input.onchange = async (ev) => {
+      const file = ev.target.files[0];
       if (!file) return;
 
-      setIsUploading(true);
-      setTimeout(() => {
-        setIsUploading(false);
-        const folderType = fieldName === 'archivoCargaUrl' ? 'Vales de Carga' : 'Vales de Descarga';
-        const dummyUrl = `https://drive.google.com/drive/folders/dummy-id-folder`;
-        
-        setVales(prev => prev.map(v => {
-          if (v.id === valeId) {
-            return { ...v, [fieldName]: dummyUrl };
-          }
-          return v;
-        }));
+      const key = `${noVale}-${tipo}`;
+      setUploadingKey(key);
 
-        alert(`Archivo "${file.name}" subido con éxito al Google Drive de Trofex en la carpeta: "${folderType}/${selectedStores[0] || 'CB'}".`);
-      }, 1500);
+      if (!SCRIPT_URL) {
+        // Modo local/demo: simula la subida (no llega a Drive real)
+        setTimeout(() => {
+          setUploadingKey(null);
+          notify(`Modo demo: "${file.name}" no se subió realmente a Drive porque falta configurar SCRIPT_URL en ValesView.jsx.`, 'error');
+        }, 800);
+        return;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        const res = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'subirArchivoVale',
+            datos: {
+              noVale,
+              tipo, // 'carga' | 'descarga'
+              base64,
+              mimeType: file.type,
+              fileName: file.name,
+            },
+          }),
+        }).then(r => r.json());
+
+        if (res.status === 'success') {
+          notify(res.message);
+          setVales(prev => prev.map(v => v.NoVale === noVale
+            ? { ...v, [tipo === 'carga' ? 'ArchivoCargaUrl' : 'ArchivoDescargaUrl']: res.url }
+            : v));
+        } else {
+          notify('Error al subir el archivo: ' + res.message, 'error');
+        }
+      } catch {
+        notify('No se pudo subir el archivo. Revisa tu conexión con el backend.', 'error');
+      } finally {
+        setUploadingKey(null);
+      }
     };
     input.click();
   };
 
+  const procesoColor = (proceso) => {
+    if (proceso === 'Entregado') return { color: '#16a34a', bg: 'rgba(22,163,74,0.1)' };
+    if (proceso === 'tarde') return { color: '#dc2626', bg: 'rgba(220,38,38,0.1)' };
+    return { color: '#d97706', bg: 'rgba(217,119,6,0.1)' }; // en tiempo
+  };
+
   return (
-    <div className="view-section active" style={{ background: '#f8fafc', minHeight: '100%', padding: '24px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
-        {/* ===== HEADER ===== */}
-        <div style={{
-          background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-          borderRadius: '16px', padding: '24px 32px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          boxShadow: '0 4px 20px rgba(30,58,138,0.25)'
-        }}>
+    <div className="view-section active">
+      {!SCRIPT_URL && (
+        <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', fontSize: '12px', color: '#92400E', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <i className="fas fa-triangle-exclamation"></i>
+          Modo demostración: falta configurar <code>SCRIPT_URL</code> en <code>ValesView.jsx</code> con tu Web App de Google Apps Script. Los archivos no se están subiendo realmente a Drive todavía.
+        </div>
+      )}
+
+      <div className="card" style={{
+        background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
+        color: '#fff', padding: '24px 28px', marginBottom: '20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.15)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <i className="fas fa-palette" style={{ fontSize: '18px' }}></i>
+          </div>
           <div>
-            <h2 style={{ color: '#fff', fontWeight: '900', fontSize: '20px', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <i className="fas fa-palette"></i> Vales de Artes
-            </h2>
-            <p style={{ color: 'rgba(255,255,255,0.7)', margin: '4px 0 0', fontSize: '13px' }}>
-              Gestión, seguimiento y control de diseños solicitados para producción
-            </p>
-          </div>
-          {userRole !== 'diseno' && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="topbar-btn btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', background: '#ffffff', color: '#1e3a8a', fontWeight: '800', border: 'none', cursor: 'pointer' }}
-            >
-              <i className="fas fa-plus"></i> Solicitar Vale de Arte
-            </button>
-          )}
-        </div>
-
-        {/* ===== INFORMACIÓN DE CARPETAS DE DRIVE ===== */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div style={{ width: '40px', height: '40px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-              <i className="fab fa-google-drive"></i>
-            </div>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>Vales de Carga (Tiendas)</div>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Carpeta en Drive donde las tiendas suben solicitudes de vales de arte.
-              </div>
-            </div>
-          </div>
-          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div style={{ width: '40px', height: '40px', background: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-              <i className="fab fa-google-drive"></i>
-            </div>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>Vales de Descarga (Diseño)</div>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                Carpeta en Drive donde el diseñador sube las propuestas terminadas.
-              </div>
-            </div>
+            <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Vales de Artes</h2>
+            <p style={{ fontSize: '13px', margin: '2px 0 0', opacity: 0.9 }}>Gestión, seguimiento y control de diseños solicitados para producción</p>
           </div>
         </div>
-
-        {/* ===== TABLA / CONTROL DE VALES ===== */}
-        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Listado General de Vales de Arte</h3>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#4f46e5', background: '#f0f4ff', padding: '4px 10px', borderRadius: '6px' }}>
-              {filteredVales.length} vales
-            </span>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['No.', 'Tienda', 'No. Vale', 'Producto', 'Fecha Ingreso', 'Fecha Salida', 'Proceso', 'Subir Carga (Tiendas)', 'Subir Descarga (Diseñador)'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredVales.map((vale, idx) => {
-                  let procColor = '#10b981'; // en tiempo
-                  let procBg = '#dcfce7';
-                  if (vale.proceso === 'tarde') { procColor = '#ef4444'; procBg = '#fee2e2'; }
-                  else if (vale.proceso === 'Entregado') { procColor = '#3b82f6'; procBg = '#dbeafe'; }
-
-                  return (
-                    <tr key={vale.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '800', color: '#1e293b' }}>{idx + 1}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '900', color: '#4f46e5' }}>{vale.tienda}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>{vale.noVale}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '12px', color: '#475569', fontWeight: '600' }}>{vale.producto}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b' }}>{vale.fechaIngreso}</td>
-                      <td style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b' }}>{vale.fechaSalida}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        {userRole === 'diseno' || userRole === 'admin' ? (
-                          <select
-                            value={vale.proceso}
-                            onChange={(e) => handleUpdateProceso(vale.id, e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', border: '1px solid #e2e8f0', outline: 'none' }}
-                          >
-                            <option value="en tiempo">en tiempo</option>
-                            <option value="tarde">tarde</option>
-                            <option value="Entregado">Entregado</option>
-                          </select>
-                        ) : (
-                          <span style={{ fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px', color: procColor, background: procBg, textTransform: 'uppercase' }}>
-                            {vale.proceso}
-                          </span>
-                        )}
-                      </td>
-                      
-                      {/* Tienda: sube a Vales de Carga */}
-                      <td style={{ padding: '12px 16px' }}>
-                        {vale.archivoCargaUrl ? (
-                          <a href={vale.archivoCargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '700', textDecoration: 'none' }}>
-                            <i className="fas fa-file-pdf"></i> Ver Arte Carga
-                          </a>
-                        ) : (
-                          userRole !== 'diseno' ? (
-                            <button
-                              onClick={() => handleSimulatedUpload(vale.id, 'archivoCargaUrl')}
-                              style={{ padding: '4px 8px', fontSize: '10px', border: '1px dashed #3b82f6', color: '#3b82f6', background: 'rgba(59,130,246,0.05)', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}
-                            >
-                              <i className="fas fa-cloud-upload-alt"></i> Subir Carga
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin archivo</span>
-                          )
-                        )}
-                      </td>
-
-                      {/* Diseñador: sube a Vales de Descarga */}
-                      <td style={{ padding: '12px 16px' }}>
-                        {vale.archivoDescargaUrl ? (
-                          <a href={vale.archivoDescargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#10b981', fontWeight: '700', textDecoration: 'none' }}>
-                            <i className="fas fa-file-pdf"></i> Descargar Arte Final
-                          </a>
-                        ) : (
-                          userRole === 'diseno' || userRole === 'admin' ? (
-                            <button
-                              onClick={() => handleSimulatedUpload(vale.id, 'archivoDescargaUrl')}
-                              style={{ padding: '4px 8px', fontSize: '10px', border: '1px dashed #10b981', color: '#10b981', background: 'rgba(16,185,129,0.05)', borderRadius: '6px', cursor: 'pointer', fontWeight: '700' }}
-                            >
-                              <i className="fas fa-cloud-upload-alt"></i> Subir Descarga
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin propuesta</span>
-                          )
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredVales.length === 0 && (
-                  <tr>
-                    <td colSpan="9" style={{ textAlign: 'center', padding: '32px', color: '#94a3b8', fontSize: '13px' }}>
-                      No tienes solicitudes de vales de artes activas.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
+        <button className="topbar-btn btn-primary" style={{ background: '#fff', color: '#4f46e5', fontWeight: 700 }} onClick={() => {
+          setNuevoVale({ tienda: store || STORES[0], producto: PRODUCTOS[0], fechaSalida: '' });
+          setIsModalOpen(true);
+        }}>
+          <i className="fas fa-plus" style={{ marginRight: '6px' }}></i> Solicitar Vale de Arte
+        </button>
       </div>
 
-      {/* ===== MODAL PARA SOLICITAR VALE ===== */}
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div className="card" style={{ flex: '1 1 320px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <i className="fab fa-google-drive" style={{ fontSize: '22px', color: '#3b82f6' }}></i>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '13px' }}>Vales de Carga (Tiendas)</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Carpeta en Drive donde las tiendas suben solicitudes de vales de arte.</div>
+          </div>
+          {isAdminOrDesign && (
+            <a href={CARPETA_CARGA_URL} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+              Abrir Carpeta
+            </a>
+          )}
+        </div>
+        <div className="card" style={{ flex: '1 1 320px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <i className="fab fa-google-drive" style={{ fontSize: '22px', color: '#16a34a' }}></i>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '13px' }}>Vales de Descarga (Diseño)</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Carpeta en Drive donde el diseñador sube las propuestas terminadas.</div>
+          </div>
+          {isAdminOrDesign && (
+            <a href={CARPETA_DESCARGA_URL} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
+              Abrir Carpeta
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
+          <h3 className="card-title" style={{ fontSize: '14px', margin: 0 }}>Listado General de Vales de Arte</h3>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#4f46e5', background: 'rgba(79,70,229,0.1)', padding: '4px 10px', borderRadius: '20px' }}>
+            {isLoading ? 'Cargando...' : `${valesVisibles.length} vales`}
+          </span>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-body)', textAlign: 'left' }}>
+                {['No.', 'Tienda', 'No. Vale', 'Producto', 'Fecha Ingreso', 'Fecha Salida', 'Proceso', 'Subir Carga (Tiendas)', 'Subir Descarga (Diseñador)'].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {valesVisibles.map((v, idx) => {
+                const pc = procesoColor(v.Proceso);
+                const cargandoCarga = uploadingKey === `${v.NoVale}-carga`;
+                const cargandoDescarga = uploadingKey === `${v.NoVale}-descarga`;
+                return (
+                  <tr key={v.NoVale} style={{ borderTop: '1px solid var(--border-light)' }}>
+                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{idx + 1}</td>
+                    <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#4f46e5' }}>{v.Tienda}</td>
+                    <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700 }}>{v.NoVale}</td>
+                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{v.Producto}</td>
+                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{v.FechaIngreso}</td>
+                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{v.FechaSalida}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {isAdminOrDesign ? (
+                        <select
+                          value={v.Proceso}
+                          onChange={(e) => handleProcesoChange(v.NoVale, e.target.value)}
+                          style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                        >
+                          {PROCESOS.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', color: pc.color, background: pc.bg, textTransform: 'uppercase' }}>
+                          {v.Proceso}
+                        </span>
+                      )}
+                    </td>
+                    {/* Subir Carga: la tienda dueña del vale (o admin) puede subir; diseño solo visualiza */}
+                    <td style={{ padding: '12px 16px' }}>
+                      {v.ArchivoCargaUrl ? (
+                        <a href={v.ArchivoCargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700, textDecoration: 'none' }}>
+                          <i className="fas fa-file"></i> Ver Arte Carga
+                        </a>
+                      ) : userRole === 'diseno' ? (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin archivo</span>
+                      ) : (
+                        <button
+                          onClick={() => handleUpload(v.NoVale, 'carga')}
+                          disabled={cargandoCarga}
+                          className="topbar-btn btn-outline"
+                          style={{ fontSize: '10px', padding: '4px 10px', color: '#3b82f6', borderColor: '#3b82f6' }}
+                        >
+                          {cargandoCarga ? 'Subiendo...' : 'Subir Carga'}
+                        </button>
+                      )}
+                    </td>
+                    {/* Subir Descarga: solo diseño/admin sube; tiendas solo visualizan */}
+                    <td style={{ padding: '12px 16px' }}>
+                      {v.ArchivoDescargaUrl ? (
+                        <a href={v.ArchivoDescargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>
+                          <i className="fas fa-download"></i> Descargar Arte Final
+                        </a>
+                      ) : isAdminOrDesign ? (
+                        <button
+                          onClick={() => handleUpload(v.NoVale, 'descarga')}
+                          disabled={cargandoDescarga}
+                          className="topbar-btn btn-outline"
+                          style={{ fontSize: '10px', padding: '4px 10px', color: '#16a34a', borderColor: '#16a34a' }}
+                        >
+                          {cargandoDescarga ? 'Subiendo...' : 'Subir Descarga'}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Pendiente</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {valesVisibles.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                    No hay vales de arte registrados todavía.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {isModalOpen && (
-        <div className="modal-overlay active" style={{ zIndex: 10000 }}>
-          <div className="modal-box" style={{ maxWidth: '440px', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Solicitar Vale de Arte</h3>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>&times;</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,41,59,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="card" style={{ width: '420px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+              <h3 className="card-title" style={{ fontSize: '15px', margin: 0 }}>Solicitar Vale de Arte</h3>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>×</button>
             </div>
-            
-            <form onSubmit={handleCreateVale} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              
-              {userRole === 'admin' && (
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>Tienda Solicitante</label>
-                  <select
-                    className="select-filter"
-                    value={form.tienda}
-                    onChange={e => setForm(prev => ({ ...prev, tienda: e.target.value }))}
-                    style={{ width: '100%', padding: '8px' }}
-                  >
+            <form onSubmit={handleCrearVale} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {isAdminOrDesign && (
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Tienda</label>
+                  <select className="form-control" value={nuevoVale.tienda} onChange={(e) => setNuevoVale(s => ({ ...s, tienda: e.target.value }))}>
                     {STORES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               )}
-
-              <div className="form-group" style={{ textAlign: 'left' }}>
-                <label className="form-label" style={{ fontSize: '11px' }}>Número de Vale</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Ej: VAL-105"
-                  value={form.noVale}
-                  onChange={e => setForm(prev => ({ ...prev, noVale: e.target.value }))}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ textAlign: 'left' }}>
-                <label className="form-label" style={{ fontSize: '11px' }}>Producto</label>
-                <select
-                  className="select-filter"
-                  value={form.producto}
-                  onChange={e => setForm(prev => ({ ...prev, producto: e.target.value }))}
-                  style={{ width: '100%', padding: '8px' }}
-                >
-                  {['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'].map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Producto</label>
+                <select className="form-control" value={nuevoVale.producto} onChange={(e) => setNuevoVale(s => ({ ...s, producto: e.target.value }))}>
+                  {PRODUCTOS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>Fecha Ingreso</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={form.fechaIngreso}
-                    disabled
-                  />
-                </div>
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>Fecha Salida (Entrega)</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={form.fechaSalida}
-                    onChange={e => setForm(prev => ({ ...prev, fechaSalida: e.target.value }))}
-                    required
-                  />
-                </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Fecha de Salida Estimada</label>
+                <input type="date" className="form-control" required value={nuevoVale.fechaSalida} onChange={(e) => setNuevoVale(s => ({ ...s, fechaSalida: e.target.value }))} />
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
                 <button type="button" className="topbar-btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="topbar-btn btn-primary">Crear Solicitud</button>
+                <button type="submit" className="topbar-btn btn-primary">Solicitar Vale</button>
               </div>
-
             </form>
           </div>
         </div>
+      )}
+
+      {isBackendConnected && (
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '10px' }}>
+          <i className="fas fa-check-circle" style={{ color: '#16a34a' }}></i> Conectado al backend de Google Drive.
+        </p>
       )}
     </div>
   );

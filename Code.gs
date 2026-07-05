@@ -8,11 +8,6 @@
 // ID de la hoja de cálculo (deja en blanco si está vinculado directamente al Spreadsheet)
 const SPREADSHEET_ID = "";
 
-// ID de la carpeta de Google Drive donde se guardarán los archivos Excel subidos por las tiendas.
-// Para obtenerlo: ve a Google Drive, abre la carpeta destino y copia el ID de la URL:
-// https://drive.google.com/drive/folders/ESTE_ES_EL_ID <-- copia este valor
-const DRIVE_UPLOAD_FOLDER_ID = ""; // <-- Coloca aquí el ID de tu carpeta en Drive
-
 // Configuración de roles y correos de la empresa
 const USUARIOS_CONFIG = {
   "admin@tuempresa.com": "Admin",
@@ -31,6 +26,20 @@ const USUARIOS_CONFIG = {
   "xavier.xl@tuempresa.com": "XL",
   "zoila.z3@tuempresa.com": "Z3"
 };
+
+// ============================================================
+// MÓDULO: VALES DE ARTE (Diseño <-> Tiendas)
+// ============================================================
+// IDs de las carpetas raíz de Drive donde viven las subcarpetas de cada tienda.
+// IMPORTANTE: reemplaza VALES_DESCARGA_FOLDER_ID por el ID real de tu carpeta
+// "Vales de Descarga" (el enlace que compartiste apuntaba a la misma carpeta
+// que "Vales de Carga", así que por ahora es un valor de ejemplo).
+const VALES_CARGA_FOLDER_ID = "1biBNC5T018q_2AYMFixiiAdxsYK_g72Z";
+const VALES_DESCARGA_FOLDER_ID = "PEGA_AQUI_EL_ID_REAL_DE_VALES_DE_DESCARGA";
+
+// Catálogos fijos usados por el frontend
+const VALES_PRODUCTOS = ["Medalla Fundida", "Pin Fundido", "Plasma Metal", "Vidrio", "Fotograbado", "Producto especial", "Protextil"];
+const VALES_PROCESOS = ["en tiempo", "tarde", "Entregado"];
 
 function getSpreadsheet() {
   if (SPREADSHEET_ID) {
@@ -172,6 +181,181 @@ function setupDatabase() {
 }
 
 /**
+ * Crea la hoja 'Vales' si no existe, con sus encabezados.
+ */
+function setupValesSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName("Vales");
+  if (!sheet) {
+    sheet = ss.insertSheet("Vales");
+    sheet.appendRow([
+      "No", "Tienda", "NoVale", "Producto", "FechaIngreso", "FechaSalida",
+      "Proceso", "ArchivoCargaUrl", "ArchivoCargaId", "ArchivoDescargaUrl", "ArchivoDescargaId"
+    ]);
+    sheet.getRange("A1:K1").setFontWeight("bold").setBackground("#f1f5f9");
+  }
+  return sheet;
+}
+
+/**
+ * Busca (o crea si no existe) la subcarpeta de una tienda dentro de una
+ * carpeta padre de Drive (Vales de Carga o Vales de Descarga).
+ */
+function getOrCreateStoreSubfolder_(parentFolderId, storeCode) {
+  const parent = DriveApp.getFolderById(parentFolderId);
+  const existing = parent.getFoldersByName(storeCode);
+  if (existing.hasNext()) {
+    return existing.next();
+  }
+  return parent.createFolder(storeCode);
+}
+
+/**
+ * Devuelve el listado de Vales, filtrado por rol:
+ * - Admin y Diseño ven todos los vales.
+ * - Una tienda solo ve los vales que ella misma solicitó.
+ */
+function obtenerVales(rol, tienda) {
+  const sheet = setupValesSheet();
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const all = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const obj = {};
+    headers.forEach((h, idx) => {
+      let v = row[idx];
+      if ((h === "FechaIngreso" || h === "FechaSalida") && v instanceof Date) {
+        v = Utilities.formatDate(v, Session.getScriptTimeZone() || "GMT-6", "yyyy-MM-dd");
+      }
+      obj[h] = v;
+    });
+    all.push(obj);
+  }
+
+  const rolNorm = String(rol || "").trim().toLowerCase();
+  if (rolNorm === "admin" || rolNorm === "diseno" || rolNorm === "diseño") {
+    return { status: "success", productos: VALES_PRODUCTOS, procesos: VALES_PROCESOS, datos: all };
+  }
+
+  const tiendaNorm = String(tienda || "").trim().toUpperCase();
+  const filtrados = all.filter(v => String(v.Tienda || "").trim().toUpperCase() === tiendaNorm);
+  return { status: "success", productos: VALES_PRODUCTOS, procesos: VALES_PROCESOS, datos: filtrados };
+}
+
+/**
+ * Crea un nuevo Vale de Arte solicitado por una tienda (o por el Admin/Diseño en su nombre).
+ */
+function crearVale(datos) {
+  try {
+    const sheet = setupValesSheet();
+    const lastRow = sheet.getLastRow();
+    const numero = lastRow; // fila 1 es encabezado, así que lastRow ya es el consecutivo correcto
+    const noVale = "VAL-" + String(numero).padStart(3, "0");
+    const tz = Session.getScriptTimeZone() || "GMT-6";
+    const fechaIngreso = datos.fechaIngreso || Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+
+    sheet.appendRow([
+      numero,
+      datos.tienda,
+      noVale,
+      datos.producto,
+      fechaIngreso,
+      datos.fechaSalida || "",
+      "en tiempo",
+      "", "", "", ""
+    ]);
+
+    return { status: "success", message: "Vale " + noVale + " creado correctamente.", noVale: noVale };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
+  }
+}
+
+/**
+ * Actualiza el estado de Proceso de un vale (en tiempo / tarde / Entregado).
+ */
+function actualizarProcesoVale(noVale, proceso) {
+  try {
+    const sheet = setupValesSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colNoVale = headers.indexOf("NoVale");
+    const colProceso = headers.indexOf("Proceso") + 1;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
+        sheet.getRange(i + 1, colProceso).setValue(proceso);
+        return { status: "success", message: "Proceso actualizado." };
+      }
+    }
+    return { status: "error", message: "Vale no encontrado: " + noVale };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
+  }
+}
+
+/**
+ * Sube un archivo real a Google Drive dentro de la subcarpeta de la tienda
+ * correspondiente (dentro de "Vales de Carga" o "Vales de Descarga"),
+ * y guarda el link resultante en la hoja 'Vales'.
+ *
+ * datos = { noVale, tipo: 'carga'|'descarga', base64, mimeType, fileName }
+ */
+function subirArchivoVale(datos) {
+  try {
+    const noVale = datos.noVale;
+    const tipo = datos.tipo === "descarga" ? "descarga" : "carga";
+    const base64Data = datos.base64;
+    const mimeType = datos.mimeType || "application/octet-stream";
+    const fileName = datos.fileName || ("vale_" + noVale);
+
+    if (!base64Data) throw new Error("No se recibió el contenido del archivo.");
+
+    const sheet = setupValesSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colNoVale = headers.indexOf("NoVale");
+    const colTienda = headers.indexOf("Tienda");
+
+    let rowIdx = -1;
+    let tienda = "";
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
+        rowIdx = i + 1; // fila física 1-indexed
+        tienda = data[i][colTienda];
+        break;
+      }
+    }
+    if (rowIdx === -1) throw new Error("Vale no encontrado: " + noVale);
+
+    const parentFolderId = tipo === "carga" ? VALES_CARGA_FOLDER_ID : VALES_DESCARGA_FOLDER_ID;
+    const subfolder = getOrCreateStoreSubfolder_(parentFolderId, tienda);
+
+    const bytes = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(bytes, mimeType, fileName);
+    const file = subfolder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    const url = file.getUrl();
+
+    const urlCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaUrl" : "ArchivoDescargaUrl") + 1;
+    const idCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaId" : "ArchivoDescargaId") + 1;
+    sheet.getRange(rowIdx, urlCol).setValue(url);
+    sheet.getRange(rowIdx, idCol).setValue(file.getId());
+
+    return {
+      status: "success",
+      message: "Archivo \"" + fileName + "\" subido correctamente a Vales de " + (tipo === "carga" ? "Carga" : "Descarga") + "/" + tienda,
+      url: url,
+      fileId: file.getId()
+    };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
+  }
+}
+
+/**
  * Obtiene los datos de cumplimiento históricos de forma segura
  * filtrados por el rol de usuario del servidor.
  */
@@ -250,7 +434,14 @@ function getStoreCodeFromEmail(email) {
 function doGet(e) {
   try {
     setupDatabase();
-    
+
+    // Ruteo para el módulo de Vales de Arte (?action=vales&rol=...&tienda=...)
+    if (e && e.parameter && e.parameter.action === "vales") {
+      const resultado = obtenerVales(e.parameter.rol, e.parameter.tienda);
+      return ContentService.createTextOutput(JSON.stringify(resultado))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // 1. Obtener email del usuario activo de la sesión de Google
     let activeEmail = Session.getActiveUser().getEmail();
     
@@ -337,20 +528,27 @@ function doGet(e) {
 }
 
 /**
- * Maneja las peticiones POST (Escritura y guardado de checklist o subida de archivos)
+ * Maneja las peticiones POST (Escritura y guardado de checklist)
  */
 function doPost(e) {
   try {
-    const rawBody = e.postData ? e.postData.contents : "{}";
-    const params = JSON.parse(rawBody);
+    setupDatabase();
+    const params = JSON.parse(e.postData.contents);
 
-    // --- Enrutar por acción ---
-    if (params.action === 'uploadFile') {
-      return uploadFileToDrive(params);
+    // Ruteo para el módulo de Vales de Arte
+    if (params.action === "crearVale") {
+      return ContentService.createTextOutput(JSON.stringify(crearVale(params.datos)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (params.action === "actualizarProcesoVale") {
+      return ContentService.createTextOutput(JSON.stringify(actualizarProcesoVale(params.noVale, params.proceso)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    if (params.action === "subirArchivoVale") {
+      return ContentService.createTextOutput(JSON.stringify(subirArchivoVale(params.datos)))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // --- Lógica original: guardar checklist de tareas ---
-    setupDatabase();
     const fecha = params.fecha || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
     const codigo = params.codigo; // ej. "CB"
     const tienda = "TX." + codigo; // ej. "TX.CB"
@@ -385,7 +583,7 @@ function doPost(e) {
       sheet.getRange(rowIdx, 3).setValue(tienda);
       sheet.getRange(rowIdx, 4).setValue(tareasAsignadas);
       sheet.getRange(rowIdx, 5).setValue(tareasCompletadas);
-      sheet.getRange(rowIdx, 6).setValue(cumplimientoPct / 100);
+      sheet.getRange(rowIdx, 6).setValue(cumplimientoPct / 100); // Guardar como decimal para formato porcentaje en Sheets
       sheet.getRange(rowIdx, 7).setValue(estado);
       sheet.getRange(rowIdx, 8).setValue(detalleTareas);
     } else {
@@ -413,70 +611,6 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
       message: err.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-/**
- * Sube un archivo Excel a Google Drive en la carpeta configurada.
- * Crea subcarpetas por mes/año automáticamente.
- */
-function uploadFileToDrive(params) {
-  try {
-    const fileName  = params.fileName  || 'archivo_sin_nombre.xlsx';
-    const mimeType  = params.mimeType  || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    const folderName = params.folderName || 'Sin Fecha';
-    const fileData  = params.fileData;  // base64
-
-    if (!fileData) {
-      throw new Error('No se recibieron datos del archivo.');
-    }
-
-    // Decodificar base64 a blob
-    const decoded = Utilities.newBlob(
-      Utilities.base64Decode(fileData),
-      mimeType,
-      fileName
-    );
-
-    // Obtener carpeta padre (raíz de Drive si no hay ID configurado)
-    let parentFolder;
-    if (DRIVE_UPLOAD_FOLDER_ID && DRIVE_UPLOAD_FOLDER_ID.trim() !== '') {
-      parentFolder = DriveApp.getFolderById(DRIVE_UPLOAD_FOLDER_ID.trim());
-    } else {
-      parentFolder = DriveApp.getRootFolder();
-    }
-
-    // Buscar o crear subcarpeta por mes/año (ej. "Julio 2025")
-    let targetFolder;
-    const subFolderIter = parentFolder.getFoldersByName(folderName);
-    if (subFolderIter.hasNext()) {
-      targetFolder = subFolderIter.next();
-    } else {
-      targetFolder = parentFolder.createFolder(folderName);
-    }
-
-    // Si ya existe un archivo con el mismo nombre, eliminarlo antes de subir
-    const existingIter = targetFolder.getFilesByName(fileName);
-    while (existingIter.hasNext()) {
-      existingIter.next().setTrashed(true);
-    }
-
-    // Crear el archivo en Drive
-    const uploadedFile = targetFolder.createFile(decoded);
-
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "success",
-      message: 'Archivo subido exitosamente a Google Drive.',
-      fileId: uploadedFile.getId(),
-      folder: folderName,
-      file: fileName
-    })).setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "error",
-      message: 'Error al subir archivo: ' + err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -820,6 +954,16 @@ function guardarValoresMensuales(datos) {
  * ACTUALIZACIÓN OBLIGATORIA DEL LINK DE PRODUCCIÓN:
  * Para actualizar tu URL pública y aplicar los cambios del backend, haz clic en Implementar > Gestionar implementaciones,
  * edita el despliegue actual con el ícono del lápiz, selecciona "Nueva versión" y haz clic en Implementar.
+ *
+ * NOTA ESPECÍFICA PARA EL MÓDULO DE VALES DE ARTE (subida real a Drive):
+ * Como la app se usa vía GitHub Pages (fuera de google.com), el módulo de Vales llama
+ * a este backend con fetch() normal (no con google.script.run). Para que la subida real
+ * de archivos a Drive funcione para TODAS las tiendas (que no tienen sesión de Google propia),
+ * este despliegue debe configurarse como:
+ *   - Ejecutar como (Execute as): "Yo" (tu propia cuenta, la dueña de las carpetas de Drive).
+ *   - Quién tiene acceso (Who has access): "Cualquier usuario" (Anyone).
+ * Así el script sube los archivos usando TU permiso de Drive, sin pedirle login de Google a cada tienda.
+ * No olvides reemplazar VALES_DESCARGA_FOLDER_ID (arriba en este archivo) por el ID real de tu carpeta.
  */
 
 /**
