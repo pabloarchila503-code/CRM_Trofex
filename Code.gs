@@ -592,7 +592,12 @@ function subirArchivoVale(datos) {
     const bytes = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(bytes, mimeType, fileName);
     const file = subfolder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {
+      // Ignorar si las políticas de Google Workspace impiden modificar permisos públicos,
+      // el archivo heredará automáticamente los permisos de la subcarpeta.
+    }
     const url = file.getUrl();
 
     const urlCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaUrl" : "ArchivoDescargaUrl") + 1;
