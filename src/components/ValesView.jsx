@@ -44,6 +44,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const [isBackendConnected, setIsBackendConnected] = useState(false);
   const [uploadingKey, setUploadingKey] = useState(null); // `${noVale}-${tipo}` mientras se sube un archivo
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingVale, setEditingVale] = useState(null);
   const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', producto: PRODUCTOS[0], fechaSalida: '' });
 
   const notify = useCallback((msg, type = 'success') => {
@@ -127,6 +128,27 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       .finally(() => setIsModalOpen(false));
   };
 
+  const handleGuardarEdicion = async (e) => {
+    e.preventDefault();
+    if (!editingVale) return;
+
+    const { NoVale, Proceso, FechaSalida } = editingVale;
+    setVales(prev => prev.map(v => v.NoVale === NoVale ? { ...v, Proceso, FechaSalida } : v));
+    setEditingVale(null);
+    notify(`Vale ${NoVale} actualizado correctamente.`);
+
+    if (!SCRIPT_URL) return;
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'editarVale', noVale: NoVale, proceso: Proceso, fechaSalida: FechaSalida })
+      });
+    } catch {
+      notify('No se pudo guardar la edición en Drive.', 'error');
+    }
+  };
+
   const handleProcesoChange = (noVale, proceso) => {
     setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, Proceso: proceso } : v));
     if (!SCRIPT_URL) return; // modo demo, solo cambia en memoria
@@ -198,7 +220,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   };
 
   return (
-    <div className="view-section active">
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
       {!SCRIPT_URL && (
         <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', fontSize: '12px', color: '#92400E', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <i className="fas fa-triangle-exclamation"></i>
@@ -206,18 +228,14 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
         </div>
       )}
 
-      <div className="card" style={{
-        background: 'linear-gradient(135deg, #4f46e5, #6366f1)',
-        color: '#fff', padding: '24px 28px', marginBottom: '20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '44px', height: '44px', background: 'rgba(255,255,255,0.15)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <i className="fas fa-palette" style={{ fontSize: '18px' }}></i>
-          </div>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Vales de Artes</h2>
-            <p style={{ fontSize: '13px', margin: '2px 0 0', opacity: 0.9 }}>Gestión, seguimiento y control de diseños solicitados para producción</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '24px', background: 'var(--bg-body)', padding: '10px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>🎨</span>
+            <div>
+              <h1 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>Vales de Artes - Diseño</h1>
+              <p style={{ fontSize: '13px', margin: '2px 0 0', opacity: 0.9 }}>Gestión, seguimiento y control de diseños solicitados para producción</p>
+            </div>
           </div>
         </div>
         <button className="topbar-btn btn-primary" style={{ background: '#fff', color: '#4f46e5', fontWeight: 700 }} onClick={() => {
@@ -267,7 +285,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-body)', textAlign: 'left' }}>
-                {['No.', 'Tienda', 'No. Vale', 'Producto', 'Fecha Ingreso', 'Fecha Salida', 'Proceso', 'Subir Carga (Tiendas)', 'Subir Descarga (Diseñador)'].map(h => (
+                {['No.', 'Tienda', 'No. Vale', 'Producto', 'Fecha Ingreso', 'Fecha Salida', 'Proceso', 'Subir Carga (Tiendas)', 'Subir Descarga (Diseñador)', 'Acciones'].map(h => (
                   <th key={h} style={{ padding: '10px 16px', fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -300,7 +318,6 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                         </span>
                       )}
                     </td>
-                    {/* Subir Carga: la tienda dueña del vale (o admin) puede subir; diseño solo visualiza */}
                     <td style={{ padding: '12px 16px' }}>
                       {v.ArchivoCargaUrl ? (
                         <a href={v.ArchivoCargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700, textDecoration: 'none' }}>
@@ -319,7 +336,6 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                         </button>
                       )}
                     </td>
-                    {/* Subir Descarga: solo diseño/admin sube; tiendas solo visualizan */}
                     <td style={{ padding: '12px 16px' }}>
                       {v.ArchivoDescargaUrl ? (
                         <a href={v.ArchivoDescargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>
@@ -338,12 +354,21 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                         <span style={{ fontSize: '11px', color: '#94a3b8' }}>Pendiente</span>
                       )}
                     </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <button
+                        onClick={() => setEditingVale({ ...v })}
+                        className="topbar-btn btn-outline"
+                        style={{ fontSize: '11px', padding: '4px 10px', color: '#4f46e5', borderColor: '#4f46e5', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <i className="fas fa-edit"></i> Editar
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
               {valesVisibles.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
                     No hay vales de arte registrados todavía.
                   </td>
                 </tr>
@@ -382,6 +407,92 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
                 <button type="button" className="topbar-btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancelar</button>
                 <button type="submit" className="topbar-btn btn-primary">Solicitar Vale</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingVale && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,41,59,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div className="card" style={{ width: '450px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+              <div>
+                <h3 className="card-title" style={{ fontSize: '16px', margin: 0, color: '#4f46e5' }}>Editar Vale: {editingVale.NoVale}</h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tienda: <strong>{editingVale.Tienda}</strong></span>
+              </div>
+              <button onClick={() => setEditingVale(null)} style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+            </div>
+
+            <form onSubmit={handleGuardarEdicion} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  No. de Vale (No editable)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={editingVale.NoVale || ''}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontWeight: 700, fontSize: '13px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Producto (No editable)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={editingVale.Producto || ''}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontSize: '13px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Fecha de Ingreso (No editable)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={editingVale.FechaIngreso || ''}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontSize: '13px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Estado / Proceso
+                </label>
+                <select
+                  value={editingVale.Proceso || 'en tiempo'}
+                  onChange={(e) => setEditingVale({ ...editingVale, Proceso: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px', fontWeight: 700 }}
+                >
+                  {PROCESOS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Fecha de Salida Estimada
+                </label>
+                <input
+                  type="date"
+                  value={editingVale.FechaSalida || ''}
+                  onChange={(e) => setEditingVale({ ...editingVale, FechaSalida: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setEditingVale(null)} className="topbar-btn btn-outline" style={{ padding: '8px 16px' }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="topbar-btn btn-primary" style={{ padding: '8px 20px', background: '#4f46e5', color: '#fff' }}>
+                  Guardar Cambios
+                </button>
               </div>
             </form>
           </div>

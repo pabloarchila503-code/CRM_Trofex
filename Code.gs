@@ -77,6 +77,8 @@ function handleRequest(e) {
       result = crearVale(params.datos);
     } else if (action === 'actualizarProcesoVale') {
       result = actualizarProcesoVale(params.noVale, params.proceso);
+    } else if (action === 'editarVale') {
+      result = editarVale(params.noVale, params.proceso, params.fechaSalida);
     } else if (action === 'subirArchivoVale') {
       result = subirArchivoVale(params.datos);
     }
@@ -416,11 +418,23 @@ function setupValesSheet() {
 }
 
 /**
+ * Limpia el ID de la carpeta en caso de que el usuario haya pegado la URL completa en lugar de solo el ID.
+ */
+function cleanFolderId_(idOrUrl) {
+  let str = String(idOrUrl || "").trim();
+  if (str.includes("folders/")) {
+    str = str.split("folders/")[1].split("?")[0].split("/")[0];
+  }
+  return str;
+}
+
+/**
  * Busca (o crea si no existe) la subcarpeta de una tienda dentro de una
  * carpeta padre de Drive (Vales de Carga o Vales de Descarga).
  */
 function getOrCreateStoreSubfolder_(parentFolderId, storeCode) {
-  const parent = DriveApp.getFolderById(parentFolderId);
+  const cleanId = cleanFolderId_(parentFolderId);
+  const parent = DriveApp.getFolderById(cleanId);
   const existing = parent.getFoldersByName(storeCode);
   if (existing.hasNext()) {
     return existing.next();
@@ -515,6 +529,31 @@ function actualizarProcesoVale(noVale, proceso) {
 }
 
 /**
+ * Edita el estado (proceso) y la fecha de salida de un vale existente.
+ */
+function editarVale(noVale, proceso, fechaSalida) {
+  try {
+    const sheet = setupValesSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colNoVale = headers.indexOf("NoVale");
+    const colProceso = headers.indexOf("Proceso") + 1;
+    const colFechaSalida = headers.indexOf("FechaSalida") + 1;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
+        if (proceso) sheet.getRange(i + 1, colProceso).setValue(proceso);
+        if (fechaSalida !== undefined) sheet.getRange(i + 1, colFechaSalida).setValue(fechaSalida);
+        return { status: "success", message: "Vale actualizado correctamente." };
+      }
+    }
+    return { status: "error", message: "Vale no encontrado: " + noVale };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
+  }
+}
+
+/**
  * Sube un archivo real a Google Drive dentro de la subcarpeta de la tienda
  * correspondiente (dentro de "Vales de Carga" o "Vales de Descarga"),
  * y guarda el link resultante en la hoja 'Vales'.
@@ -546,7 +585,8 @@ function subirArchivoVale(datos) {
     }
     if (rowIdx === -1) throw new Error("Vale no encontrado: " + noVale);
 
-    const parentFolderId = tipo === "carga" ? VALES_CARGA_FOLDER_ID : VALES_DESCARGA_FOLDER_ID;
+    const rawParentId = tipo === "carga" ? VALES_CARGA_FOLDER_ID : VALES_DESCARGA_FOLDER_ID;
+    const parentFolderId = cleanFolderId_(rawParentId);
     const subfolder = getOrCreateStoreSubfolder_(parentFolderId, tienda);
 
     const bytes = Utilities.base64Decode(base64Data);
