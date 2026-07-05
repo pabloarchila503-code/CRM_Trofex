@@ -69,9 +69,9 @@ const STAGES = [
     gradientFrom:'#ECFDF5',
   },
   {
-    key:         'perdidos',
-    label:       'PERDIDOS',
-    sublabel:    'Total Perdidos',
+    key:         'no_cerrados',
+    label:       'NO CERRADOS',
+    sublabel:    'Total No Cerrados',
     icon:        'fas fa-ban',
     color:       '#EF4444', // Rojo
     colorLight:  'rgba(239,68,68,0.10)',
@@ -183,12 +183,13 @@ function ExecCard({ stage, val, badgeText, badgeBg, badgeTextColor, isPositive }
 // ── Componente principal ────────────────────────────────────────────────────
 export default function KPICards({ globalSums = {} }) {
   const prosp = globalSums.prospectados || 0;
+  const cotiz = globalSums.cotizados || 0;
 
   return (
     <div className="kpis-row">
       {STAGES.map(stage => {
         const val = globalSums[stage.key] || 0;
-        const pct = prosp > 0 ? Math.round((val / prosp) * 100) : 0;
+        let pct = 0;
         
         let badgeText = '';
         let badgeColorLight = stage.colorLight;
@@ -199,19 +200,23 @@ export default function KPICards({ globalSums = {} }) {
           badgeTextColor = '#64748B';
           badgeColorLight = 'rgba(148,163,184,0.12)';
         } else if (stage.key === 'contactados') {
+          pct = prosp > 0 ? Math.round((val / prosp) * 100) : 0;
           badgeText = `${pct}% de contacto`;
           badgeTextColor = '#2563EB';
           badgeColorLight = 'rgba(59,130,246,0.12)';
         } else if (stage.key === 'cotizados') {
+          pct = prosp > 0 ? Math.round((val / prosp) * 100) : 0;
           badgeText = `${pct}% de cotización`;
           badgeTextColor = '#B45309';
           badgeColorLight = 'rgba(245,158,11,0.12)';
         } else if (stage.key === 'cerrados') {
+          pct = cotiz > 0 ? Math.round((val / cotiz) * 100) : 0;
           badgeText = `${pct}% de efectividad`;
           badgeTextColor = '#059669';
           badgeColorLight = 'rgba(16,185,129,0.12)';
-        } else if (stage.key === 'perdidos') {
-          badgeText = `${pct}% de pérdida`;
+        } else if (stage.key === 'no_cerrados') {
+          pct = cotiz > 0 ? Math.round((val / cotiz) * 100) : 0;
+          badgeText = `${pct}% no cerrados`;
           badgeTextColor = '#DC2626';
           badgeColorLight = 'rgba(239,68,68,0.12)';
         }
@@ -224,7 +229,7 @@ export default function KPICards({ globalSums = {} }) {
             badgeText={badgeText}
             badgeBg={badgeColorLight}
             badgeTextColor={badgeTextColor}
-            isPositive={stage.key !== 'perdidos'}
+            isPositive={stage.key !== 'no_cerrados'}
           />
         );
       })}

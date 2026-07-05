@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+
+Chart.register(ChartDataLabels);
 
 // Helper to format currency
 const formatCurrency = (val) => {
@@ -253,14 +256,57 @@ export function ProspectosChart({ prospecciones = [] }) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: { 
+            display: true,
+            position: 'right',
+            labels: {
+              boxWidth: 12,
+              font: { family: 'Inter', size: 10, weight: '500' },
+              color: '#475569',
+              generateLabels: (chart) => {
+                const data = chart.data;
+                if (data.labels.length && data.datasets.length) {
+                  return data.labels.map((label, i) => {
+                    const meta = chart.getDatasetMeta(0);
+                    const style = meta.controller.getStyle(i);
+                    return {
+                      text: label,
+                      fillStyle: style.backgroundColor,
+                      strokeStyle: style.borderColor,
+                      lineWidth: style.borderWidth,
+                      hidden: meta.data[i].hidden,
+                      index: i
+                    };
+                  });
+                }
+                return [];
+              }
+            },
+            onClick: (e, legendItem, legend) => {
+              const index = legendItem.index;
+              const ci = legend.chart;
+              const meta = ci.getDatasetMeta(0);
+              meta.data[index].hidden = !meta.data[index].hidden;
+              ci.update();
+            }
+          },
           tooltip: {
             callbacks: {
               title: (items) => labels[items[0].dataIndex],
               label: (item)  => ` Conteo: ${values[item.dataIndex]}`
             }
           },
-          customDatalabels: { isFunnel: true }
+          datalabels: {
+            color: '#fff',
+            font: { family: 'Inter', weight: 'bold', size: 14 },
+            formatter: (val, ctx) => {
+              const count = values[ctx.dataIndex];
+              const total = values[0];
+              if (count === 0) return '';
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              return `${count} (${pct}%)`;
+            }
+          }
         },
         scales: {
           x: { grid: { display: false }, ticks: { display: false } },
@@ -270,7 +316,7 @@ export function ProspectosChart({ prospecciones = [] }) {
           }
         }
       },
-      plugins: [customDatalabelsPlugin]
+      plugins: [ChartDataLabels]
     });
 
     return () => {
@@ -283,22 +329,29 @@ export function ProspectosChart({ prospecciones = [] }) {
 
 
 // ── Gráfica 2 (Reordenado): Análisis 80/20 (Donut) ───────────────────────────
-export function AnalisisChart({ deals }) {
+export function AnalisisChart({ data = [] }) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // Categorías: No contactados, Contactados, Cotizados, Cerrados y Perdidos
-    const noContactados = deals.filter(d => d.stage_id === 's1' && d.status === 'open').length;
-    const contactados = deals.filter(d => d.stage_id === 's2' && d.status === 'open').length;
-    const cotizados = deals.filter(d => d.stage_id === 's3' && d.status === 'open').length;
-    const cerrados = deals.filter(d => d.status === 'won').length;
-    const perdidos = deals.filter(d => d.status === 'lost').length;
+    let prospectados = 0;
+    let contactados  = 0;
+    let cotizados    = 0;
+    let cerrados     = 0;
+    let perdidos     = 0;
 
-    const labels = ['No Contactados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
-    const values = [noContactados, contactados, cotizados, cerrados, perdidos];
+    data.forEach(p => {
+      prospectados += (parseInt(p.Prospectados) || 0);
+      contactados  += (parseInt(p.Contactados) || 0);
+      cotizados    += (parseInt(p.Cotizados) || 0);
+      cerrados     += (parseInt(p.Cerrados) || 0);
+      perdidos     += (parseInt(p.Perdidos) || 0);
+    });
+
+    const labels = ['Prospectados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
+    const values = [prospectados, contactados, cotizados, cerrados, perdidos];
 
     // Semáforo:
     // No Contactados -> Gris (#94A3B8)
@@ -341,10 +394,21 @@ export function AnalisisChart({ deals }) {
             callbacks: {
               label: (item) => ` Conteo: ${item.raw}`
             }
+          },
+          datalabels: {
+            color: '#fff',
+            font: { family: 'Inter', weight: 'bold', size: 11 },
+            display: 'auto',
+            formatter: (val, ctx) => {
+              if (val === 0) return '';
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+              return `${val} (${pct}%)`;
+            }
           }
         }
       },
-      plugins: [customDatalabelsPlugin]
+      plugins: [ChartDataLabels]
     });
 
     return () => {
@@ -352,24 +416,32 @@ export function AnalisisChart({ deals }) {
         chartInstanceRef.current.destroy();
       }
     };
-  }, [deals]);
+  }, [data]);
 
   return <canvas ref={canvasRef} />;
 }
 
 // ── Gráfica 3 (Reordenado): Proyectos (Barra Vertical) ────────────────────────
-export function ProyectosChart({ deals }) {
+export function ProyectosChart({ data = [] }) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    const prospectados = deals.filter(d => d.stage_id === 's1').length;
-    const contactados  = deals.filter(d => d.stage_id === 's2').length;
-    const cotizados    = deals.filter(d => d.stage_id === 's3').length;
-    const cerrados     = deals.filter(d => d.status === 'won').length;
-    const perdidos     = deals.filter(d => d.status === 'lost').length;
+    let prospectados = 0;
+    let contactados  = 0;
+    let cotizados    = 0;
+    let cerrados     = 0;
+    let perdidos     = 0;
+
+    data.forEach(p => {
+      prospectados += (parseInt(p.Prospectados) || 0);
+      contactados  += (parseInt(p.Contactados) || 0);
+      cotizados    += (parseInt(p.Cotizados) || 0);
+      cerrados     += (parseInt(p.Cerrados) || 0);
+      perdidos     += (parseInt(p.Perdidos) || 0);
+    });
 
     const labels = ['Prospectados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
     const values = [prospectados, contactados, cotizados, cerrados, perdidos];
@@ -404,14 +476,57 @@ export function ProyectosChart({ deals }) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: { 
+            display: true,
+            position: 'right',
+            labels: {
+              boxWidth: 12,
+              font: { family: 'Inter', size: 10, weight: '500' },
+              color: '#475569',
+              generateLabels: (chart) => {
+                const data = chart.data;
+                if (data.labels.length && data.datasets.length) {
+                  return data.labels.map((label, i) => {
+                    const meta = chart.getDatasetMeta(0);
+                    const style = meta.controller.getStyle(i);
+                    return {
+                      text: label,
+                      fillStyle: style.backgroundColor,
+                      strokeStyle: style.borderColor,
+                      lineWidth: style.borderWidth,
+                      hidden: meta.data[i].hidden,
+                      index: i
+                    };
+                  });
+                }
+                return [];
+              }
+            },
+            onClick: (e, legendItem, legend) => {
+              const index = legendItem.index;
+              const ci = legend.chart;
+              const meta = ci.getDatasetMeta(0);
+              meta.data[index].hidden = !meta.data[index].hidden;
+              ci.update();
+            }
+          },
           tooltip: {
             callbacks: {
               label: (item) => ` Conteo: ${item.raw}`
             }
           },
-          customDatalabels: {
-            totalValue: prospectados
+          datalabels: {
+            color: '#fff',
+            font: { family: 'Inter', weight: 'bold', size: 12 },
+            anchor: 'end',
+            align: 'bottom',
+            offset: 4,
+            formatter: (val, ctx) => {
+              if (val === 0) return '';
+              const total = ctx.dataset.data[0];
+              const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+              return `${val} (${pct}%)`;
+            }
           }
         },
         scales: {
@@ -431,7 +546,7 @@ export function ProyectosChart({ deals }) {
           }
         }
       },
-      plugins: [customDatalabelsPlugin]
+      plugins: [ChartDataLabels]
     });
 
     return () => {
@@ -439,28 +554,35 @@ export function ProyectosChart({ deals }) {
         chartInstanceRef.current.destroy();
       }
     };
-  }, [deals]);
+  }, [data]);
 
   return <canvas ref={canvasRef} />;
 }
 
 // ── Gráfica 4 (Reordenado): Carreras (Barra Horizontal) ───────────────────────
-export function CarretasChart({ deals }) {
+export function CarretasChart({ data = [] }) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // Categorías: No contactados, Contactados, Cotizados, Cerrados y Perdidos
-    const noContactados = deals.filter(d => d.stage_id === 's1' && d.status === 'open').length;
-    const contactados = deals.filter(d => d.stage_id === 's2' && d.status === 'open').length;
-    const cotizados = deals.filter(d => d.stage_id === 's3' && d.status === 'open').length;
-    const cerrados = deals.filter(d => d.status === 'won').length;
-    const perdidos = deals.filter(d => d.status === 'lost').length;
+    let prospectados = 0;
+    let contactados  = 0;
+    let cotizados    = 0;
+    let cerrados     = 0;
+    let perdidos     = 0;
 
-    const labels = ['No Contactados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
-    const values = [noContactados, contactados, cotizados, cerrados, perdidos];
+    data.forEach(p => {
+      prospectados += (parseInt(p.Prospectados) || 0);
+      contactados  += (parseInt(p.Contactados) || 0);
+      cotizados    += (parseInt(p.Cotizados) || 0);
+      cerrados     += (parseInt(p.Cerrados) || 0);
+      perdidos     += (parseInt(p.Perdidos) || 0);
+    });
+
+    const labels = ['Prospectados', 'Contactados', 'Cotizados', 'Cerrados', 'Perdidos'];
+    const values = [prospectados, contactados, cotizados, cerrados, perdidos];
 
     // Semáforo:
     // No Contactados -> Gris (#94A3B8)
@@ -493,10 +615,56 @@ export function CarretasChart({ deals }) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: { 
+            display: true,
+            position: 'right',
+            labels: {
+              boxWidth: 12,
+              font: { family: 'Inter', size: 10, weight: '500' },
+              color: '#475569',
+              generateLabels: (chart) => {
+                const data = chart.data;
+                if (data.labels.length && data.datasets.length) {
+                  return data.labels.map((label, i) => {
+                    const meta = chart.getDatasetMeta(0);
+                    const style = meta.controller.getStyle(i);
+                    return {
+                      text: label,
+                      fillStyle: style.backgroundColor,
+                      strokeStyle: style.borderColor,
+                      lineWidth: style.borderWidth,
+                      hidden: meta.data[i].hidden,
+                      index: i
+                    };
+                  });
+                }
+                return [];
+              }
+            },
+            onClick: (e, legendItem, legend) => {
+              const index = legendItem.index;
+              const ci = legend.chart;
+              const meta = ci.getDatasetMeta(0);
+              meta.data[index].hidden = !meta.data[index].hidden;
+              ci.update();
+            }
+          },
           tooltip: {
             callbacks: {
               label: (item) => ` Conteo: ${item.raw}`
+            }
+          },
+          datalabels: {
+            color: '#fff',
+            font: { family: 'Inter', weight: 'bold', size: 12 },
+            anchor: 'end',
+            align: 'left', // push inside right edge of bar
+            offset: 4,
+            formatter: (val, ctx) => {
+              if (val === 0) return '';
+              const total = ctx.dataset.data[0];
+              const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+              return `${val} (${pct}%)`;
             }
           }
         },
@@ -528,7 +696,7 @@ export function CarretasChart({ deals }) {
         chartInstanceRef.current.destroy();
       }
     };
-  }, [deals]);
+  }, [data]);
 
   return <canvas ref={canvasRef} />;
 }

@@ -19,6 +19,9 @@ export default function DashboardView({
   selectedStores,
   selectedMonths,
   prospecciones = [],
+  analisis8020ManualData = [],
+  proyectoManualData = [],
+  carrerasManualData = [],
   timeRange = 'Mensual',
 }) {
   const isAdmin = userRole === 'admin';
@@ -68,19 +71,19 @@ export default function DashboardView({
     return result;
   }, [deals, selectedStores, selectedMonths, isAdmin, timeRange]);
 
-  // ── Filtrar prospecciones por stores y meses seleccionados (respetando rol y aislamiento) y escala de tiempo ──
-  const filteredProspecciones = useMemo(() => {
-    let result = prospecciones;
+  // ── Helper para filtrar y escalar cualquier dataset manual (Prospecciones, 80/20, Proyecto, Carreras) ──
+  const filterAndScaleManualData = (dataArray) => {
+    let result = dataArray || [];
 
     if (isAdmin) {
       // Filtro por tiendas seleccionadas
       if (selectedStores && selectedStores.length > 0) {
-        result = result.filter(p => selectedStores.includes(p.Tienda));
+        result = result.filter(p => selectedStores.includes(String(p.Tienda || '').trim().toUpperCase()));
       }
     } else {
       // Store user: solo su propia tienda
-      const storeCode = activeStore || 'CB';
-      result = result.filter(p => p.Tienda === storeCode);
+      const storeCode = String(activeStore || 'CB').trim().toUpperCase();
+      result = result.filter(p => String(p.Tienda || '').trim().toUpperCase() === storeCode);
     }
 
     // Filtro por meses seleccionados para TODOS los roles
@@ -106,85 +109,73 @@ export default function DashboardView({
     }
 
     return result;
-  }, [prospecciones, activeStore, selectedStores, selectedMonths, isAdmin, timeRange]);
+  };
+
+  const filteredProspecciones = useMemo(() => filterAndScaleManualData(prospecciones), [prospecciones, activeStore, selectedStores, selectedMonths, isAdmin, timeRange]);
+  const filteredAnalisis8020 = useMemo(() => filterAndScaleManualData(analisis8020ManualData), [analisis8020ManualData, activeStore, selectedStores, selectedMonths, isAdmin, timeRange]);
+  const filteredProyecto = useMemo(() => filterAndScaleManualData(proyectoManualData), [proyectoManualData, activeStore, selectedStores, selectedMonths, isAdmin, timeRange]);
+  const filteredCarreras = useMemo(() => filterAndScaleManualData(carrerasManualData), [carrerasManualData, activeStore, selectedStores, selectedMonths, isAdmin, timeRange]);
 
   // ── Calcular sumatorias globales para las 5 tarjetas del Embudo Maestro ──
   const globalSums = useMemo(() => {
-    // 1. Prospecciones (Master DB)
-    let prospProsp = 0;
-    let contProsp  = 0;
-    let cotProsp   = 0;
-    let cerrProsp  = 0;
-    let perdProsp  = 0;
+    let totalProspectados = 0;
+    let totalContactados = 0;
+    let totalCotizados = 0;
+    let totalCerrados = 0;
 
-    filteredProspecciones.forEach(p => {
-      prospProsp += (parseInt(p.Prospectados) || 0);
-      contProsp  += (parseInt(p.Contactados) || 0);
-      cotProsp   += (parseInt(p.Cotizados) || 0);
-      cerrProsp  += (parseInt(p.Cerrados) || 0);
-      perdProsp  += (parseInt(p.Perdidos) || 0);
-    });
-
-    // 2. 80/20, Proyectos, y Carreras (se obtienen de filteredDeals)
-    const countByStage = (stageId) => {
-      return filteredDeals.filter(d => d.stage_id === stageId).length;
+    const aggregateData = (data) => {
+      data.forEach(p => {
+        totalProspectados += (parseInt(p.Prospectados) || 0);
+        totalContactados  += (parseInt(p.Contactados) || 0);
+        totalCotizados    += (parseInt(p.Cotizados) || 0);
+        totalCerrados     += (parseInt(p.Cerrados) || 0);
+      });
     };
 
-    const prospDeals = countByStage('s1');
-    const contDeals  = countByStage('s2');
-    const cotDeals   = countByStage('s3');
-    const cerrDeals  = countByStage('s4');
-    const perdDeals  = countByStage('s5');
-
-    // Sumatoria global por etapa en las 4 áreas:
-    // Prospectados = Prospecciones + 80/20 + Proyectos + Carreras
-    const totalProspectados = prospProsp + prospDeals + prospDeals + prospDeals;
-    const totalContactados  = contProsp + contDeals + contDeals + contDeals;
-    const totalCotizados    = cotProsp + cotDeals + cotDeals + cotDeals;
-    const totalCerrados     = cerrProsp + cerrDeals + cerrDeals + cerrDeals;
-    const totalPerdidos     = perdProsp + perdDeals + perdDeals + perdDeals;
+    aggregateData(filteredProspecciones);
+    aggregateData(filteredAnalisis8020);
+    aggregateData(filteredProyecto);
+    aggregateData(filteredCarreras);
 
     return {
       prospectados: totalProspectados,
       contactados:  totalContactados,
       cotizados:    totalCotizados,
       cerrados:     totalCerrados,
-      perdidos:     totalPerdidos,
+      no_cerrados:  Math.max(0, totalCotizados - totalCerrados),
     };
-  }, [filteredDeals, filteredProspecciones]);
+  }, [filteredProspecciones, filteredAnalisis8020, filteredProyecto, filteredCarreras]);
 
   // ── Calcular la efectividad de ventas para la gráfica de Prospecciones (Cerrados / Cotizados) ──
-  const prospeccionesEfectividad = useMemo(() => {
+  // ── Helper para calcular efectividad ──
+  const calcEfectividad = (dataArray) => {
     let cotizados = 0;
     let cerrados = 0;
-    filteredProspecciones.forEach(p => {
+    dataArray.forEach(p => {
       cotizados += (parseInt(p.Cotizados) || 0);
       cerrados  += (parseInt(p.Cerrados) || 0);
     });
     if (cotizados === 0) return 0;
     return Math.round((cerrados / cotizados) * 100);
-  }, [filteredProspecciones]);
+  };
 
-  // ── Calcular la efectividad de ventas para las gráficas basadas en Deals (Cerrados / Cotizados) ──
-  const dealsEfectividad = useMemo(() => {
-    const cotizados = filteredDeals.filter(d => d.stage_id === 's3').length;
-    const cerrados  = filteredDeals.filter(d => d.status === 'won').length;
-    if (cotizados === 0) return 0;
-    return Math.round((cerrados / cotizados) * 100);
-  }, [filteredDeals]);
+  const prospeccionesEfectividad = useMemo(() => calcEfectividad(filteredProspecciones), [filteredProspecciones]);
+  const analisis8020Efectividad  = useMemo(() => calcEfectividad(filteredAnalisis8020), [filteredAnalisis8020]);
+  const proyectosEfectividad     = useMemo(() => calcEfectividad(filteredProyecto), [filteredProyecto]);
+  const carrerasEfectividad      = useMemo(() => calcEfectividad(filteredCarreras), [filteredCarreras]);
 
   return (
     <div className="view-section active" id="view-dashboard">
       {/* ── Print-only Header ── */}
       <div className="print-header" style={{ display: 'none' }}>
-        <div className="print-header-top" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '10px' }}>
-          <img src={logoImg} alt="Trofex Logo" className="print-logo" style={{ maxHeight: '55px', objectFit: 'contain' }} />
+        <div className="print-header-top" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '4px' }}>
+          <img src={logoImg} alt="Trofex Logo" className="print-logo" style={{ maxHeight: '40px', objectFit: 'contain' }} />
           <div className="print-title-area">
-            <h1 className="print-main-title" style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: '#1E293B' }}>RESUMEN DE RENDIMIENTO</h1>
-            <p className="print-subtitle" style={{ fontSize: '12px', margin: '2px 0 0 0', color: '#64748B' }}>Reporte Ejecutivo Comercial de Trofex</p>
+            <h1 className="print-main-title" style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: '#1E293B' }}>RESUMEN DE RENDIMIENTO</h1>
+            <p className="print-subtitle" style={{ fontSize: '10px', margin: '2px 0 0 0', color: '#64748B' }}>Reporte Ejecutivo Comercial de Trofex</p>
           </div>
         </div>
-        <div className="print-filters-active" style={{ fontSize: '11px', color: '#475569', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px', marginBottom: '16px' }}>
+        <div className="print-filters-active" style={{ fontSize: '10px', color: '#475569', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px', marginBottom: '10px' }}>
           <strong>Filtrado por:</strong> Tiendas ({userRole === 'admin' ? (selectedStores.length > 0 ? selectedStores.join(', ') : 'Todas') : activeStore}) | Meses: {selectedMonths.length > 0 ? selectedMonths.join(', ') : 'Todos'}
         </div>
       </div>
@@ -196,20 +187,6 @@ export default function DashboardView({
       {/* ── KPI Cards (5 Etapas / Embudo Maestro) ── */}
       <KPICards globalSums={globalSums} />
 
-      {/* ── Filtro activo indicador (Admin) ── */}
-      {isAdmin && (selectedStores?.length > 0 || selectedMonths?.length > 0) && (
-        <div style={{
-          margin: '0 0 16px 0', padding: '8px 14px',
-          background: 'rgba(255,109,77,0.07)', borderRadius: 'var(--radius-md)',
-          border: '1px dashed var(--accent-coral)',
-          fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', gap: '8px', flexWrap: 'wrap',
-        }}>
-          <i className="fas fa-filter" style={{ color: 'var(--accent-coral)' }} />
-          <span>Filtrando por:</span>
-          {selectedStores?.length > 0 && <strong>Tiendas: {selectedStores.join(', ')}</strong>}
-          {selectedMonths?.length > 0 && <strong>Meses: {selectedMonths.join(', ')}</strong>}
-        </div>
-      )}
 
       {/* ── Sales Target Chart ── */}
       <SalesTargetChart
@@ -275,14 +252,14 @@ export default function DashboardView({
                 borderRadius: '12px',
                 whiteSpace: 'nowrap',
               }}>
-                Efectividad de Cierre: {dealsEfectividad}%
+                Efectividad de Cierre: {analisis8020Efectividad}%
               </span>
               <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
             </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
-              <AnalisisChart deals={filteredDeals} />
+              <AnalisisChart data={filteredAnalisis8020} />
             </div>
           </div>
         </div>
@@ -307,14 +284,14 @@ export default function DashboardView({
                 borderRadius: '12px',
                 whiteSpace: 'nowrap',
               }}>
-                Efectividad de Cierre: {dealsEfectividad}%
+                Efectividad de Cierre: {proyectosEfectividad}%
               </span>
               <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
             </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
-              <ProyectosChart deals={filteredDeals} />
+              <ProyectosChart data={filteredProyecto} />
             </div>
           </div>
         </div>
@@ -339,14 +316,14 @@ export default function DashboardView({
                 borderRadius: '12px',
                 whiteSpace: 'nowrap',
               }}>
-                Efectividad de Cierre: {dealsEfectividad}%
+                Efectividad de Cierre: {carrerasEfectividad}%
               </span>
               <button className="card-menu-btn"><i className="fas fa-ellipsis-h" /></button>
             </div>
           </div>
           <div className="chart-wrap">
             <div className="chart-lg">
-              <CarretasChart deals={filteredDeals} />
+              <CarretasChart data={filteredCarreras} />
             </div>
           </div>
         </div>

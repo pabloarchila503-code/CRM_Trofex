@@ -5,7 +5,7 @@ const MONTHS = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
-export default function StoreEditorModal({ isOpen, onClose, data, onSave, userRole, activeStore }) {
+export default function StoreEditorModal({ isOpen, onClose, data, onSave, userRole, selectedStores }) {
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(5); // Default to June (idx 5)
   const [localStoreData, setLocalStoreData] = useState([]);
 
@@ -14,13 +14,13 @@ export default function StoreEditorModal({ isOpen, onClose, data, onSave, userRo
     if (isOpen && data && data[selectedMonthIdx]) {
       let monthData = data[selectedMonthIdx];
       if (userRole === 'store') {
-        monthData = monthData.filter(item => item.store === activeStore);
+        monthData = monthData.filter(item => selectedStores.includes(item.store));
       }
       // Create a deep copy of the selected month's data
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalStoreData(JSON.parse(JSON.stringify(monthData)));
     }
-  }, [isOpen, selectedMonthIdx, data, userRole, activeStore]);
+  }, [isOpen, selectedMonthIdx, data, userRole, selectedStores]);
 
   const handleInputChange = (storeName, field, value) => {
     const numericValue = value === '' ? 0 : parseFloat(value);

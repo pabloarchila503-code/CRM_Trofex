@@ -2,6 +2,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+Chart.register(ChartDataLabels);
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -86,6 +88,13 @@ function AnnualSummaryChart({ totals }) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
+          datalabels: {
+            color: '#fff',
+            font: { family: 'Inter', weight: 'bold', size: 12 },
+            anchor: 'center',
+            align: 'center',
+            formatter: (val) => val > 0 ? val : ''
+          },
           legend: { display: false },
           tooltip: { mode: 'index' },
         },
@@ -148,6 +157,13 @@ function MonthBarChart({ data, chartId }) {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
+          datalabels: {
+            color: '#fff',
+            font: { family: 'Inter', weight: 'bold', size: 14 },
+            anchor: 'center',
+            align: 'center',
+            formatter: (val) => val > 0 ? val : ''
+          },
           tooltip: {
             callbacks: {
               label: (item) => ` ${item.label}: ${item.raw}`,
@@ -187,13 +203,14 @@ const convColor = (pct) => {
 export default function ProspeccionesView({
   showToast,
   userRole,
-  activeStore,
+  selectedStores = [],
   prospecciones = [],
-  setProspecciones
+  setProspecciones,
+  onSaveManualData
 }) {
-  // ── Rol y tienda reales (desde props de sesión)
+  // ── Rol real (desde props de sesión)
   const isAdmin   = String(userRole).trim().toLowerCase() === 'admin';
-  const storeName = isAdmin ? 'Todos' : (activeStore || 'CB');
+  const storeName = isAdmin ? 'Todos' : (selectedStores[0] || 'CB');
 
   // ── Estado de datos
   const [isLoading,  setIsLoading]  = useState(false);
@@ -201,11 +218,17 @@ export default function ProspeccionesView({
 
   // ── Local filtered version for accordion and tables
   const filteredProspecciones = useMemo(() => {
-    return isAdmin ? prospecciones : prospecciones.filter(r => r.Tienda === storeName);
-  }, [prospecciones, isAdmin, storeName]);
+    let filtered = isAdmin 
+      ? (selectedStores.length > 0 ? prospecciones.filter(r => selectedStores.includes(String(r.Tienda || '').trim().toUpperCase())) : prospecciones)
+      : prospecciones.filter(r => selectedStores.includes(String(r.Tienda || '').trim().toUpperCase()));
+    return filtered.map(r => {
+      return { ...r, Perdidos: parseInt(r.Perdidos) || 0 };
+    });
+  }, [prospecciones, isAdmin, selectedStores]);
 
   // ── Acordeón: mes activo
   const [activeMonth, setActiveMonth] = useState(null);
+  const [showTable, setShowTable] = useState(false);
 
   // ── Modal de ingreso (solo tiendas)
   const [isModalOpen,     setIsModalOpen]     = useState(false);
@@ -218,38 +241,15 @@ export default function ProspeccionesView({
 
   const isGas = typeof google !== 'undefined' && google.script && google.script.run;
 
-  // ── Carga de datos ──────────────────────────────────────────────────────────
+  // ── Carga de datos (Manejada globalmente por App.jsx) ──
   const loadData = (silent = false) => {
     if (!silent) setIsLoading(true);
-
-    if (isGas) {
-      google.script.run
-        .withSuccessHandler((response) => {
-          setProspecciones(response.data || []);
-          setIsLoading(false);
-          setIsSyncing(false);
-        })
-        .withFailureHandler((err) => {
-          showToast('Error al cargar prospecciones: ' + err.message, 'error');
-          setIsLoading(false);
-          setIsSyncing(false);
-        })
-        .obtenerProspecciones();
-    } else {
-      // Emulador local
-      setTimeout(() => {
-        if (!localStorage.getItem('MOCK_PROSPECCIONES_DB')) {
-          localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(generarMockProspecciones()));
-        }
-        const db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-        setProspecciones(db);
-        setIsLoading(false);
-        setIsSyncing(false);
-      }, 400);
-    }
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsSyncing(false);
+    }, 500);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, [isAdmin, storeName]);
 
   const handleSyncManual = () => {
@@ -346,7 +346,7 @@ export default function ProspeccionesView({
   };
 
   // ── Modal: guardar ──────────────────────────────────────────────────────────
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     const vals = {
       prospectados: parseInt(formProspectados),
@@ -364,49 +364,16 @@ export default function ProspeccionesView({
 
     const payload = { mes: modalMes, tienda: storeName, ...vals };
     setIsLoading(true);
-    setIsModalOpen(false);
 
-    if (isGas) {
-      google.script.run
-        .withSuccessHandler((res) => {
-          if (res.status === 'success') {
-            showToast('Valores mensuales actualizados.', 'success');
-            setProspecciones(res.response.data || []);
-          } else {
-            showToast('Error al guardar: ' + res.message, 'error');
-          }
-          setIsLoading(false);
-        })
-        .withFailureHandler((err) => {
-          showToast('Error al guardar: ' + err.message, 'error');
-          setIsLoading(false);
-        })
-        .guardarValoresMensuales(payload);
+    if (onSaveManualData) {
+      const success = await onSaveManualData(payload);
+      if (success) {
+        setIsModalOpen(false);
+      }
     } else {
-      setTimeout(() => {
-        let db = JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
-        let found = false;
-        db = db.map(item => {
-          if (item.Mes.toLowerCase() === payload.mes.toLowerCase() &&
-              item.Tienda.toLowerCase() === payload.tienda.toLowerCase()) {
-            found = true;
-            return { ...item, Prospectados: vals.prospectados, Contactados: vals.contactados,
-                      Cotizados: vals.cotizados, Cerrados: vals.cerrados, Perdidos: vals.perdidos };
-          }
-          return item;
-        });
-        if (!found) {
-          const nextId = db.length > 0 ? Math.max(...db.map(d => d.id)) + 1 : 1;
-          db.push({ id: nextId, Numeración: nextId, Mes: payload.mes, Tienda: payload.tienda,
-                    ...{ Prospectados: vals.prospectados, Contactados: vals.contactados,
-                         Cotizados: vals.cotizados, Cerrados: vals.cerrados, Perdidos: vals.perdidos } });
-        }
-        localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(db));
-        setProspecciones(db);
-        showToast('Valores mensuales actualizados exitosamente.', 'success');
-        setIsLoading(false);
-      }, 400);
+      showToast('Error: Función de guardado no conectada.', 'error');
     }
+    setIsLoading(false);
   };
 
   // ── Toggle acordeón ─────────────────────────────────────────────────────────
@@ -646,10 +613,15 @@ export default function ProspeccionesView({
                             <th style={thStyle}>No.</th>
                             {isAdmin && <th style={thStyle}>TX.</th>}
                             <th style={{ ...thStyle, color: CHART_COLORS.prospectados }}>Prospectados</th>
+                            <th style={{ ...thStyle, color: CHART_COLORS.prospectados }}>%</th>
                             <th style={{ ...thStyle, color: CHART_COLORS.contactados  }}>Contactados</th>
+                            <th style={{ ...thStyle, color: CHART_COLORS.contactados  }}>%</th>
                             <th style={{ ...thStyle, color: CHART_COLORS.cotizados    }}>Cotizados</th>
+                            <th style={{ ...thStyle, color: CHART_COLORS.cotizados    }}>%</th>
                             <th style={{ ...thStyle, color: CHART_COLORS.cerrados     }}>Cerrados</th>
+                            <th style={{ ...thStyle, color: CHART_COLORS.cerrados     }}>%</th>
                             <th style={{ ...thStyle, color: CHART_COLORS.perdidos     }}>Perdidos</th>
+                            <th style={{ ...thStyle, color: CHART_COLORS.perdidos     }}>%</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -674,10 +646,15 @@ export default function ProspeccionesView({
                                     }}>{row.tienda}</span>
                                   </td>
                                   <td style={tdStyle}>{row.prospectados}</td>
+                                    <td style={{ ...tdStyle, color: CHART_COLORS.prospectados }}>100%</td>
                                   <td style={{ ...tdStyle, color: CHART_COLORS.contactados, fontWeight: '600' }}>{row.contactados}</td>
+                                    <td style={{ ...tdStyle, color: CHART_COLORS.contactados }}>{row.prospectados > 0 ? Math.round((row.contactados/row.prospectados)*100) : 0}%</td>
                                   <td style={{ ...tdStyle, color: CHART_COLORS.cotizados,   fontWeight: '600' }}>{row.cotizados}</td>
+                                    <td style={{ ...tdStyle, color: CHART_COLORS.cotizados }}>{row.contactados > 0 ? Math.round((row.cotizados/row.contactados)*100) : 0}%</td>
                                   <td style={{ ...tdStyle, color: CHART_COLORS.cerrados,    fontWeight: '700' }}>{row.cerrados}</td>
+                                    <td style={{ ...tdStyle, color: CHART_COLORS.cerrados }}>{row.cotizados > 0 ? Math.round((row.cerrados/row.cotizados)*100) : 0}%</td>
                                   <td style={{ ...tdStyle, color: CHART_COLORS.perdidos,    fontWeight: '600' }}>{row.perdidos}</td>
+                                    <td style={{ ...tdStyle, color: CHART_COLORS.perdidos }}>{row.contactados > 0 ? Math.round((row.perdidos/row.contactados)*100) : 0}%</td>
                                 </tr>
                               ))
                             )
@@ -686,10 +663,15 @@ export default function ProspeccionesView({
                               <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
                                 <td style={tdStyle}>1</td>
                                 <td style={tdStyle}>{storeMonthDetail.prospectados}</td>
+                                <td style={{ ...tdStyle, color: CHART_COLORS.prospectados }}>100%</td>
                                 <td style={{ ...tdStyle, color: CHART_COLORS.contactados, fontWeight: '600' }}>{storeMonthDetail.contactados}</td>
+                                <td style={{ ...tdStyle, color: CHART_COLORS.contactados }}>{storeMonthDetail.prospectados > 0 ? Math.round((storeMonthDetail.contactados/storeMonthDetail.prospectados)*100) : 0}%</td>
                                 <td style={{ ...tdStyle, color: CHART_COLORS.cotizados,   fontWeight: '600' }}>{storeMonthDetail.cotizados}</td>
+                                <td style={{ ...tdStyle, color: CHART_COLORS.cotizados }}>{storeMonthDetail.contactados > 0 ? Math.round((storeMonthDetail.cotizados/storeMonthDetail.contactados)*100) : 0}%</td>
                                 <td style={{ ...tdStyle, color: CHART_COLORS.cerrados,    fontWeight: '700' }}>{storeMonthDetail.cerrados}</td>
+                                <td style={{ ...tdStyle, color: CHART_COLORS.cerrados }}>{storeMonthDetail.cotizados > 0 ? Math.round((storeMonthDetail.cerrados/storeMonthDetail.cotizados)*100) : 0}%</td>
                                 <td style={{ ...tdStyle, color: CHART_COLORS.perdidos,    fontWeight: '600' }}>{storeMonthDetail.perdidos}</td>
+                                <td style={{ ...tdStyle, color: CHART_COLORS.perdidos }}>{storeMonthDetail.contactados > 0 ? Math.round((storeMonthDetail.perdidos/storeMonthDetail.contactados)*100) : 0}%</td>
                               </tr>
                             ) : (
                               <tr>
@@ -761,11 +743,11 @@ export default function ProspeccionesView({
 
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {[
-                { label: 'Total Prospectados', key: 'formProspectados', val: formProspectados, set: setFormProspectados, color: CHART_COLORS.prospectados },
-                { label: 'Total Contactados',  key: 'formContactados',  val: formContactados,  set: setFormContactados,  color: CHART_COLORS.contactados  },
-                { label: 'Total Cotizados',    key: 'formCotizados',    val: formCotizados,    set: setFormCotizados,    color: CHART_COLORS.cotizados    },
-                { label: 'Total Cerrados',     key: 'formCerrados',     val: formCerrados,     set: setFormCerrados,     color: CHART_COLORS.cerrados     },
-                { label: 'Total Perdidos',     key: 'formPerdidos',     val: formPerdidos,     set: setFormPerdidos,     color: CHART_COLORS.perdidos     },
+                { label: 'Total de Prospectados', key: 'formProspectados', val: formProspectados, set: setFormProspectados, color: CHART_COLORS.prospectados },
+                { label: 'Contactados',  key: 'formContactados',  val: formContactados,  set: setFormContactados,  color: CHART_COLORS.contactados  },
+                { label: 'Cotizados',    key: 'formCotizados',    val: formCotizados,    set: setFormCotizados,    color: CHART_COLORS.cotizados    },
+                { label: 'Cerrados',     key: 'formCerrados',     val: formCerrados,     set: setFormCerrados,     color: CHART_COLORS.cerrados     },
+                { label: 'Perdidos',     key: 'formPerdidos',     val: formPerdidos,     set: setFormPerdidos,     color: CHART_COLORS.perdidos     },
               ].map(({ label, key, val, set, color }) => (
                 <div key={key} className="form-group">
                   <label className="form-label" style={{ fontWeight: '600', fontSize: '12px', color }}>

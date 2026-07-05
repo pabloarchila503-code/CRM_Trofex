@@ -1,5 +1,8 @@
 import { useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+
+Chart.register(ChartDataLabels);
 
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -17,10 +20,11 @@ const formatCurrencyK = (val) => {
 export default function SalesTargetChart({
   data,
   onOpenEditor,
-  activeStore,
+  
   selectedStores = [],
   selectedMonths = [],
-  userRole
+  userRole,
+  onChartClick
 }) {
   const canvasRef = useRef(null);
   const chartInstanceRef = useRef(null);
@@ -37,13 +41,8 @@ export default function SalesTargetChart({
       let filteredMonthData = monthData;
 
       // Filter by stores:
-      if (isAdmin) {
-        if (selectedStores && selectedStores.length > 0) {
-          filteredMonthData = filteredMonthData.filter(curr => selectedStores.includes(curr.store));
-        }
-      } else {
-        const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
-        filteredMonthData = filteredMonthData.filter(curr => curr.store === storeCode);
+      if (selectedStores && selectedStores.length > 0 && selectedStores[0] !== 'Todos') {
+        filteredMonthData = filteredMonthData.filter(curr => selectedStores.includes(curr.store));
       }
 
       return filteredMonthData.reduce((acc, curr) => {
@@ -78,80 +77,53 @@ export default function SalesTargetChart({
     });
 
     return { ventaValues, metaValues };
-  }, [data, activeStore, selectedStores, selectedMonths, userRole]);
+  }, [data,  selectedStores, selectedMonths, userRole]);
 
   const isSingleMonth = selectedMonths && selectedMonths.length === 1;
 
+  
   const chartData = useMemo(() => {
-    if (isSingleMonth) {
-      const monthsFullNames = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-      ];
-      const selectedMonthName = selectedMonths[0];
-      const monthIdx = monthsFullNames.indexOf(selectedMonthName);
-      const shortLabel = MONTH_LABELS[monthIdx] || selectedMonthName.slice(0, 3);
+    const monthsFullNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
 
-      const isAdmin = userRole === 'admin';
-      const monthData = data[monthIdx] || [];
-      let filteredMonthData = monthData;
+    const storesToDisplay = selectedStores && selectedStores.length > 0 ? selectedStores : ['CB'];
+    
+    const ventaValues = [];
+    const metaValues = [];
 
-      if (isAdmin) {
-        if (selectedStores && selectedStores.length > 0) {
-          filteredMonthData = filteredMonthData.filter(curr => selectedStores.includes(curr.store));
+    storesToDisplay.forEach(store => {
+      let sumV = 0;
+      let sumM = 0;
+
+      data.forEach((monthArray, mIdx) => {
+        const monthName = monthsFullNames[mIdx]; // Use full names to match selectedMonths
+        
+        // If there's a month filter active, skip months not selected
+        if (selectedMonths && selectedMonths.length > 0 && !selectedMonths.includes(monthName)) {
+          return;
         }
-      } else {
-        const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
-        filteredMonthData = filteredMonthData.filter(curr => curr.store === storeCode);
-      }
 
-      const totals = filteredMonthData.reduce((acc, curr) => {
-        return {
-          venta: acc.venta + curr.venta,
-          meta: acc.meta + curr.meta
-        };
-      }, { venta: 0, meta: 0 });
-
-      // Check if this month is active (<= last month with actual sales in the whole dataset)
-      const allSums = data.map(mD => {
-        let fD = mD;
-        if (isAdmin) {
-          if (selectedStores && selectedStores.length > 0) {
-            fD = fD.filter(curr => selectedStores.includes(curr.store));
-          }
-        } else {
-          const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
-          fD = fD.filter(curr => curr.store === storeCode);
+        // Find this store's data in the month
+        const sData = monthArray.find(d => d.store === store);
+        if (sData) {
+          sumV += sData.venta;
+          sumM += sData.meta;
         }
-        return fD.reduce((acc, curr) => ({ venta: acc.venta + curr.venta, meta: acc.meta + curr.meta }), { venta: 0, meta: 0 });
       });
 
-      let lastActiveIdx = -1;
-      for (let i = allSums.length - 1; i >= 0; i--) {
-        if (allSums[i].venta > 0) {
-          lastActiveIdx = i;
-          break;
-        }
-      }
+      ventaValues.push(sumV);
+      metaValues.push(sumM);
+    });
 
-      const ventaVal = (monthIdx <= lastActiveIdx) ? totals.venta : null;
-      const metaVal = totals.meta;
+    return {
+      labels: storesToDisplay,
+      venta: ventaValues,
+      meta: metaValues
+    };
+  }, [selectedMonths, data, selectedStores]);
 
-      return {
-        type: 'bar',
-        labels: [shortLabel],
-        venta: [ventaVal],
-        meta: [metaVal]
-      };
-    } else {
-      return {
-        type: 'line',
-        labels: MONTH_LABELS,
-        venta: ventaValues,
-        meta: metaValues
-      };
-    }
-  }, [isSingleMonth, selectedMonths, data, userRole, selectedStores, activeStore, ventaValues, metaValues]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -162,52 +134,87 @@ export default function SalesTargetChart({
 
     const ctx = canvasRef.current.getContext('2d');
 
-    // Create gradient fill for Venta
-    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-    gradient.addColorStop(0, 'rgba(139, 92, 246, 0.28)'); // var(--accent-purple)
-    gradient.addColorStop(1, 'rgba(139, 92, 246, 0.01)');
-
-    const isLine = chartData.type === 'line';
-
     chartInstanceRef.current = new Chart(ctx, {
-      type: chartData.type,
+      type: 'bar',
       data: {
         labels: chartData.labels,
         datasets: [
           {
-            label: 'Venta',
+            type: 'bar',
+            label: 'Venta Alcanzada',
             data: chartData.venta,
-            borderColor: '#8B5CF6', // var(--accent-purple)
-            borderWidth: 3,
-            backgroundColor: isLine ? gradient : 'rgba(139, 92, 246, 0.85)',
-            fill: isLine,
-            tension: 0.4,
-            borderRadius: isLine ? 0 : 8,
-            pointBackgroundColor: '#8B5CF6',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: isLine ? 5 : 0,
-            pointHoverRadius: isLine ? 8 : 0
+            backgroundColor: 'rgba(20, 58, 94, 0.85)', // #143a5e
+            borderColor: '#143a5e',
+            borderWidth: 1,
+            borderRadius: 6,
+            barPercentage: 0.5,
+            datalabels: {
+              labels: {
+                pct: {
+                  display: true,
+                  anchor: 'end',
+                  align: 'top',
+                  offset: 4,
+                  color: (ctx) => {
+                    const meta = chartData.meta[ctx.dataIndex];
+                    const v = ctx.dataset.data[ctx.dataIndex];
+                    const pct = meta > 0 ? v / meta : 0;
+                    return pct >= 0.8 ? '#10B981' : '#EF4444'; 
+                  },
+                  font: { family: 'Inter', weight: 'bold', size: 11 },
+                  formatter: (val, ctx) => {
+                    const meta = chartData.meta[ctx.dataIndex];
+                    if (!meta || meta === 0) return '0%';
+                    return Math.round((val / meta) * 100) + '%';
+                  }
+                },
+                value: {
+                  display: true,
+                  anchor: 'start',
+                  align: 'top',
+                  offset: 6,
+                  color: '#ffffff',
+                  font: { family: 'Courier New, monospace', weight: 'bold', size: 10 },
+                  formatter: (val) => formatCurrencyK(val)
+                }
+              }
+            }
           },
           {
-            label: 'Meta',
+            type: 'line',
+            label: 'Meta Comercial',
             data: chartData.meta,
-            borderColor: '#10B981', // var(--accent-green)
-            borderWidth: 2.5,
-            backgroundColor: isLine ? 'transparent' : 'rgba(16, 185, 129, 0.85)',
-            borderDash: isLine ? [5, 5] : [],
-            fill: false,
-            tension: 0.4,
-            borderRadius: isLine ? 0 : 8,
-            pointBackgroundColor: '#10B981',
-            pointBorderColor: '#fff',
+            backgroundColor: 'transparent',
+            borderColor: '#fea514',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            pointBackgroundColor: '#fff',
+            pointBorderColor: '#fea514',
             pointBorderWidth: 2,
-            pointRadius: isLine ? 5 : 0,
-            pointHoverRadius: isLine ? 8 : 0
+            pointRadius: 4,
+            tension: 0.3,
+            datalabels: {
+              display: true,
+              anchor: 'end',
+              align: 'right',
+              offset: 4,
+              backgroundColor: '#fff',
+              borderColor: '#fea514',
+              borderWidth: 1,
+              borderRadius: 4,
+              padding: { top: 2, bottom: 2, left: 4, right: 4 },
+              color: '#fea514',
+              font: { family: 'Inter', weight: 'bold', size: 10 },
+              formatter: (val) => formatCurrencyK(val)
+            }
           }
         ]
       },
       options: {
+        
+        onClick: (event, elements) => {
+          if (onChartClick) onChartClick();
+        },
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -258,9 +265,9 @@ export default function SalesTargetChart({
         <div>
           <div className="card-title" style={{ fontSize: '15px' }}>
             <span className="card-title-dot" style={{ background: '#8B5CF6' }}></span>
-            Venta y Meta Año 2026
+            Venta contra Meta "{selectedMonths && selectedMonths.length > 0 ? selectedMonths.join(', ') : 'Mes en Curso'}" 2026
           </div>
-          <div className="card-subtitle">Comparativa anual acumulada por tiendas</div>
+          <div className="card-subtitle">Comparativa acumulada por tiendas</div>
         </div>
         <button
           className="card-menu-btn"

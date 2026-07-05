@@ -1,47 +1,55 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import Chart from 'chart.js/auto';
+import { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 
 const EMPTY_OBJECT = {};
 
-// Core tasks list
-const CORE_TASKS = [
-  { id: 1, name: 'Barrer la Sala', desc: 'Limpieza inicial del suelo para una excelente primera impresión física.', block: 1, icon: '🧹' },
-  { id: 2, name: 'Trapear la Sala', desc: 'Eliminar marcas, dar brillo a las superficies antes de recibir visitas.', block: 1, icon: '🪣' },
-  { id: 3, name: 'Limpiar Estantería y Muestras', desc: 'Limpieza de vitrinas de trofeos, medallas y marcos de muestra.', block: 1, icon: '🧼' },
-  { id: 4, name: 'Verificación de Órdenes del Día', desc: 'Sincronización con producción para confirmar despachos programados hoy.', block: 1, icon: '📄' },
-  { id: 5, name: 'Seguimiento a Clientes de WhatsApp', desc: 'Atender consultas web, responder cotizaciones pendientes y envíos de fotos.', block: 4, icon: '💬' },
-  { id: 6, name: 'Realizar el Depósito Bancario', desc: 'Preparación de efectivo/cheques de caja y envío al banco de forma segura.', block: 5, icon: '🏦' },
-  { id: 7, name: 'Registrar lo Depositado en el Sistema', desc: 'Subir la boleta o captura bancaria al CRM para cerrar la bitácora financiera.', block: 5, icon: '📝' }
-];
+const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
 // Time routines blocks
 const TIME_BLOCKS = [
   { id: 1, range: '08:30 - 09:15', name: 'Apertura, Limpieza y Logística', desc: 'Puesta a punto física de la sala y chequeo de rutas.' },
   { id: 2, range: '09:15 - 13:00', name: 'Enfoque Técnico y Diseño', desc: 'Diseño de productos personalizados and atención reactiva.', badge: 'ARTES', badgeColor: 'rgba(59, 130, 246, 0.14)', badgeTextColor: '#3B82F6' },
   { id: 3, range: '13:00 - 14:00', name: 'Tiempo de Almuerzo y Descanso', desc: 'Tiempo para comer y descansar.', icon: '🍴' },
-  { id: 4, range: '14:00 - 16:30', name: 'Prospección y Enfoque Comercial', desc: 'Llamadas telefónicas de prospección y chats proactivos.', badge: '80/20 & PROY.', badgeColor: 'rgba(16, 185, 129, 0.14)', badgeTextColor: '#10B981' },
+  { id: 4, range: '14:00 - 16:30', name: 'Prospección and Enfoque Comercial', desc: 'Llamadas telefónicas de prospección y chats proactivos.', badge: '80/20 & PROY.', badgeColor: 'rgba(16, 185, 129, 0.14)', badgeTextColor: '#10B981' },
   { id: 5, range: '16:30 - 17:30', name: 'Cierre Administrativo y CRM', desc: 'Reporte de depósitos, actualización de CRM y planificación.' }
 ];
 
-const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
+
 
 export default function TareasView({ 
-  activeStore, 
+  selectedStores, 
   userRole, 
+  userName,
   storeChecklists, 
-  onToggleTask,
-  onSaveToSheets,
-  checkedTasks,
+  setStoreChecklists,
+  weeklyTasks, 
+  setWeeklyTasks, 
+  checkedTasks, 
   setCheckedTasks,
   savedDays,
   setSavedDays,
-  weeklyTasks,
-  setWeeklyTasks,
-  timeRange = 'Mensual'
+  checklistTasks,
+  setChecklistTasks,
+  onSpeechAction
 }) {
-  // Simulated time states
-  const [simulatedTimeChoice, setSimulatedTimeChoice] = useState('real'); // 'real' or simulated values
+  const storeCode = selectedStores.length === 14 ? 'Todos' : selectedStores[0];
   const [systemTime, setSystemTime] = useState(new Date());
+
+  // Update clock every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSystemTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Compute active hour/minute based on system clock
+  const { hour, minute } = useMemo(() => {
+    return {
+      hour: systemTime.getHours(),
+      minute: systemTime.getMinutes()
+    };
+  }, [systemTime]);
 
   const getSystemDayTab = () => {
     const day = new Date().getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
@@ -51,56 +59,271 @@ export default function TareasView({
   };
 
   const [activeTab, setActiveTab] = useState(getSystemDayTab());
+  const [isUploading, setIsUploading] = useState(false);
+
+  // States para Carga de Avances (80/20 y Proyecto)
+  const [nombre8020, setNombre8020] = useState('');
+  const [carrera8020, setCarrera8020] = useState('');
+  const [telefono8020, setTelefono8020] = useState('');
+  
+  const [nombreProyecto, setNombreProyecto] = useState('');
+  const [carreraProyecto, setCarreraProyecto] = useState('');
+  const [telefonoProyecto, setTelefonoProyecto] = useState('');
+
+  const [speech8020, setSpeech8020] = useState(() => {
+    return localStorage.getItem('speech8020') || 'Hola {Nombre}, vimos que tienes interés en la carrera {Carrera}. ¡Déjanos saber cómo podemos ayudarte!';
+  });
+  const [speechProyecto, setSpeechProyecto] = useState(() => {
+    return localStorage.getItem('speechProyecto') || 'Estimado(a) {Nombre}, sobre el proyecto de la carrera {Carrera}, nos gustaría agendar una llamada.';
+  });
+  
+  const handleSaveSpeech8020 = () => {
+    localStorage.setItem('speech8020', speech8020);
+    alert('Speech de 80/20 guardado exitosamente.');
+  };
+  const handleSaveSpeechProyecto = () => {
+    localStorage.setItem('speechProyecto', speechProyecto);
+    alert('Speech de Proyecto guardado exitosamente.');
+  };
+
+  const currentDayOfWeek = new Date().getDay();
+  const canUploadExcel = currentDayOfWeek === 5 || currentDayOfWeek === 6; // Viernes (5) o Sábado (6)
+
+  const formatSpeech = (speech, nombre, carrera) => {
+    let formatted = speech;
+    if (nombre) formatted = formatted.replace(/{Nombre}/g, nombre);
+    if (carrera) formatted = formatted.replace(/{Carrera}/g, carrera);
+    return formatted;
+  };
+
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+    alert('Texto copiado al portapapeles');
+  };
+
+  const handleWhatsApp = (phone, text) => {
+    if (!phone) {
+      alert('Por favor ingresa un número de teléfono válido (ej: 502XXXXXXXX).');
+      return;
+    }
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleFileUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result.split(',')[1]; // Extract base64 part
+        const today = new Date();
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const folderName = `${monthNames[today.getMonth()]} ${today.getFullYear()}`;
+        const storeName = selectedStores.length === 1 ? selectedStores[0] : (userName || 'Red');
+        const finalFileName = `${storeName}_${type}_${file.name}`;
+
+        const payload = {
+          action: 'uploadFile',
+          fileName: finalFileName,
+          mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          folderName: folderName,
+          fileData: base64Data
+        };
+
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec";
+
+        try {
+          const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+              'Content-Type': 'text/plain', // text/plain es el único Content-Type permitido en modo no-cors
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          // Because of no-cors, response is opaque, we just assume success if no error thrown
+          alert(`Archivo "${file.name}" de ${type} subido exitosamente a Google Drive.`);
+        } catch (fetchError) {
+          console.error("Fetch error:", fetchError);
+          alert('Hubo un error de conexión al subir el archivo.');
+        } finally {
+          setIsUploading(false);
+          e.target.value = null; // reset input
+        }
+      };
+      
+      reader.onerror = () => {
+        alert('Error al leer el archivo localmente.');
+        setIsUploading(false);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      alert('Error inesperado al preparar la subida.');
+      setIsUploading(false);
+    }
+  };
+
+  // Drag and drop states
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [draggedChecklistIndex, setDraggedChecklistIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+    setWeeklyTasks(prev => {
+      const currentList = [...(prev[activeTab] || [])];
+      const [draggedItem] = currentList.splice(draggedIndex, 1);
+      currentList.splice(targetIndex, 0, draggedItem);
+      return {
+        ...prev,
+        [activeTab]: currentList
+      };
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
+  const handleChecklistDrop = (e, targetRenderedIndex) => {
+    e.preventDefault();
+    if (draggedChecklistIndex === null || draggedChecklistIndex === targetRenderedIndex) return;
+
+    const draggedTask = visibleChecklistTasks[draggedChecklistIndex];
+    const targetTask = visibleChecklistTasks[targetRenderedIndex];
+    if (!draggedTask || !targetTask) return;
+
+    setChecklistTasks(prev => {
+      const newList = [...prev];
+      const origDraggedIdx = newList.findIndex(t => t.id === draggedTask.id);
+      const origTargetIdx = newList.findIndex(t => t.id === targetTask.id);
+
+      if (origDraggedIdx !== -1 && origTargetIdx !== -1) {
+        const [movedItem] = newList.splice(origDraggedIdx, 1);
+        newList.splice(origTargetIdx, 0, movedItem);
+      }
+      return newList;
+    });
+
+    setDraggedChecklistIndex(null);
+  };
+
+  // Checklist Administration states
+  const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
+  const [checklistFormName, setChecklistFormName] = useState('');
+  const [checklistFormDesc, setChecklistFormDesc] = useState('');
+  const [checklistFormInicio, setChecklistFormInicio] = useState('08:30');
+  const [checklistFormFin, setChecklistFormFin] = useState('17:30');
+  const [checklistFormStores, setChecklistFormStores] = useState(['All']);
+  const [editingChecklistTaskId, setEditingChecklistTaskId] = useState(null);
+
+  const getBlockFromTime = (timeStrVal) => {
+    if (!timeStrVal) return 1;
+    const [h, m] = timeStrVal.split(':').map(Number);
+    const minutes = h * 60 + m;
+    if (minutes < 555) return 1;   // before 09:15
+    if (minutes < 780) return 2;   // before 13:00
+    if (minutes < 840) return 3;   // before 14:00
+    if (minutes < 990) return 4;   // before 16:30
+    return 5;                     // 16:30 onwards
+  };
+
+  const handleOpenAddChecklistModal = () => {
+    setEditingChecklistTaskId(null);
+    setChecklistFormName('');
+    setChecklistFormDesc('');
+    setChecklistFormInicio('08:30');
+    setChecklistFormFin('17:30');
+    setChecklistFormStores(['All']);
+    setIsChecklistModalOpen(true);
+  };
+
+  const handleOpenEditChecklistModal = (task) => {
+    setEditingChecklistTaskId(task.id);
+    setChecklistFormName(task.name);
+    setChecklistFormDesc(task.desc || '');
+    setChecklistFormInicio(task.horaInicio || '08:30');
+    setChecklistFormFin(task.horaFin || '17:30');
+    setChecklistFormStores(task.stores || ['All']);
+    setIsChecklistModalOpen(true);
+  };
+
+  const handleSaveChecklistTask = (e) => {
+    e.preventDefault();
+    if (!checklistFormName) return;
+    if (!checklistFormStores || checklistFormStores.length === 0) {
+      alert('Por favor selecciona al menos una tienda antes de guardar.');
+      return;
+    }
+
+    const block = getBlockFromTime(checklistFormInicio);
+    
+    if (editingChecklistTaskId !== null) {
+      setChecklistTasks(prev => prev.map(t => 
+        t.id === editingChecklistTaskId 
+          ? { ...t, name: checklistFormName, desc: checklistFormDesc, horaInicio: checklistFormInicio, horaFin: checklistFormFin, block, stores: checklistFormStores }
+          : t
+      ));
+    } else {
+      const newId = Date.now();
+      const newTask = {
+        id: newId,
+        name: checklistFormName,
+        desc: checklistFormDesc,
+        horaInicio: checklistFormInicio,
+        horaFin: checklistFormFin,
+        block,
+        icon: '📋',
+        stores: checklistFormStores
+      };
+      setChecklistTasks(prev => [...prev, newTask]);
+    }
+    setIsChecklistModalOpen(false);
+  };
+
+  const handleDeleteChecklistTask = (taskId) => {
+    if (window.confirm('¿Seguro que deseas eliminar esta tarea del checklist?')) {
+      setChecklistTasks(prev => prev.filter(t => t.id !== taskId));
+    }
+  };
 
   // Admin tasks management states
   const [adminActividad, setAdminActividad] = useState('');
   const [adminDescripcion, setAdminDescripcion] = useState('');
-  const [adminObligatorio, setAdminObligatorio] = useState('Sí');
   const [adminHoraInicio, setAdminHoraInicio] = useState('08:30');
   const [adminHoraFin, setAdminHoraFin] = useState('17:30');
+  const [adminTaskStores, setAdminTaskStores] = useState(["CB","CHM","CHQ","ESC","HH","JT","MZ","PT","PTB","SJ","SMA","VN","XL","Z3"]);
+  const [adminStoresOpen, setAdminStoresOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
+  const [adminPromptTxt, setAdminPromptTxt] = useState('');
+  const [isAdminTaskModalOpen, setIsAdminTaskModalOpen] = useState(false);
 
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertDismissedToday, setAlertDismissedToday] = useState(false);
 
-  // Refs for compliance charts
-  const barChartRef = useRef(null);
-  const lineChartRef = useRef(null);
-  const privateLineChartRef = useRef(null);
-  const barChartInstance = useRef(null);
-  const lineChartInstance = useRef(null);
-  const privateLineChartInstance = useRef(null);
 
-  // Update clock every second if 'real'
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (simulatedTimeChoice === 'real') {
-        setSystemTime(new Date());
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [simulatedTimeChoice]);
 
-  // Compute active hour/minute based on choice — MUST be before any useEffect that uses hour/minute
-  const { hour, minute, timeStr } = useMemo(() => {
-    if (simulatedTimeChoice === 'real') {
-      return {
-        hour: systemTime.getHours(),
-        minute: systemTime.getMinutes(),
-        timeStr: systemTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      };
-    } else {
-      const [h, m] = simulatedTimeChoice.split(':').map(Number);
-      return {
-        hour: h,
-        minute: m,
-        timeStr: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} (Simulada)`
-      };
-    }
-  }, [simulatedTimeChoice, systemTime]);
+
 
   // Checklist for selected store — MUST be before any useEffect that uses storeCode
-  const storeCode = activeStore === 'Todos' ? 'CB' : activeStore;
+  
   const currentChecklist = storeChecklists[storeCode] || EMPTY_OBJECT;
 
   // Alert Modal Check Effect
@@ -134,300 +357,17 @@ export default function TareasView({
     return null;
   }, [hour, minute]);
 
-  const completedCount = useMemo(() => {
-    return Object.values(currentChecklist).filter(Boolean).length;
-  }, [currentChecklist]);
+  // Filter checklist tasks by active store
+  const visibleChecklistTasks = selectedStores.length === 14
+    ? checklistTasks
+    : checklistTasks.filter(t => !t.stores || t.stores.includes('All') || selectedStores.some(s => t.stores.includes(s)));
 
-  const completionPercent = Math.round((completedCount / 7) * 100);
+  const completedCount = visibleChecklistTasks.filter(t => !!currentChecklist[t.id]).length;
 
-  // Generar historial de 30 días para la vista privada del asesor
-  const storeHistory = useMemo(() => {
-    const history = [];
-    const today = new Date();
-    
-    // Seeded random number generator based on storeCode to ensure stable history
-    const seedRandom = (str) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      return () => {
-        const x = Math.sin(hash++) * 10000;
-        return x - Math.floor(x);
-      };
-    };
-    
-    const random = seedRandom(storeCode);
-    
-    for (let i = 29; i >= 1; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-      const isoDateStr = date.toISOString().slice(0, 10);
-      
-      // Let's generate a realistic number of completed tasks (between 5 and 13 out of 13)
-      let baseTasks = 8;
-      if (storeCode === 'JT') baseTasks = 10;
-      if (storeCode === 'CHQ') baseTasks = 5;
-      if (storeCode === 'CB') baseTasks = 7;
-      
-      const completed = Math.min(13, Math.max(0, Math.floor(baseTasks + random() * 5 - 2)));
-      const pct = Math.round((completed / 13) * 100);
-      let status = 'CRÍTICO';
-      if (pct >= 80) status = 'ÓPTIMO';
-      else if (pct >= 60) status = 'ACEPTABLE';
-      
-      history.push({
-        date: isoDateStr,
-        displayDate: dateStr,
-        assigned: 13,
-        completed,
-        pct,
-        status
-      });
-    }
-    
-    // Add today's live record as the last element
-    const todayCompleted = completedCount; // directly equals checklist checked count to match administrative statistics
-    const todayPct = Math.round((todayCompleted / 13) * 100);
-    let todayStatus = 'CRÍTICO';
-    if (todayPct >= 80) todayStatus = 'ÓPTIMO';
-    else if (todayPct >= 60) todayStatus = 'ACEPTABLE';
-    
-    history.push({
-      date: today.toISOString().slice(0, 10),
-      displayDate: today.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }),
-      assigned: 13,
-      completed: todayCompleted,
-      pct: todayPct,
-      status: todayStatus,
-      isToday: true
-    });
-    
-    return history;
-  }, [storeCode, completedCount]);
+  const completionPercent = visibleChecklistTasks.length > 0 
+    ? Math.round((completedCount / visibleChecklistTasks.length) * 100) 
+    : 0;
 
-  const filteredStoreHistory = useMemo(() => {
-    const sliceCount = 
-      timeRange === '1 día' ? 1 :
-      timeRange === '1 semana' ? 7 :
-      timeRange === 'Quincenal' ? 15 : 30;
-    return storeHistory.slice(-sliceCount);
-  }, [storeHistory, timeRange]);
-
-  const avgStoreCompliance = useMemo(() => {
-    if (filteredStoreHistory.length === 0) return 0;
-    const sum = filteredStoreHistory.reduce((s, h) => s + h.pct, 0);
-    return Math.round(sum / filteredStoreHistory.length);
-  }, [filteredStoreHistory]);
-
-  const optimalDaysCount = useMemo(() => {
-    return filteredStoreHistory.filter(h => h.pct >= 80).length;
-  }, [filteredStoreHistory]);
-
-  const todayRecord = useMemo(() => {
-    return storeHistory[storeHistory.length - 1];
-  }, [storeHistory]);
-
-  // Compute compliance statistics for all 14 stores
-  const storeStatistics = useMemo(() => {
-    return STORES.map(code => {
-      const checklist = storeChecklists[code] || {};
-      const completed = Object.values(checklist).filter(Boolean).length;
-      
-      // Map core completed to out of 13 tasks (matching Sheets mock)
-      // If store is JT: core has 5 completed -> 5 / 13 = 38%
-      // If store is CHQ: core has 1 completed -> 1 / 13 = 8%
-      // For others we have some default base mocks to add up to 23% network average
-      let mockCompleted = completed;
-      if (completed === 0) {
-        // Initialize other stores with small mock completion counts to reach 23% average
-        if (code === 'MZ' || code === 'PTB' || code === 'SMA' || code === 'XL') mockCompleted = 3; // 23%
-        if (code === 'PT' || code === 'SJ' || code === 'VN' || code === 'Z3') mockCompleted = 4; // 31%
-      }
-      
-      const pct = Math.round((mockCompleted / 13) * 100);
-      return {
-        code,
-        storeName: 'TX.' + code,
-        assigned: 13,
-        completed: mockCompleted,
-        pct,
-        status: pct >= 80 ? 'ÓPTIMO' : 'CRÍTICO'
-      };
-    });
-  }, [storeChecklists]);
-
-  // Network average compliance
-  const complianceAverages = useMemo(() => {
-    const totalAssigned = 14 * 13; // 182
-    const totalCompleted = storeStatistics.reduce((sum, s) => sum + s.completed, 0);
-    const avgCompliance = Math.round((totalCompleted / totalAssigned) * 100);
-    
-    // Find best store
-    let bestStore = storeStatistics[0];
-    storeStatistics.forEach(s => {
-      if (s.pct > bestStore.pct) bestStore = s;
-    });
-
-    const storesAbove80 = storeStatistics.filter(s => s.pct >= 80).length;
-
-    return {
-      avgCompliance,
-      bestStore: `${bestStore.code} (${bestStore.pct}%)`,
-      totalCompleted,
-      totalAssigned,
-      storesAbove80
-    };
-  }, [storeStatistics]);
-
-  // Render Chart.js dynamic reports
-  useEffect(() => {
-    if (userRole === 'admin') {
-      // 1. Bar Chart: Rendimiento por Tienda - Hoy
-      if (barChartRef.current) {
-        if (barChartInstance.current) {
-          barChartInstance.current.destroy();
-        }
-        const ctx = barChartRef.current.getContext('2d');
-        const labels = storeStatistics.map(s => s.code);
-        const data = storeStatistics.map(s => s.pct);
-        
-        barChartInstance.current = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [{
-              data,
-              backgroundColor: labels.map(l => l === storeCode ? 'rgba(255, 109, 77, 0.8)' : 'rgba(255, 109, 77, 0.25)'),
-              borderColor: '#FF6D4D',
-              borderWidth: 1.5,
-              borderRadius: 6,
-              borderSkipped: false
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: { callbacks: { label: ctx => ` Cumplimiento: ${ctx.raw}%` } }
-            },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 9, weight: '700' }, color: '#64748B' } },
-              y: { grid: { color: '#F1F5F9' }, min: 0, max: 100, ticks: { callback: v => v + '%', font: { family: 'Inter', size: 9 }, color: '#64748B' } }
-            }
-          }
-        });
-      }
-
-      // 2. Line Chart: Evolución de Cumplimiento (Red Completa)
-      if (lineChartRef.current) {
-        if (lineChartInstance.current) {
-          lineChartInstance.current.destroy();
-        }
-        const ctx = lineChartRef.current.getContext('2d');
-        
-        const sliceCount = 
-          timeRange === '1 día' ? 1 :
-          timeRange === '1 semana' ? 7 :
-          timeRange === 'Quincenal' ? 15 : 30;
-
-        // Dates matching image 049b5e
-        const rawLabels = ['09/05', '11/05', '13/05', '15/05', '17/05', '19/05', '21/05', '23/05', '25/05', '27/05', '29/05', '31/05', '02/06', '04/06', '06/06'];
-        const rawData = [2, 1, 3, 2, 2, 4, 3, 5, 4, 6, 8, 12, 16, 20, complianceAverages.avgCompliance];
-
-        const labels = rawLabels.slice(-sliceCount);
-        const data = rawData.slice(-sliceCount);
-        
-        const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
-        gradient.addColorStop(1, 'rgba(59, 130, 246, 0.01)');
-
-        lineChartInstance.current = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [{
-              data,
-              borderColor: '#3B82F6',
-              borderWidth: 2.5,
-              backgroundColor: gradient,
-              fill: true,
-              tension: 0.35,
-              pointBackgroundColor: '#3B82F6',
-              pointBorderColor: '#fff',
-              pointRadius: 4,
-              pointHoverRadius: 6
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: { callbacks: { label: ctx => ` Promedio Red: ${ctx.raw}%` } }
-            },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 8 }, color: '#94A3B8' } },
-              y: { grid: { color: '#F1F5F9' }, min: 0, max: 100, ticks: { callback: v => v + '%', font: { family: 'Inter', size: 9 }, color: '#64748B' } }
-            }
-          }
-        });
-      }
-    } else {
-      // Render Private Line Chart: Mi Evolución de Cumplimiento
-      if (privateLineChartRef.current) {
-        if (privateLineChartInstance.current) {
-          privateLineChartInstance.current.destroy();
-        }
-        const ctx = privateLineChartRef.current.getContext('2d');
-        const labels = filteredStoreHistory.map(h => h.displayDate);
-        const data = filteredStoreHistory.map(h => h.pct);
-        
-        const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-        gradient.addColorStop(0, 'rgba(16, 185, 129, 0.15)');
-        gradient.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
-
-        privateLineChartInstance.current = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [{
-              data,
-              borderColor: '#10B981',
-              borderWidth: 2.5,
-              backgroundColor: gradient,
-              fill: true,
-              tension: 0.35,
-              pointBackgroundColor: '#10B981',
-              pointBorderColor: '#fff',
-              pointRadius: 3,
-              pointHoverRadius: 5
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: { callbacks: { label: ctx => ` Cumplimiento: ${ctx.raw}%` } }
-            },
-            scales: {
-              x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 8 }, color: '#94A3B8' } },
-              y: { grid: { color: '#F1F5F9' }, min: 0, max: 100, ticks: { callback: v => v + '%', font: { family: 'Inter', size: 9 }, color: '#64748B' } }
-            }
-          }
-        });
-      }
-    }
-
-    return () => {
-      if (barChartInstance.current) barChartInstance.current.destroy();
-      if (lineChartInstance.current) lineChartInstance.current.destroy();
-      if (privateLineChartInstance.current) privateLineChartInstance.current.destroy();
-    };
-  }, [storeStatistics, complianceAverages, storeCode, userRole, filteredStoreHistory, timeRange]);
 
   // Get ISO week number
   const getWeekNumber = (d) => {
@@ -509,7 +449,7 @@ export default function TareasView({
 
   // Toggle tasks checkbox handler
   const handleToggleCronogramaTask = (taskId) => {
-    if (activeStore === 'Todos') return;
+    if (selectedStores.length === 14) return;
     const isDaySaved = savedDays[storeCode]?.[activeTab] || false;
     const task = (weeklyTasks[activeTab] || []).find(t => t.id === taskId);
     const isExpired = activeTab === todayTab && task?.horaFin && (currentMinutes > getTaskEndMinutes(task.horaFin));
@@ -535,9 +475,24 @@ export default function TareasView({
   };
 
   // Admin tasks management handlers
+  const handleOpenAddAdminTaskModal = () => {
+    setEditingTaskId(null);
+    setAdminActividad('');
+    setAdminDescripcion('');
+    setAdminPromptTxt('');
+    setAdminTaskStores(['All']);
+    setAdminHoraInicio('08:30');
+    setAdminHoraFin('17:30');
+    setIsAdminTaskModalOpen(true);
+  };
+
   const handleSaveAdminTask = (e) => {
     e.preventDefault();
     if (!adminActividad.trim()) return;
+    if (!adminTaskStores || adminTaskStores.length === 0) {
+      alert('Por favor selecciona al menos una tienda antes de guardar.');
+      return;
+    }
 
     setWeeklyTasks(prev => {
       const dayTasks = [...(prev[activeTab] || [])];
@@ -548,7 +503,8 @@ export default function TareasView({
               ...t,
               name: adminActividad,
               desc: adminDescripcion,
-              obligatoria: adminObligatorio === 'Sí',
+              promptTxt: adminPromptTxt,
+              stores: adminTaskStores,
               icon: t.icon || '📋',
               horaInicio: adminHoraInicio,
               horaFin: adminHoraFin
@@ -563,7 +519,8 @@ export default function TareasView({
           id: newId,
           name: adminActividad,
           desc: adminDescripcion,
-          obligatoria: adminObligatorio === 'Sí',
+          promptTxt: adminPromptTxt,
+          stores: adminTaskStores,
           icon: '📋',
           horaInicio: adminHoraInicio,
           horaFin: adminHoraFin
@@ -572,21 +529,18 @@ export default function TareasView({
       }
     });
 
-    setAdminActividad('');
-    setAdminDescripcion('');
-    setAdminObligatorio('Sí');
-    setAdminHoraInicio('08:30');
-    setAdminHoraFin('17:30');
-    setEditingTaskId(null);
+    setIsAdminTaskModalOpen(false);
   };
 
   const handleEditAdminTask = (task) => {
     setAdminActividad(task.name);
     setAdminDescripcion(task.desc || '');
-    setAdminObligatorio(task.obligatoria ? 'Sí' : 'No');
+    setAdminPromptTxt(task.promptTxt || '');
+    setAdminTaskStores(task.stores || ['All']);
     setAdminHoraInicio(task.horaInicio || '08:30');
     setAdminHoraFin(task.horaFin || '17:30');
     setEditingTaskId(task.id);
+    setIsAdminTaskModalOpen(true);
   };
 
   const handleDeleteAdminTask = (taskId) => {
@@ -599,7 +553,7 @@ export default function TareasView({
         setEditingTaskId(null);
         setAdminActividad('');
         setAdminDescripcion('');
-        setAdminObligatorio('Sí');
+        setAdminTaskStores(['All']);
         setAdminHoraInicio('08:30');
         setAdminHoraFin('17:30');
       }
@@ -607,39 +561,11 @@ export default function TareasView({
   };
 
   return (
-    <div className="view-section active">
+    <div className="view-section active" style={{ display: 'flex', flexDirection: 'column' }}>
       
-      {/* Simulation Header Clock control */}
-      <div className="card" style={{ display: 'flex', marginBottom: '20px', padding: '16px 20px', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ fontSize: '20px' }}>⏱️</div>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: '700' }}>Control de Tiempo del Sistema</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Hora activa: <strong style={{ color: 'var(--text-primary)' }}>{timeStr}</strong>
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)' }}>Simular Hora:</span>
-          <select
-            className="select-filter"
-            value={simulatedTimeChoice}
-            onChange={(e) => setSimulatedTimeChoice(e.target.value)}
-            style={{ padding: '6px 12px', fontSize: '12px', minWidth: '180px' }}
-          >
-            <option value="real">Real (Reloj del Sistema)</option>
-            <option value="08:45">08:45 AM (Bloque 1 - Limpieza)</option>
-            <option value="10:30">10:30 AM (Bloque 2 - Diseño · Congelado)</option>
-            <option value="13:30">13:30 PM (Bloque 3 - Almuerzo · Congelado)</option>
-            <option value="15:00">15:00 PM (Bloque 4 - Comercial · Congelado)</option>
-            <option value="17:00">17:00 PM (Bloque 5 - Cierre · Congelado)</option>
-          </select>
-        </div>
-      </div>
 
       {/* 1. Cronograma de Actividades Semanal (Trasladado) */}
-      <div className="card" style={{ marginBottom: '24px' }}>
+      <div className="card" style={{ order: 2, marginBottom: '24px' }}>
         <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ color: 'var(--accent-coral)', display: 'inline-flex', padding: '5px', background: 'rgba(255, 109, 77, 0.1)', borderRadius: '6px' }}>
@@ -651,11 +577,20 @@ export default function TareasView({
             </div>
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            {userRole === 'admin' && (
+              <button 
+                className="topbar-btn btn-primary" 
+                onClick={handleOpenAddAdminTaskModal}
+                style={{ height: '32px', fontSize: '12px', padding: '0 12px' }}
+              >
+                <i className="fas fa-plus"></i> Agregar Tarea
+              </button>
+            )}
             <span className="stage-badge" style={{ background: 'var(--accent-coral)', color: '#FFFFFF', fontSize: '10px', fontWeight: '800', padding: '3px 8px', textTransform: 'uppercase' }}>
               {monthYearLabel}
             </span>
             <span className="stage-badge" style={{ background: '#f8fafc', color: 'var(--text-secondary)', fontSize: '10px', border: '1.5px solid var(--border-light)', fontWeight: '700' }}>
-              {activeStore === 'Todos' ? 'Red General' : `Tienda: ${activeStore}`}
+              {userName ? userName : (selectedStores.length === 14 ? 'Red General' : `Tienda: ${selectedStores.join(', ')}`)}
             </span>
           </div>
         </div>
@@ -695,15 +630,7 @@ export default function TareasView({
             })}
           </div>
 
-          {/* Consolidate warning for admin when viewing Todos */}
-          {activeStore === 'Todos' && (
-            <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: '8px', border: '1.5px dashed var(--border-light)', textAlign: 'center', marginBottom: '20px' }}>
-              <i className="fas fa-info-circle" style={{ color: 'var(--accent-blue)', fontSize: '20px', marginBottom: '6px', display: 'block' }}></i>
-              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                Modo consolidado. Selecciona una sucursal en la barra superior para interactuar con su cronograma semanal.
-              </span>
-            </div>
-          )}
+
 
           {/* Activities list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
@@ -732,7 +659,7 @@ export default function TareasView({
               const isDaySaved = savedDays[storeCode]?.[activeTab] || false;
               const isExpired = activeTab === todayTab && task.horaFin && (currentMinutes > getTaskEndMinutes(task.horaFin));
               const isFrozen = isDaySaved || isExpired;
-              const isDisabled = activeStore === 'Todos' || isFrozen;
+              const isDisabled = selectedStores.length === 14 || isFrozen;
 
               return (
                 <div 
@@ -771,9 +698,28 @@ export default function TareasView({
                           {isExpired && <span style={{ color: '#EF4444' }}>🔒</span>}
                         </div>
                       )}
+
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {userRole === 'admin' && (
+                      <div style={{ display: 'flex', gap: '4px', marginRight: '8px' }}>
+                        <button 
+                          className="action-btn edit-btn" 
+                          onClick={(e) => { e.stopPropagation(); handleEditAdminTask(task); }} 
+                          title="Editar"
+                        >
+                          <i className="fas fa-edit"></i>
+                        </button>
+                        <button 
+                          className="action-btn delete-btn" 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteAdminTask(task.id); }} 
+                          title="Eliminar"
+                        >
+                          <i className="fas fa-trash-alt"></i>
+                        </button>
+                      </div>
+                    )}
                     {task.obligatoria !== false && (
                       <span className="stage-badge" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#EF4444', fontSize: '9px', fontWeight: '800', border: '1px solid rgba(239,68,68,0.15)' }}>
                         Obligatorio
@@ -798,7 +744,7 @@ export default function TareasView({
             )}
           </div>
 
-          {activeStore !== 'Todos' && activeTasks.length > 0 && (
+          {selectedStores.length !== 14 && activeTasks.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button 
                 className="topbar-btn btn-primary"
@@ -818,448 +764,12 @@ export default function TareasView({
         </div>
       </div>
 
-      {/* Compliance Analytics Section (Panel de Avance) - Visibilidad Condicionada por Rol */}
-      {userRole === 'admin' ? (
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: '#d32f2f', fontSize: '18px' }}>
-                <i className="fas fa-database"></i>
-              </span>
-              <div>
-                <h3 className="card-title" style={{ fontSize: '15px' }}>BD_Operaciones — Análisis de Cumplimiento</h3>
-                <p className="card-subtitle">Monitoreo y registro diario de avance por sucursales</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>Tienda: {storeCode}</span>
-              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>{timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}</span>
-            </div>
-          </div>
 
-          <div style={{ padding: '24px' }}>
-            
-            {/* KPI Upper Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }} className="grid-responsive-sm">
-              
-              {/* Card 1 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Cumplimiento Promedio Red
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.avgCompliance}%
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Todas las tiendas · periodo seleccionado
-                </div>
-              </div>
 
-              {/* Card 2 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Mejor Tienda del Día
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.bestStore}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Hoy ({new Date().toISOString().slice(0, 10)})
-                </div>
-              </div>
 
-              {/* Card 3 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Tareas Completadas Hoy
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.totalCompleted}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '600' }}>
-                  de {complianceAverages.totalAssigned} asignadas
-                </div>
-              </div>
-
-              {/* Card 4 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Tiendas con 80%+ Hoy
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {complianceAverages.storesAbove80} de 14
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  de 14 tiendas
-                </div>
-              </div>
-            </div>
-
-            {/* Charts Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }} className="grid-responsive-md">
-              
-              {/* Rendimiento por tienda hoy */}
-              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-coral)' }}></span>
-                  Rendimiento por Tienda — Hoy
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: 'auto' }}>
-                    {new Date().toLocaleDateString('es-ES')}
-                  </span>
-                </div>
-                <div style={{ height: '220px' }}>
-                  <canvas ref={barChartRef} />
-                </div>
-              </div>
-
-              {/* Evolución de cumplimiento red */}
-              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
-                  Evolución de Cumplimiento — Red Completa
-                </div>
-                <div style={{ height: '220px' }}>
-                  <canvas ref={lineChartRef} />
-                </div>
-              </div>
-            </div>
-
-            {/* Table: BD_OPERACIONES - REGISTROS RECIENTES */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-purple)' }}></span>
-                  BD_OPERACIONES — REGISTROS RECIENTES
-                </div>
-                <button className="topbar-btn btn-outline" style={{ padding: '6px 12px', fontSize: '11px' }}>
-                  <i className="fas fa-file-export" style={{ marginRight: '6px' }}></i> Exportar CSV
-                </button>
-              </div>
-
-              <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
-                <table className="deals-table">
-                  <thead>
-                    <tr style={{ background: 'var(--bg-body)' }}>
-                      <th>Fecha</th>
-                      <th>Código</th>
-                      <th>Tienda</th>
-                      <th style={{ textAlign: 'center' }}>Asignadas</th>
-                      <th style={{ textAlign: 'center' }}>Completadas</th>
-                      <th style={{ textAlign: 'center' }}>% Cumplimiento</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {storeStatistics.map((row) => (
-                      <tr key={row.code} className="deal-row">
-                        <td style={{ fontWeight: '600' }}>
-                          {new Date().toISOString().slice(0, 10)}
-                          <span style={{ 
-                            fontSize: '8px', 
-                            fontWeight: '800', 
-                            color: '#FFFFFF', 
-                            background: '#3B82F6', 
-                            padding: '1px 4px', 
-                            borderRadius: '4px', 
-                            marginLeft: '6px',
-                            textTransform: 'uppercase'
-                          }}>
-                            VIVO
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: '700' }}>{row.code}</td>
-                        <td>{row.storeName}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{row.assigned}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '700', color: row.completed > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                          {row.completed}
-                        </td>
-                        <td style={{ 
-                          textAlign: 'center', 
-                          fontWeight: '800',
-                          color: row.pct >= 80 ? '#059669' : '#EF4444'
-                        }}>
-                          {row.pct}%
-                        </td>
-                        <td>
-                          <span className={`status-badge ${row.pct >= 80 ? 'status-won' : 'status-lost'}`} style={{ fontSize: '9px', fontWeight: '800', padding: '2px 7px' }}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      ) : (
-        /* Panel de Rendimiento Privado de Tienda */
-        <div className="card" style={{ marginBottom: '24px' }}>
-          <div className="card-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ color: '#10B981', display: 'inline-flex', padding: '5px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px' }}>
-                <i className="fas fa-chart-line" style={{ fontSize: '14px' }}></i>
-              </span>
-              <div>
-                <h3 className="card-title" style={{ fontSize: '14px' }}>Mi Rendimiento — Análisis Individual de {storeCode}</h3>
-                <p className="card-subtitle">Historial de tareas y cumplimiento de la sucursal activa</p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <span className="stage-badge" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669', fontSize: '10px', fontWeight: '700' }}>Panel Privado (TX)</span>
-              <span className="stage-badge" style={{ background: 'var(--bg-body)', color: 'var(--text-secondary)', fontSize: '10px', fontWeight: '700' }}>{timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}</span>
-            </div>
-          </div>
-
-          <div style={{ padding: '24px' }}>
-            
-            {/* KPI Upper Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }} className="grid-responsive-sm">
-              
-              {/* Card 1 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Mi Cumplimiento Promedio
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {avgStoreCompliance}%
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Mes actual · promedio del historial
-                </div>
-              </div>
-
-              {/* Card 2 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Tareas Completadas Hoy
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {todayRecord.completed} de 13
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: '600' }}>
-                  {completionPercent}% de checklist diario
-                </div>
-              </div>
-
-              {/* Card 3 */}
-              <div style={{ background: 'var(--bg-body)', padding: '16px 20px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Días con Cumplimiento Óptimo (80%+)
-                </div>
-                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)', marginTop: '4px' }}>
-                  {optimalDaysCount} de {filteredStoreHistory.length}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  meta mensual de tienda
-                </div>
-              </div>
-            </div>
-
-            {/* Charts Row */}
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ background: '#FFFFFF', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }}></span>
-                  Mi Evolución de Cumplimiento — {timeRange === 'Mensual' ? 'Últimos 30 días' : timeRange}
-                </div>
-                <div style={{ height: '220px' }}>
-                  <canvas ref={privateLineChartRef} />
-                </div>
-              </div>
-            </div>
-
-            {/* Table: Mi Historial de Registros */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
-                  Mi Historial de Registros
-                </div>
-              </div>
-
-              <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
-                <table className="deals-table">
-                  <thead>
-                    <tr style={{ background: 'var(--bg-body)' }}>
-                      <th>Fecha</th>
-                      <th style={{ textAlign: 'center' }}>Asignadas</th>
-                      <th style={{ textAlign: 'center' }}>Completadas</th>
-                      <th style={{ textAlign: 'center' }}>% Cumplimiento</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...filteredStoreHistory].reverse().map((row, idx) => (
-                      <tr key={idx} className="deal-row" style={row.isToday ? { background: 'rgba(255, 109, 77, 0.03)' } : {}}>
-                        <td style={{ fontWeight: '600' }}>
-                          {row.date}
-                          {row.isToday && (
-                            <span style={{ 
-                              fontSize: '8px', 
-                              fontWeight: '800', 
-                              color: '#FFFFFF', 
-                              background: '#3B82F6', 
-                              padding: '1px 4px', 
-                              borderRadius: '4px', 
-                              marginLeft: '6px',
-                              textTransform: 'uppercase'
-                            }}>
-                              HOY (VIVO)
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{row.assigned}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '700' }}>{row.completed}</td>
-                        <td style={{ 
-                          textAlign: 'center', 
-                          fontWeight: '800',
-                          color: row.pct >= 80 ? '#059669' : (row.pct >= 60 ? '#D97706' : '#EF4444')
-                        }}>
-                          {row.pct}%
-                        </td>
-                        <td>
-                          <span className={`status-badge ${row.pct >= 80 ? 'status-won' : (row.pct >= 60 ? 'status-open' : 'status-lost')}`} style={{ fontSize: '9px', fontWeight: '800', padding: '2px 7px' }}>
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-{/* 2. Panel de Administración de Tareas Interactivo (Exclusivo para Admin, Trasladado) */}
-      {userRole === 'admin' && (
-        <div className="card" style={{ marginBottom: '24px', padding: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <span style={{ color: 'var(--accent-coral)', fontSize: '18px' }}>
-              <i className="fas fa-tasks"></i>
-            </span>
-            <div>
-              <h3 className="card-title" style={{ fontSize: '14.5px' }}>Panel de Administración de Tareas — {activeTab}</h3>
-              <p className="card-subtitle">Administrar actividades obligatorias para el día seleccionado</p>
-            </div>
-          </div>
-          
-          <form onSubmit={handleSaveAdminTask} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 0.6fr 0.6fr auto', gap: '12px', alignItems: 'end', marginBottom: '20px' }}>
-            <div className="form-group" style={{ textAlign: 'left' }}>
-              <label className="form-label" style={{ fontSize: '11px' }}>Actividad</label>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="Nombre de la actividad" 
-                value={adminActividad}
-                onChange={(e) => setAdminActividad(e.target.value)}
-                required
-              />
-            </div>
-            <div className="form-group" style={{ textAlign: 'left' }}>
-              <label className="form-label" style={{ fontSize: '11px' }}>Descripción</label>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="Detalle o descripción" 
-                value={adminDescripcion}
-                onChange={(e) => setAdminDescripcion(e.target.value)}
-              />
-            </div>
-            <div className="form-group" style={{ textAlign: 'left' }}>
-              <label className="form-label" style={{ fontSize: '11px' }}>Obligatorio</label>
-              <select 
-                className="select-filter" 
-                value={adminObligatorio} 
-                onChange={(e) => setAdminObligatorio(e.target.value)}
-                style={{ width: '100%', padding: '9px' }}
-              >
-                <option value="Sí">Sí</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-            <div className="form-group" style={{ textAlign: 'left' }}>
-              <label className="form-label" style={{ fontSize: '11px' }}>Hora Inicio</label>
-              <input 
-                type="time" 
-                className="form-control" 
-                value={adminHoraInicio}
-                onChange={(e) => setAdminHoraInicio(e.target.value)}
-                required
-              />
-            </div>
-            <div className="form-group" style={{ textAlign: 'left' }}>
-              <label className="form-label" style={{ fontSize: '11px' }}>Hora Fin</label>
-              <input 
-                type="time" 
-                className="form-control" 
-                value={adminHoraFin}
-                onChange={(e) => setAdminHoraFin(e.target.value)}
-                required
-              />
-            </div>
-            <button type="submit" className="topbar-btn btn-primary" style={{ height: '38px', padding: '0 16px' }}>
-              {editingTaskId !== null ? 'Actualizar' : 'Agregar'}
-            </button>
-          </form>
-
-          <div className="table-responsive" style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
-            <table className="deals-table">
-              <thead>
-                <tr style={{ background: 'var(--bg-body)' }}>
-                  <th>Actividad</th>
-                  <th>Descripción</th>
-                  <th>Horario</th>
-                  <th style={{ textAlign: 'center' }}>Obligatorio</th>
-                  <th style={{ textAlign: 'right' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeTasks.map(task => (
-                  <tr key={task.id} className="deal-row">
-                    <td style={{ fontWeight: '600' }}>
-                      <span style={{ marginRight: '6px' }}>{task.icon || '📋'}</span>
-                      {task.name}
-                    </td>
-                    <td>{task.desc || '—'}</td>
-                    <td style={{ fontWeight: '700', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      {task.horaInicio && task.horaFin ? `${task.horaInicio} - ${task.horaFin}` : '—'}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`stage-badge ${task.obligatoria !== false ? 'status-won' : 'status-lost'}`} style={{ fontSize: '10px', padding: '2px 8px', fontWeight: '800' }}>
-                        {task.obligatoria !== false ? 'Sí' : 'No'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button className="action-btn edit-btn" onClick={() => handleEditAdminTask(task)} title="Editar" style={{ marginRight: '4px' }}>
-                        <i className="fas fa-edit"></i>
-                      </button>
-                      <button className="action-btn delete-btn" onClick={() => handleDeleteAdminTask(task.id)} title="Eliminar">
-                        <i className="fas fa-trash-alt"></i>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {activeTasks.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="empty-state">
-                      <i className="fas fa-clipboard-list"></i> No hay actividades registradas para este día.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Main Checklist and blocks layout (2 columns) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', marginBottom: '24px', alignItems: 'stretch' }} className="grid-responsive-md">
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', marginBottom: '24px', alignItems: 'stretch', order: 1 }} className="grid-responsive-md">
         
         {/* Column Left: Checklist */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -1270,10 +780,9 @@ export default function TareasView({
               </span>
               <div>
                 <h3 className="card-title" style={{ fontSize: '14px' }}>Checklist Operativo Diario</h3>
-                <p className="card-subtitle">Tienda seleccionada: {storeCode}</p>
               </div>
             </div>
-            {activeStore === 'Todos' ? (
+            {selectedStores.length === 14 ? (
               <span className="stage-badge" style={{ background: '#f1f5f9', color: '#64748B', fontSize: '10px' }}>Consolidado</span>
             ) : (
               <span className="stage-badge" style={{ 
@@ -1288,35 +797,58 @@ export default function TareasView({
           </div>
 
           <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {activeStore === 'Todos' && (
-              <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: '8px', border: '1.5px dashed var(--border-light)', textAlign: 'center', marginBottom: '10px' }}>
-                <i className="fas fa-info-circle" style={{ color: 'var(--accent-blue)', fontSize: '20px', marginBottom: '6px', display: 'block' }}></i>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  Modo consolidado. Selecciona una tienda en la barra superior para editar el checklist diario.
-                </span>
-              </div>
-            )}
+
             
-            {CORE_TASKS.map(task => {
+            {userRole === 'admin' && (
+              <button
+                className="topbar-btn btn-primary"
+                onClick={handleOpenAddChecklistModal}
+                style={{ 
+                  width: '100%', 
+                  marginBottom: '10px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '6px',
+                  padding: '8px 16px',
+                  fontSize: '12px'
+                }}
+              >
+                <i className="fas fa-plus"></i> Agregar Tarea al Checklist
+              </button>
+            )}
+
+            {visibleChecklistTasks.map((task, index) => {
               const isTaskBlock1 = task.block === 1;
               const isFrozen = isTaskBlock1 && aperturaFrozen;
               const isChecked = !!currentChecklist[task.id];
-              const isDisabled = activeStore === 'Todos' || isFrozen;
+              const isDisabled = selectedStores.length === 14 || isFrozen;
 
               return (
                 <div 
                   key={task.id}
+                  draggable={userRole === 'admin'}
+                  onDragStart={(e) => {
+                    setDraggedChecklistIndex(index);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleChecklistDrop(e, index)}
+                  onDragEnd={() => setDraggedChecklistIndex(null)}
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '14px',
                     padding: '12px 16px',
                     background: '#FFFFFF',
-                    border: isFrozen ? '1px solid var(--border-light)' : (isChecked ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-card)'),
+                    border: draggedChecklistIndex === index 
+                      ? '2px dashed var(--accent-coral)' 
+                      : (isFrozen ? '1px solid var(--border-light)' : (isChecked ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-card)')),
                     borderRadius: 'var(--radius-sm)',
-                    opacity: isFrozen ? 0.55 : 1,
+                    opacity: isFrozen ? 0.55 : (draggedChecklistIndex === index ? 0.4 : 1),
                     transition: 'all 0.2s ease',
-                    boxShadow: isChecked ? '0 1px 4px rgba(16,185,129,0.05)' : 'none'
+                    boxShadow: isChecked ? '0 1px 4px rgba(16,185,129,0.05)' : 'none',
+                    cursor: userRole === 'admin' ? (draggedChecklistIndex === index ? 'grabbing' : 'grab') : 'default'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', marginTop: '2px' }}>
@@ -1353,7 +885,7 @@ export default function TareasView({
                       alignItems: 'center',
                       gap: '8px'
                     }}>
-                      <span>{task.icon} {task.name}</span>
+                      <span>{task.icon || '📋'} {task.name}</span>
                       {isFrozen && (
                         <span style={{ 
                           fontSize: '9px', 
@@ -1372,17 +904,37 @@ export default function TareasView({
                       {task.desc}
                     </span>
                   </label>
+                  {userRole === 'admin' && (
+                    <div style={{ display: 'flex', gap: '6px', alignSelf: 'center', marginLeft: '12px' }}>
+                      <button 
+                        className="action-btn edit-btn" 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenEditChecklistModal(task); }}
+                        title="Editar tarea"
+                        style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--bg-cream)', border: '1px solid var(--border-light)', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        <i className="fas fa-edit" style={{ color: 'var(--text-secondary)' }}></i>
+                      </button>
+                      <button 
+                        className="action-btn delete-btn" 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteChecklistTask(task.id); }}
+                        title="Eliminar tarea"
+                        style={{ padding: '4px 8px', fontSize: '11px', background: 'var(--bg-cream)', border: '1px solid var(--border-light)', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        <i className="fas fa-trash-alt" style={{ color: '#EF4444' }}></i>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
 
           {/* Save to sheets trigger */}
-          {activeStore !== 'Todos' && (
+          {selectedStores.length !== 14 && (
             <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
               <button 
                 className="topbar-btn btn-primary"
-                onClick={() => onSaveToSheets(storeCode, completedCount, 7, currentChecklist)}
+                onClick={() => onSaveToSheets(storeCode, completedCount, visibleChecklistTasks.length, currentChecklist)}
                 style={{ fontSize: '12px', padding: '8px 16px' }}
               >
                 <i className="fas fa-cloud-upload-alt" style={{ marginRight: '6px' }}></i>
@@ -1486,6 +1038,136 @@ export default function TareasView({
         </div>
       </div>
 
+      {/* Tarjetas Dinámicas de Avances (80/20 y Proyectos) */}
+      <div style={{ order: 3, marginTop: '20px', display: 'flex', gap: '20px', flexDirection: 'row', flexWrap: 'wrap' }}>
+        
+        {/* Avances 80/20 */}
+        <div className="card" style={{ flex: '1 1 45%', display: 'flex', flexDirection: 'column' }}>
+          <div className="card-header" style={{ borderBottom: '1px solid var(--border-light)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ color: '#10B981', background: 'rgba(16, 185, 129, 0.1)', padding: '6px', borderRadius: '6px' }}>
+               <i className="fas fa-bullseye"></i>
+            </span>
+            <div>
+              <h3 className="card-title" style={{ fontSize: '14px' }}>Avances 80/20</h3>
+              <p className="card-subtitle">Gestión de contactos y prospección</p>
+            </div>
+          </div>
+          
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <input type="text" placeholder="Nombre del cliente" value={nombre8020} onChange={(e) => setNombre8020(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
+              <input type="text" placeholder="Carrera de interés" value={carrera8020} onChange={(e) => setCarrera8020(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
+            </div>
+            
+            <input type="text" placeholder="Teléfono de WhatsApp (Ej: 502XXXXXXXX)" value={telefono8020} onChange={(e) => setTelefono8020(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
+            
+            <div style={{ marginTop: '10px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>Plantilla de Mensaje (Speech)</label>
+              {userRole === 'admin' ? (
+                <>
+                  <textarea 
+                    value={speech8020} 
+                    onChange={(e) => setSpeech8020(e.target.value)}
+                    style={{ width: '100%', height: '80px', padding: '10px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', resize: 'vertical', outline: 'none', fontFamily: 'inherit' }}
+                    placeholder="Usa {Nombre} y {Carrera} para campos dinámicos..."
+                  ></textarea>
+                  <button onClick={handleSaveSpeech8020} className="topbar-btn btn-primary" style={{ marginTop: '8px', fontSize: '11px', padding: '6px 12px' }}>Guardar Plantilla</button>
+                </>
+              ) : (
+                <div style={{ background: '#F8FAFC', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '12px', fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                  {formatSpeech(speech8020, nombre8020 || '[Nombre]', carrera8020 || '[Carrera]')}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button onClick={() => { handleCopy(formatSpeech(speech8020, nombre8020, carrera8020)); if (onSpeechAction) onSpeechAction(storeCode, 'copy'); }} className="topbar-btn btn-outline" style={{ flex: 1, justifyContent: 'center' }}>
+                <i className="fas fa-copy" style={{ marginRight: '6px' }}></i> Copiar
+              </button>
+              <button onClick={() => { handleWhatsApp(telefono8020, formatSpeech(speech8020, nombre8020, carrera8020)); if (onSpeechAction) onSpeechAction(storeCode, 'whatsapp'); }} className="topbar-btn btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#25D366', borderColor: '#25D366' }}>
+                <i className="fab fa-whatsapp" style={{ marginRight: '6px' }}></i> WhatsApp
+              </button>
+            </div>
+            
+            {canUploadExcel && (
+              <div style={{ marginTop: '20px', padding: '15px', background: '#F8FAFC', border: '1.5px dashed var(--border-light)', borderRadius: '8px', textAlign: 'center' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '700', marginBottom: '10px', color: 'var(--text-primary)' }}>Avances 80/20 (Excel)</h4>
+                {userRole === 'admin' ? (
+                  <button onClick={() => window.open('https://drive.google.com/drive/folders/18_lVSz2vKLXr1p8FXAOW28N4y2ojxq98', '_blank')} className="topbar-btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                    <i className="fas fa-folder-open" style={{ marginRight: '6px' }}></i> Abrir Carpeta en Drive
+                  </button>
+                ) : (
+                  <input type="file" accept=".xlsx, .xls" onChange={(e) => handleFileUpload(e, '8020')} disabled={isUploading} style={{ fontSize: '11px', color: 'var(--text-secondary)' }} />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Avances Proyecto */}
+        <div className="card" style={{ flex: '1 1 45%', display: 'flex', flexDirection: 'column' }}>
+          <div className="card-header" style={{ borderBottom: '1px solid var(--border-light)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ color: '#8B5CF6', background: 'rgba(139, 92, 246, 0.1)', padding: '6px', borderRadius: '6px' }}>
+               <i className="fas fa-rocket"></i>
+            </span>
+            <div>
+              <h3 className="card-title" style={{ fontSize: '14px' }}>Avances Proyecto</h3>
+              <p className="card-subtitle">Seguimiento de proyectos en curso</p>
+            </div>
+          </div>
+          
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <input type="text" placeholder="Nombre del cliente" value={nombreProyecto} onChange={(e) => setNombreProyecto(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
+              <input type="text" placeholder="Carrera de interés" value={carreraProyecto} onChange={(e) => setCarreraProyecto(e.target.value)} style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
+            </div>
+            
+            <input type="text" placeholder="Teléfono de WhatsApp (Ej: 502XXXXXXXX)" value={telefonoProyecto} onChange={(e) => setTelefonoProyecto(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
+            
+            <div style={{ marginTop: '10px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>Plantilla de Mensaje (Speech)</label>
+              {userRole === 'admin' ? (
+                <>
+                  <textarea 
+                    value={speechProyecto} 
+                    onChange={(e) => setSpeechProyecto(e.target.value)}
+                    style={{ width: '100%', height: '80px', padding: '10px', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '12px', resize: 'vertical', outline: 'none', fontFamily: 'inherit' }}
+                    placeholder="Usa {Nombre} y {Carrera} para campos dinámicos..."
+                  ></textarea>
+                  <button onClick={handleSaveSpeechProyecto} className="topbar-btn btn-primary" style={{ marginTop: '8px', fontSize: '11px', padding: '6px 12px' }}>Guardar Plantilla</button>
+                </>
+              ) : (
+                <div style={{ background: '#F8FAFC', border: '1px solid var(--border-light)', borderRadius: '6px', padding: '12px', fontSize: '12px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                  {formatSpeech(speechProyecto, nombreProyecto || '[Nombre]', carreraProyecto || '[Carrera]')}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button onClick={() => { handleCopy(formatSpeech(speechProyecto, nombreProyecto, carreraProyecto)); if (onSpeechAction) onSpeechAction(storeCode, 'copy'); }} className="topbar-btn btn-outline" style={{ flex: 1, justifyContent: 'center' }}>
+                <i className="fas fa-copy" style={{ marginRight: '6px' }}></i> Copiar
+              </button>
+              <button onClick={() => { handleWhatsApp(telefonoProyecto, formatSpeech(speechProyecto, nombreProyecto, carreraProyecto)); if (onSpeechAction) onSpeechAction(storeCode, 'whatsapp'); }} className="topbar-btn btn-primary" style={{ flex: 1, justifyContent: 'center', background: '#25D366', borderColor: '#25D366' }}>
+                <i className="fab fa-whatsapp" style={{ marginRight: '6px' }}></i> WhatsApp
+              </button>
+            </div>
+            
+            {canUploadExcel && (
+              <div style={{ marginTop: '20px', padding: '15px', background: '#F8FAFC', border: '1.5px dashed var(--border-light)', borderRadius: '8px', textAlign: 'center' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '700', marginBottom: '10px', color: 'var(--text-primary)' }}>Avances Proyecto (Excel)</h4>
+                {userRole === 'admin' ? (
+                  <button onClick={() => window.open('https://drive.google.com/drive/folders/18_lVSz2vKLXr1p8FXAOW28N4y2ojxq98', '_blank')} className="topbar-btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: '#8B5CF6', borderColor: '#8B5CF6' }}>
+                    <i className="fas fa-folder-open" style={{ marginRight: '6px' }}></i> Abrir Carpeta en Drive
+                  </button>
+                ) : (
+                  <input type="file" accept=".xlsx, .xls" onChange={(e) => handleFileUpload(e, 'Proyecto')} disabled={isUploading} style={{ fontSize: '11px', color: 'var(--text-secondary)' }} />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* 5. MODAL: Critical 16:30 Warning Alert Modal */}
       {isAlertModalOpen && (
         <div className="modal-overlay active" style={{ zIndex: 11000, background: 'rgba(239, 68, 68, 0.4)', backdropFilter: 'blur(4px)' }}>
@@ -1513,6 +1195,291 @@ export default function TareasView({
         </div>
       )}
 
+      {/* 6. Modal para Agregar/Editar Tarea de Checklist */}
+      {isChecklistModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(30, 41, 59, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, transition: 'all 0.2s ease-in-out'
+        }}>
+          <div className="card" style={{
+            width: '450px', background: '#FFFFFF', padding: '24px',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+            display: 'flex', flexDirection: 'column', gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+              <h3 className="card-title" style={{ fontSize: '15px' }}>
+                {editingChecklistTaskId ? 'Editar Tarea del Checklist' : 'Agregar Nueva Tarea'}
+              </h3>
+              <button 
+                onClick={() => setIsChecklistModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >&times;</button>
+            </div>
+            
+            <form onSubmit={handleSaveChecklistTask} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Actividad</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Nombre de la actividad" 
+                  value={checklistFormName}
+                  onChange={(e) => setChecklistFormName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Descripción</label>
+                <textarea 
+                  className="form-control" 
+                  placeholder="Descripción detallada de la tarea" 
+                  value={checklistFormDesc}
+                  onChange={(e) => setChecklistFormDesc(e.target.value)}
+                  rows="3"
+                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+              
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Asignar a:</label>
+                <div className="store-picker">
+                  {/* All stores button */}
+                  <button
+                    type="button"
+                    className={`store-picker-all-btn${checklistFormStores.includes('All') ? ' active' : ''}`}
+                    onClick={() => {
+                      if (checklistFormStores.includes('All')) {
+                        setChecklistFormStores([]);
+                      } else {
+                        setChecklistFormStores(['All']);
+                      }
+                    }}
+                  >
+                    <i className="fas fa-store" style={{ marginRight: '6px' }}></i>
+                    Todas las tiendas
+                  </button>
+                  {/* Individual store buttons grid */}
+                  <div className="store-picker-grid">
+                    {STORES.map(store => {
+                      const isActive = !checklistFormStores.includes('All') && checklistFormStores.includes(store);
+                      return (
+                        <button
+                          key={store}
+                          type="button"
+                          className={`store-picker-btn${isActive ? ' active' : ''}`}
+                          onClick={() => {
+                            if (checklistFormStores.includes('All')) {
+                              // deselect All, select just this one
+                              setChecklistFormStores([store]);
+                            } else {
+                              const next = checklistFormStores.includes(store)
+                                ? checklistFormStores.filter(s => s !== store)
+                                : [...checklistFormStores, store];
+                              // if all 14 individually selected → collapse to 'All'
+                              if (next.length === STORES.length) {
+                                setChecklistFormStores(['All']);
+                              } else {
+                                setChecklistFormStores(next);
+                              }
+                            }
+                          }}
+                        >{store}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Hora de Inicio</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={checklistFormInicio}
+                    onChange={(e) => setChecklistFormInicio(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Hora Final</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={checklistFormFin}
+                    onChange={(e) => setChecklistFormFin(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  className="topbar-btn btn-outline" 
+                  onClick={() => setIsChecklistModalOpen(false)}
+                  style={{ padding: '8px 16px', fontSize: '12px' }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="topbar-btn btn-primary"
+                  style={{ padding: '8px 20px', fontSize: '12px' }}
+                >
+                  {editingChecklistTaskId ? 'Actualizar Tarea' : 'Guardar Tarea'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* 7. Modal para Agregar/Editar Tarea del Cronograma (Administrador) */}
+      {isAdminTaskModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(30, 41, 59, 0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, transition: 'all 0.2s ease-in-out'
+        }}>
+          <div className="card" style={{
+            width: '480px', background: '#FFFFFF', padding: '24px',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+            display: 'flex', flexDirection: 'column', gap: '16px',
+            maxHeight: '90vh', overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
+              <h3 className="card-title" style={{ fontSize: '15px' }}>
+                {editingTaskId ? 'Editar Tarea del Cronograma' : 'Agregar Tarea al Cronograma'}
+              </h3>
+              <button 
+                onClick={() => setIsAdminTaskModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}
+              >&times;</button>
+            </div>
+            
+            <form onSubmit={handleSaveAdminTask} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Actividad / Tema</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Ej: Revisión de Prospectos" 
+                  value={adminActividad}
+                  onChange={(e) => setAdminActividad(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Descripción Corta</label>
+                <textarea 
+                  className="form-control" 
+                  placeholder="Detalles sobre qué se debe revisar" 
+                  value={adminDescripcion}
+                  onChange={(e) => setAdminDescripcion(e.target.value)}
+                  rows="2"
+                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+
+
+              
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Asignar a:</label>
+                <div className="store-picker">
+                  {/* All stores button */}
+                  <button
+                    type="button"
+                    className={`store-picker-all-btn${adminTaskStores.includes('All') ? ' active' : ''}`}
+                    onClick={() => {
+                      if (adminTaskStores.includes('All')) {
+                        setAdminTaskStores([]);
+                      } else {
+                        setAdminTaskStores(['All']);
+                      }
+                    }}
+                  >
+                    <i className="fas fa-store" style={{ marginRight: '6px' }}></i>
+                    Todas las tiendas
+                  </button>
+                  {/* Individual store buttons grid */}
+                  <div className="store-picker-grid">
+                    {STORES.map(store => {
+                      const isActive = !adminTaskStores.includes('All') && adminTaskStores.includes(store);
+                      return (
+                        <button
+                          key={store}
+                          type="button"
+                          className={`store-picker-btn${isActive ? ' active' : ''}`}
+                          onClick={() => {
+                            if (adminTaskStores.includes('All')) {
+                              // deselect All, select just this one
+                              setAdminTaskStores([store]);
+                            } else {
+                              const next = adminTaskStores.includes(store)
+                                ? adminTaskStores.filter(s => s !== store)
+                                : [...adminTaskStores, store];
+                              // if all 14 individually selected → collapse to 'All'
+                              if (next.length === STORES.length) {
+                                setAdminTaskStores(['All']);
+                              } else {
+                                setAdminTaskStores(next);
+                              }
+                            }
+                          }}
+                        >{store}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Hora de Inicio</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={adminHoraInicio}
+                    onChange={(e) => setAdminHoraInicio(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: '700' }}>Hora Final</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={adminHoraFin}
+                    onChange={(e) => setAdminHoraFin(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  className="topbar-btn btn-outline" 
+                  onClick={() => setIsAdminTaskModalOpen(false)}
+                  style={{ padding: '8px 16px', fontSize: '12px' }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="topbar-btn btn-primary"
+                  style={{ padding: '8px 20px', fontSize: '12px' }}
+                >
+                  {editingTaskId ? 'Actualizar Tarea' : 'Guardar Tarea'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

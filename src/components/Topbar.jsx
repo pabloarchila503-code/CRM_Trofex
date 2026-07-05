@@ -4,9 +4,10 @@ const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 
 const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export default function Topbar({
-  title, onExportPDF, userRole, activeStore,
+  title, onExportPDF, userRole, selectedStores = [], setSelectedStores,
+  allowedStores = STORES,
   selectedMonths,  setSelectedMonths,
-  onStoreChange, timeRange, onTimeRangeChange
+  currentView
 }) {
   const [timeStr, setTimeStr] = useState('--:--:--');
   const [dateStr, setDateStr] = useState('—');
@@ -16,6 +17,22 @@ export default function Topbar({
   const monthRef = useRef(null);
 
   const isAdmin = userRole === 'admin';
+  const isMultiStore = isAdmin || allowedStores.length > 1;
+
+  const toggleStore = (s) => {
+    setSelectedStores(prev => 
+      prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
+    );
+  };
+
+  const toggleAllStores = () => {
+    if (selectedStores.length === allowedStores.length) {
+      setSelectedStores([]); 
+    } else {
+      setSelectedStores([...allowedStores]);
+    }
+  };
+
 
   // Clock
   useEffect(() => {
@@ -51,59 +68,91 @@ export default function Topbar({
       <h1 className="topbar-title">{title}</h1>
 
       {/* ── FILTROS MULTI-TAG ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, flexWrap: 'wrap' }}>
+      <div 
+        className={(currentView === 'calendario' || currentView === 'tareas') ? 'd-none' : ''}
+        style={{
+          display: (currentView === 'calendario' || currentView === 'tareas') ? 'none' : 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          flex: 1,
+          flexWrap: 'wrap'
+        }}
+      >
 
-        {/* ── FILTRO TIENDAS (solo Admin) ── */}
-        {isAdmin && (
+        {/* ── FILTRO TIENDAS (Multi o Single) ── */}
+        {currentView === 'dashboard' && (
           <div ref={storeRef} style={{ position: 'relative' }}>
             <button
-              onClick={() => { setStoreDropOpen(o => !o); setMonthDropOpen(false); }}
+              onClick={() => { if (isMultiStore) { setStoreDropOpen(o => !o); setMonthDropOpen(false); } }}
               className="store-pill-btn"
-              style={{ padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{ padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '6px', cursor: isMultiStore ? 'pointer' : 'default' }}
             >
               <i className="fas fa-store" style={{ color: 'var(--accent-coral)', fontSize: '13px' }} />
               <span style={{ fontSize: '12px', fontWeight: '700' }}>
-                Tienda: {activeStore}
+                Tienda: {isMultiStore ? (selectedStores.length === allowedStores.length ? 'Todas' : (selectedStores.length > 0 ? selectedStores.join(', ') : 'Ninguna')) : (selectedStores[0] || allowedStores[0])}
               </span>
-              <i className={`fas fa-chevron-${storeDropOpen ? 'up' : 'down'}`} style={{ fontSize: '9px', opacity: 0.6 }} />
+              {isMultiStore && (
+                <i className={`fas fa-chevron-${storeDropOpen ? 'up' : 'down'}`} style={{ fontSize: '9px', opacity: 0.6 }} />
+              )}
             </button>
 
-            {storeDropOpen && (
+            {isMultiStore && storeDropOpen && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 6px)', left: 0,
                 background: '#fff', border: '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)',
-                padding: '8px', zIndex: 200, width: '220px',
-                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px',
+                padding: '12px', zIndex: 9999, width: '260px',
+                display: 'flex', flexDirection: 'column', gap: '10px',
               }}>
-                {STORES.map(s => {
-                  const isSelected = activeStore === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        if (onStoreChange) onStoreChange(s);
-                        setStoreDropOpen(false);
-                      }}
-                      style={{
-                        padding: '5px', fontSize: '11px', fontWeight: '700',
-                        background: isSelected ? 'var(--accent-coral)' : '#F8F6F2',
-                        color: isSelected ? '#fff' : 'var(--text-secondary)',
-                        border: '1px solid ' + (isSelected ? 'var(--accent-coral)' : 'var(--border-light)'),
-                        borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s',
-                      }}
-                    >
-                      {s}
-                    </button>
-                  );
-                })}
+                <button
+                  onClick={toggleAllStores}
+                  style={{
+                    padding: '8px', fontSize: '12px', fontWeight: '700',
+                    background: selectedStores.length === allowedStores.length ? 'var(--accent-coral)' : '#F8F6F2',
+                    color: selectedStores.length === allowedStores.length ? '#fff' : 'var(--text-secondary)',
+                    border: '1px solid ' + (selectedStores.length === allowedStores.length ? 'var(--accent-coral)' : 'var(--border-light)'),
+                    borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s',
+                    width: '100%'
+                  }}
+                >
+                  {selectedStores.length === allowedStores.length ? 'Quitar todas' : 'Seleccionar todas'}
+                </button>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px'
+                }}>
+                  {allowedStores.map(s => {
+                    const isSelected = selectedStores.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => toggleStore(s)}
+                        style={{
+                          padding: '6px', fontSize: '11px', fontWeight: '700',
+                          background: isSelected ? 'var(--accent-coral)' : '#F8F6F2',
+                          color: isSelected ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (isSelected ? 'var(--accent-coral)' : 'var(--border-light)'),
+                          borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s',
+                        }}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
         )}
 
         {/* ── FILTRO MESES (todos los usuarios) ── */}
-        <div ref={monthRef} style={{ position: 'relative' }}>
+        <div 
+          ref={monthRef} 
+          className={['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos'].includes(currentView) ? 'd-none' : ''}
+          style={{ 
+            position: 'relative',
+            display: ['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos'].includes(currentView) ? 'none' : 'block'
+          }}
+        >
           <button
             onClick={() => { setMonthDropOpen(o => !o); setStoreDropOpen(false); }}
             className="store-pill-btn"
@@ -154,32 +203,14 @@ export default function Topbar({
           )}
         </div>
 
-        {/* ── FILTRO TIEMPO (dropdown select) ── */}
-        <div style={{ position: 'relative' }}>
-          <select
-            value={timeRange}
-            onChange={(e) => onTimeRangeChange(e.target.value)}
-            className="select-filter"
-            style={{
-              padding: '7px 12px',
-              fontWeight: '700',
-              borderRadius: 'var(--radius-sm)',
-              border: '1.5px solid var(--border-light)',
-              background: '#fff',
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              outline: 'none',
-              transition: 'border-color var(--tr-fast)',
-            }}
-          >
-            <option value="1 día">1 día</option>
-            <option value="1 semana">1 semana</option>
-          </select>
-        </div>
 
         {/* ── TAGS ACTIVOS ── */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+        <div style={{ 
+          display: ['prospecciones', '80-20', 'proyecto', 'carreras'].includes(currentView) ? 'none' : 'flex', 
+          flexWrap: 'wrap', 
+          gap: '5px', 
+          alignItems: 'center' 
+        }}>
           {selectedMonths.map(m => (
             <span key={m} className="filter-tag filter-tag-month">
               <i className="fas fa-calendar-alt" style={{ fontSize: '9px' }} />
@@ -190,18 +221,6 @@ export default function Topbar({
         </div>
 
       </div>
-
-      {/* ── Selector de tienda para rol Store (simple, sin multi) ── */}
-      {!isAdmin && (
-        <div className="store-pill-container" style={{ marginRight: '8px' }}>
-          <div className="store-pill-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px' }}>
-            <i className="fas fa-store" style={{ color: 'var(--accent-coral)', fontSize: '13px' }} />
-            <span style={{ fontSize: '12px', fontWeight: '700' }}>
-              Tienda: {activeStore}
-            </span>
-          </div>
-        </div>
-      )}
 
       <div className="topbar-date">
         <span className="topbar-date-val">{dateStr}</span>

@@ -6,18 +6,26 @@ import Topbar from './components/Topbar';
 import DashboardView from './components/DashboardView';
 import TareasView from './components/TareasView';
 import CalendarioView from './components/CalendarioView';
-import RendimientoProgramadoView from './components/RendimientoProgramadoView';
+import AnalisisCumplimientoView from './components/AnalisisCumplimientoView';
+import AnalisisRendimientoTareasView from './components/AnalisisRendimientoTareasView';
+import Analisis8020View from './components/Analisis8020View';
 import VentasView from './components/VentasView';
 import ProspeccionesView from './components/ProspeccionesView';
 import DealModal from './components/DealModal';
 import StoreEditorModal from './components/StoreEditorModal';
-import LockScreen from './components/LockScreen';
+import LoginView from './components/LoginView';
 import Toast from './components/Toast';
+import TendenciasView from './components/TendenciasView';
+import ProductosView from './components/ProductosView';
+import ValesView from './components/ValesView';
+import AdminSettingsView from './components/AdminSettingsView';
 
 // 14 stores for Venta/Meta
 const STORES = [
   'CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'
 ];
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec";
 
 // Generates initial data to match image 3 curve
 function getInitialSalesTargetData() {
@@ -48,16 +56,50 @@ function getInitialSalesTargetData() {
   });
 }
 
+const INITIAL_CHECKLIST_TASKS = [
+  { id: 1, name: 'Barrer la Sala', desc: 'Limpieza inicial del suelo para una excelente primera impresión física.', block: 1, icon: '🧹', horaInicio: '08:30', horaFin: '09:15' },
+  { id: 2, name: 'Trapear la Sala', desc: 'Eliminar marcas, dar brillo a las superficies antes de recibir visitas.', block: 1, icon: '🪣', horaInicio: '08:30', horaFin: '09:15' },
+  { id: 3, name: 'Limpiar Estantería y Muestras', desc: 'Limpieza de vitrinas de trofeos, medallas y marcos de muestra.', block: 1, icon: '🧼', horaInicio: '08:30', horaFin: '09:15' },
+  { id: 4, name: 'Verificación de Órdenes del Día', desc: 'Sincronización con producción para confirmar despachos programados hoy.', block: 1, icon: '📄', horaInicio: '08:30', horaFin: '09:15' },
+  { id: 5, name: 'Seguimiento a Clientes de WhatsApp', desc: 'Atender consultas web, responder cotizaciones pendientes y envíos de fotos.', block: 4, icon: '💬', horaInicio: '14:00', horaFin: '16:30' },
+  { id: 6, name: 'Realizar el Depósito Bancario', desc: 'Preparación de efectivo/cheques de caja y envío al banco de forma segura.', block: 5, icon: '🏦', horaInicio: '16:30', horaFin: '17:30' },
+  { id: 7, name: 'Registrar lo Depositado en el Sistema', desc: 'Subir la boleta o captura bancaria al CRM para cerrar la bitácora financiera.', block: 5, icon: '📝', horaInicio: '16:30', horaFin: '17:30' }
+];
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState(null); // 'admin' or 'store'
-  const [activeStore, setActiveStore] = useState('CB'); // 'CB' or store code
-  const [deals, setDeals] = useState(mockData.deals);
+  const [userName, setUserName] = useState(''); // Nombre del usuario
+  const [deals, setDeals] = useState(mockData.deals || []);
+  const [proyectoManualData, setProyectoManualData] = useState([]);
+  const [carrerasManualData, setCarrerasManualData] = useState([]);
+  const [analisis8020ManualData, setAnalisis8020ManualData] = useState([]);
+  const [tendenciasData, setTendenciasData] = useState([]);
+  
+  // Vista activa y tiempo
   const [currentView, setView] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDealId, setEditingDealId] = useState(null);
   const [toasts, setToasts] = useState([]);
-  const [timeRange, setTimeRange] = useState('1 semana');
+  const [timeRange, setTimeRange] = useState('Mensual');
+
+  // Checklist tasks state
+  const [checklistTasks, setChecklistTasks] = useState(() => {
+    const saved = localStorage.getItem('TROFEX_CHECKLIST_TASKS');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing checklist tasks from localStorage:', e);
+      }
+    }
+    return INITIAL_CHECKLIST_TASKS;
+  });
+
+  // Sync checklist tasks to localStorage
+  useEffect(() => {
+    localStorage.setItem('TROFEX_CHECKLIST_TASKS', JSON.stringify(checklistTasks));
+  }, [checklistTasks]);
 
   // Multi-select tag filters
   const [selectedStores, setSelectedStores] = useState(['CB']); // single selected store by default
@@ -118,24 +160,46 @@ export default function App() {
     return JSON.parse(localStorage.getItem('MOCK_PROSPECCIONES_DB') || '[]');
   });
 
-  useEffect(() => {
-    const isGas = typeof google !== 'undefined' && google.script && google.script.run;
-    if (isGas) {
-      google.script.run
-        .withSuccessHandler((response) => {
-          if (response && response.data) {
-            setProspecciones(response.data);
-          }
-        })
-        .withFailureHandler((err) => {
-          console.error('Error loading prospecciones from Google Sheets:', err);
-        })
-        .obtenerProspecciones();
-    }
-  }, []);
-
   // Venta/Meta state
   const [salesTargetData, setSalesTargetData] = useState(getInitialSalesTargetData());
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const loadData = async () => {
+      try {
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec";
+        const response = await fetch(SCRIPT_URL + '?action=getData', { redirect: 'follow' });
+        const result = await response.json();
+        if (result.status === 'success') {
+          if (result.prospecciones && result.prospecciones.length > 0) {
+            setProspecciones(result.prospecciones);
+            localStorage.setItem('MOCK_PROSPECCIONES_DB', JSON.stringify(result.prospecciones));
+          }
+          if (result.deals && result.deals.length > 0) {
+            setDeals(result.deals);
+          }
+          if (result.ventas_metas && result.ventas_metas.length > 0) {
+            setSalesTargetData(result.ventas_metas);
+          }
+          if (result.proyecto && result.proyecto.length > 0) {
+            setProyectoManualData(result.proyecto);
+          }
+          if (result.carreras && result.carreras.length > 0) {
+            setCarrerasManualData(result.carreras);
+          }
+          if (result.analisis8020 && result.analisis8020.length > 0) {
+            setAnalisis8020ManualData(result.analisis8020);
+          }
+          if (result.tendencias && result.tendencias.length > 0) {
+            setTendenciasData(result.tendencias);
+          }
+        }
+      } catch (err) {
+        console.error('Error al descargar datos de Google Sheets:', err);
+      }
+    };
+    loadData();
+  }, [isLoggedIn]);
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
 
   // Lifted Cronograma states
@@ -206,12 +270,55 @@ export default function App() {
     return initial;
   });
 
+  // Track speech buttons usage
+  const [speechStats, setSpeechStats] = useState(() => {
+    const initial = {};
+    STORES.forEach(store => {
+      // Initialize with mock data for demonstration
+      const randomCopy = Math.floor(Math.random() * 15) + 5;
+      const randomWhatsApp = Math.floor(Math.random() * 25) + 10;
+      initial[store] = {
+        copy: store === 'CB' ? 2 : randomCopy,
+        whatsapp: store === 'CB' ? 1 : randomWhatsApp
+      };
+    });
+    return initial;
+  });
+
+  const handleSpeechAction = (storeCode, actionType) => {
+    if (storeCode === 'Todos') return; // Cannot track for 'Todos'
+    setSpeechStats(prev => {
+      const currentStoreStats = prev[storeCode] || { copy: 0, whatsapp: 0 };
+      return {
+        ...prev,
+        [storeCode]: {
+          ...currentStoreStats,
+          [actionType]: (currentStoreStats[actionType] || 0) + 1
+        }
+      };
+    });
+  };
+
+  const [allowedStores, setAllowedStores] = useState(STORES);
+
   // Auth handlers
   const handleLogin = (role, store) => {
     setUserRole(role);
-    const initialStore = role === 'admin' ? 'CB' : store;
-    setActiveStore(initialStore);
-    setSelectedStores([initialStore]);
+    let storesArray = [];
+    if (role === 'admin') {
+      storesArray = ['CB'];
+      setAllowedStores(STORES);
+    } else {
+      if (store && typeof store === 'string') {
+        storesArray = store.split(',').map(s => s.trim()).filter(Boolean);
+      } else {
+        storesArray = ['CB'];
+      }
+      setAllowedStores(storesArray);
+    }
+    
+    // Si tiene múltiples tiendas pero NO es admin, lo marcamos como storeList y lo usamos en selectedStores.
+    setSelectedStores(storesArray);
     setIsLoggedIn(true);
     // Force direct landing depending on role
     setView('dashboard');
@@ -221,9 +328,9 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserRole(null);
-    setActiveStore('CB');
     setSelectedStores(['CB']);
-    setTimeRange('1 semana');
+    setSelectedStores(['CB']);
+    setTimeRange('Mensual');
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     setSelectedMonths([months[new Date().getMonth()]]);
     showToast('Sesión cerrada con éxito', 'info');
@@ -263,7 +370,7 @@ export default function App() {
     let result = deals;
 
     if (userRole === 'store') {
-      result = result.filter(d => d.store_code === activeStore);
+      result = result.filter(d => selectedStores.includes(d.store_code));
     } else if (userRole === 'admin') {
       if (selectedStores && selectedStores.length > 0) {
         result = result.filter(d => selectedStores.includes(d.store_code));
@@ -300,7 +407,7 @@ export default function App() {
     });
 
     return result;
-  }, [deals, activeStore, userRole, selectedStores, selectedMonths, timeRange]);
+  }, [deals, userRole, selectedStores, selectedMonths, timeRange]);
 
 
   const openCount = useMemo(() => {
@@ -316,7 +423,11 @@ export default function App() {
     prospecciones: 'Prospecciones Comerciales',
     '80-20': 'Análisis de Red 80/20',
     proyecto: 'Proyectos Corporativos',
-    carreras: 'Venta por Kioscos/Carreras'
+    carreras: 'Venta por Kioscos/Carreras',
+    'analisis-rendimiento': 'Análisis de Rendimiento (Tareas)',
+    tendencias: 'Histórico de Ventas',
+    productos: 'Tendencia de Producto',
+    vales: 'Vales de Artes'
   };
 
   // CRUD handlers
@@ -365,7 +476,7 @@ export default function App() {
         amount,
         currency: 'GTQ', // Quetzales
         status,
-        store_code: userRole === 'store' ? activeStore : (activeStore === 'Todos' ? 'CB' : activeStore),
+        store_code: userRole === 'store' ? selectedStores[0] : (selectedStores.length === 14 ? 'CB' : selectedStores[0] || 'CB'),
         created_at: new Date().toISOString(),
         closed_at: status === 'won' ? new Date().toISOString() : undefined,
         expected_close_date: status !== 'won' ? new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) : undefined
@@ -379,19 +490,92 @@ export default function App() {
     setEditingDealId(null);
   };
 
-  // Store data saver
-  const handleSaveStoreData = (monthIdx, updatedStoreItems) => {
-    setSalesTargetData(prev => prev.map((monthData, idx) => {
-      if (idx === monthIdx) {
-        return monthData.map(existingItem => {
-          const updatedItem = updatedStoreItems.find(item => item.store === existingItem.store);
-          return updatedItem ? updatedItem : existingItem;
-        });
-      }
-      return monthData;
-    }));
+  // Store data saver (API Connected)
+  const handleSaveStoreData = async (monthIdx, updatedStoreItems) => {
+    // Actualización optimista en la interfaz
+    setSalesTargetData(prev => {
+      const newData = prev.map((monthData, idx) => {
+        if (idx === monthIdx) {
+          return monthData.map(existingItem => {
+            const updatedItem = updatedStoreItems.find(item => item.store === existingItem.store);
+            return updatedItem ? updatedItem : existingItem;
+          });
+        }
+        return monthData;
+      });
+      return newData;
+    });
     setIsStoreModalOpen(false);
-    showToast('Ventas y metas actualizadas', 'success');
+
+    try {
+      showToast('Guardando metas en la base de datos...', 'info');
+      // Enviar datos al Apps Script via GET (POST causa problemas de CORS con Apps Script)
+      const payload = {
+        action: 'saveManualData',
+        tipo: 'Ventas_Metas',
+        data: {
+          monthIdx: monthIdx,
+          data: updatedStoreItems
+        }
+      };
+      
+      const encodedPayload = encodeURIComponent(JSON.stringify(payload));
+      const response = await fetch(`${SCRIPT_URL}?payload=${encodedPayload}`, {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        showToast('Ventas y metas guardadas en la Nube.', 'success');
+      } else {
+        showToast('Atención: El servidor no confirmó el guardado.', 'warning');
+      }
+    } catch (err) {
+      console.error('Error saving store data:', err);
+      showToast('Error de conexión con la base de datos.', 'error');
+    }
+  };
+
+  // Generic Manual Data Saver (API Connected)
+  const handleSaveManualData = async (tipo, payload) => {
+    try {
+      showToast(`Guardando ${tipo} en la nube...`, 'info');
+      const requestPayload = {
+        action: 'saveManualData',
+        tipo: tipo,
+        data: payload
+      };
+      
+      const encodedPayload = encodeURIComponent(JSON.stringify(requestPayload));
+      const response = await fetch(`${SCRIPT_URL}?payload=${encodedPayload}`, {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      
+      const result = await response.json();
+      if (result.status === 'success') {
+        showToast(`${tipo} actualizado exitosamente.`, 'success');
+        // Recargar todos los datos desde Google Sheets para refrescar gráficas
+        const getResponse = await fetch(SCRIPT_URL + '?action=getData', { redirect: 'follow' });
+        const getResult = await getResponse.json();
+        if (getResult.status === 'success') {
+          if (getResult.prospecciones) setProspecciones(getResult.prospecciones);
+          if (getResult.analisis8020) setAnalisis8020ManualData(getResult.analisis8020);
+          if (getResult.proyecto) setProyectoManualData(getResult.proyecto);
+          if (getResult.carreras) setCarrerasManualData(getResult.carreras);
+          if (getResult.deals) setDeals(getResult.deals);
+        }
+        return true;
+      } else {
+        showToast('Error del servidor: ' + result.message, 'error');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error saving manual data:', err);
+      showToast('Error de conexión al guardar.', 'error');
+      return false;
+    }
   };
 
   // Export PDF handler
@@ -401,20 +585,33 @@ export default function App() {
 
   if (!isLoggedIn) {
     return (
-      <>
-        <LockScreen onLogin={handleLogin} />
-        {/* Toast notifications */}
-        <div className="toast-container">
-          {toasts.map(t => (
-            <Toast
-              key={t.id}
-              message={t.message}
-              type={t.type}
-              onClose={() => removeToast(t.id)}
-            />
-          ))}
-        </div>
-      </>
+      <LoginView 
+        scriptUrl="https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec"
+        onLogin={(user) => {
+          setIsLoggedIn(true);
+          let rawRole = user.role ? user.role.toLowerCase() : 'store';
+          // Normalizar el rol del diseñador
+          if (rawRole.includes('diseño') || rawRole.includes('diseñador') || rawRole.includes('diseno')) {
+            rawRole = 'diseno';
+          }
+          const normalizedRole = rawRole;
+          setUserRole(normalizedRole);
+          setUserName(user.name || '');
+          
+          if (normalizedRole === 'store' && user.store) {
+            const userStores = user.store.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            setAllowedStores(userStores);
+            setSelectedStores(userStores);
+          } else if (normalizedRole === 'store' && !user.store) {
+            // Failsafe if store user has no assigned store, default to CB
+            setAllowedStores(['CB']);
+            setSelectedStores(['CB']);
+          } else {
+            setAllowedStores(STORES);
+            setSelectedStores(STORES);
+          }
+        }}
+      />
     );
   }
 
@@ -427,26 +624,22 @@ export default function App() {
         openCount={openCount}
         onLogout={handleLogout}
         userRole={userRole}
-        activeStore={activeStore}
+        selectedStores={selectedStores}
+        userName={userName}
       />
 
       {/* Main Wrapper */}
       <div className="main-wrapper">
         <Topbar
+          currentView={currentView}
           title={viewTitles[currentView] || 'Trofex CRM'}
           onExportPDF={handleExportPDF}
           userRole={userRole}
-          activeStore={activeStore}
-          onStoreChange={(store) => {
-            setActiveStore(store);
-            setSelectedStores([store]);
-          }}
           selectedStores={selectedStores}
           setSelectedStores={setSelectedStores}
+          allowedStores={allowedStores}
           selectedMonths={selectedMonths}
           setSelectedMonths={setSelectedMonths}
-          timeRange={timeRange}
-          onTimeRangeChange={setTimeRange}
         />
 
         <main className="page-content">
@@ -455,35 +648,40 @@ export default function App() {
               deals={filteredDeals}
               salesTargetData={salesTargetData}
               onOpenStoreEditor={() => setIsStoreModalOpen(true)}
-              activeStore={activeStore}
-              userRole={userRole}
               selectedStores={selectedStores}
+              userRole={userRole}
               selectedMonths={selectedMonths}
               prospecciones={prospecciones}
+              analisis8020ManualData={analisis8020ManualData}
+              proyectoManualData={proyectoManualData}
+              carrerasManualData={carrerasManualData}
               timeRange={timeRange}
             />
           )}
 
           {currentView === 'tareas' && (
             <TareasView
-              activeStore={activeStore}
+              selectedStores={selectedStores}
               userRole={userRole}
+              userName={userName}
               storeChecklists={storeChecklists}
-              onToggleTask={handleToggleTask}
-              onSaveToSheets={handleSaveToSheets}
+              setStoreChecklists={setStoreChecklists}
+              weeklyTasks={weeklyTasks}
+              setWeeklyTasks={setWeeklyTasks}
               checkedTasks={checkedTasks}
               setCheckedTasks={setCheckedTasks}
               savedDays={savedDays}
               setSavedDays={setSavedDays}
-              weeklyTasks={weeklyTasks}
-              setWeeklyTasks={setWeeklyTasks}
+              checklistTasks={checklistTasks}
+              setChecklistTasks={setChecklistTasks}
+              onSpeechAction={handleSpeechAction}
               timeRange={timeRange}
             />
           )}
 
           {currentView === 'calendario' && (
             <CalendarioView
-              activeStore={activeStore}
+              selectedStores={selectedStores}
               userRole={userRole}
               checkedTasks={checkedTasks}
               setCheckedTasks={setCheckedTasks}
@@ -495,12 +693,49 @@ export default function App() {
           )}
 
           {currentView === 'rendimiento-programado' && (
-            <RendimientoProgramadoView
-              activeStore={activeStore}
+            <AnalisisCumplimientoView
+              selectedStores={selectedStores}
+              selectedMonths={selectedMonths}
+              userRole={userRole}
+              storeChecklists={storeChecklists}
+              timeRange={timeRange}
+              checklistTasks={checklistTasks}
+            />
+          )}
+
+          {currentView === 'analisis-rendimiento' && (
+            <AnalisisRendimientoTareasView
+              selectedStores={selectedStores}
+              selectedMonths={selectedMonths}
               userRole={userRole}
               checkedTasks={checkedTasks}
               weeklyTasks={weeklyTasks}
               timeRange={timeRange}
+              speechStats={speechStats}
+            />
+          )}
+
+          {currentView === 'tendencias' && (
+            <TendenciasView 
+              data={tendenciasData} 
+              userRole={userRole} 
+              allowedStores={allowedStores} 
+            />
+          )}
+
+          {currentView === 'productos' && (
+            <ProductosView 
+              data={tendenciasData} 
+              userRole={userRole} 
+              allowedStores={allowedStores} 
+            />
+          )}
+
+          {currentView === 'vales' && (
+            <ValesView
+              selectedStores={selectedStores}
+              userRole={userRole}
+              userName={userName}
             />
           )}
 
@@ -508,23 +743,39 @@ export default function App() {
             <ProspeccionesView 
               showToast={showToast} 
               userRole={userRole}
-              activeStore={activeStore}
+              selectedStores={selectedStores}
               prospecciones={prospecciones}
               setProspecciones={setProspecciones}
+              onSaveManualData={(payload) => handleSaveManualData('Prospecciones', payload)}
             />
           )}
 
-          {['80-20', 'proyecto', 'carreras'].includes(currentView) && (
+          {currentView === '80-20' && (
+            <Analisis8020View
+              showToast={showToast}
+              selectedStores={selectedStores}
+              userRole={userRole}
+              deals={deals}
+              manualData={analisis8020ManualData}
+              setManualData={setAnalisis8020ManualData}
+              onSaveManualData={(payload) => handleSaveManualData('Analisis8020', payload)}
+            />
+          )}
+
+          {(currentView === 'proyecto' || currentView === 'carreras') && (
             <VentasView
               subView={currentView}
-              deals={filteredDeals}
-              stages={mockData.stages}
-              users={mockData.users}
-              customers={mockData.customers}
-              onEditDeal={handleEditDeal}
-              onDeleteDeal={handleDeleteDeal}
+              deals={deals}
+              manualData={currentView === 'proyecto' ? proyectoManualData : carrerasManualData}
+              isAdmin={userRole === 'admin'}
+              selectedStores={selectedStores}
               showToast={showToast}
+              onSaveManualData={(payload) => handleSaveManualData(currentView === 'proyecto' ? 'Proyecto' : 'Carreras', payload)}
             />
+          )}
+
+          {currentView === 'admin-settings' && (
+            <AdminSettingsView />
           )}
         </main>
       </div>
@@ -551,7 +802,7 @@ export default function App() {
         data={salesTargetData}
         onSave={handleSaveStoreData}
         userRole={userRole}
-        activeStore={activeStore}
+        selectedStores={selectedStores}
       />
 
       {/* Toast notifications */}

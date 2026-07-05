@@ -8,6 +8,11 @@
 // ID de la hoja de cálculo (deja en blanco si está vinculado directamente al Spreadsheet)
 const SPREADSHEET_ID = "";
 
+// ID de la carpeta de Google Drive donde se guardarán los archivos Excel subidos por las tiendas.
+// Para obtenerlo: ve a Google Drive, abre la carpeta destino y copia el ID de la URL:
+// https://drive.google.com/drive/folders/ESTE_ES_EL_ID <-- copia este valor
+const DRIVE_UPLOAD_FOLDER_ID = ""; // <-- Coloca aquí el ID de tu carpeta en Drive
+
 // Configuración de roles y correos de la empresa
 const USUARIOS_CONFIG = {
   "admin@tuempresa.com": "Admin",
@@ -332,13 +337,20 @@ function doGet(e) {
 }
 
 /**
- * Maneja las peticiones POST (Escritura y guardado de checklist)
+ * Maneja las peticiones POST (Escritura y guardado de checklist o subida de archivos)
  */
 function doPost(e) {
   try {
+    const rawBody = e.postData ? e.postData.contents : "{}";
+    const params = JSON.parse(rawBody);
+
+    // --- Enrutar por acción ---
+    if (params.action === 'uploadFile') {
+      return uploadFileToDrive(params);
+    }
+
+    // --- Lógica original: guardar checklist de tareas ---
     setupDatabase();
-    const params = JSON.parse(e.postData.contents);
-    
     const fecha = params.fecha || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
     const codigo = params.codigo; // ej. "CB"
     const tienda = "TX." + codigo; // ej. "TX.CB"
@@ -373,7 +385,7 @@ function doPost(e) {
       sheet.getRange(rowIdx, 3).setValue(tienda);
       sheet.getRange(rowIdx, 4).setValue(tareasAsignadas);
       sheet.getRange(rowIdx, 5).setValue(tareasCompletadas);
-      sheet.getRange(rowIdx, 6).setValue(cumplimientoPct / 100); // Guardar como decimal para formato porcentaje en Sheets
+      sheet.getRange(rowIdx, 6).setValue(cumplimientoPct / 100);
       sheet.getRange(rowIdx, 7).setValue(estado);
       sheet.getRange(rowIdx, 8).setValue(detalleTareas);
     } else {
@@ -401,6 +413,70 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
       message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Sube un archivo Excel a Google Drive en la carpeta configurada.
+ * Crea subcarpetas por mes/año automáticamente.
+ */
+function uploadFileToDrive(params) {
+  try {
+    const fileName  = params.fileName  || 'archivo_sin_nombre.xlsx';
+    const mimeType  = params.mimeType  || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const folderName = params.folderName || 'Sin Fecha';
+    const fileData  = params.fileData;  // base64
+
+    if (!fileData) {
+      throw new Error('No se recibieron datos del archivo.');
+    }
+
+    // Decodificar base64 a blob
+    const decoded = Utilities.newBlob(
+      Utilities.base64Decode(fileData),
+      mimeType,
+      fileName
+    );
+
+    // Obtener carpeta padre (raíz de Drive si no hay ID configurado)
+    let parentFolder;
+    if (DRIVE_UPLOAD_FOLDER_ID && DRIVE_UPLOAD_FOLDER_ID.trim() !== '') {
+      parentFolder = DriveApp.getFolderById(DRIVE_UPLOAD_FOLDER_ID.trim());
+    } else {
+      parentFolder = DriveApp.getRootFolder();
+    }
+
+    // Buscar o crear subcarpeta por mes/año (ej. "Julio 2025")
+    let targetFolder;
+    const subFolderIter = parentFolder.getFoldersByName(folderName);
+    if (subFolderIter.hasNext()) {
+      targetFolder = subFolderIter.next();
+    } else {
+      targetFolder = parentFolder.createFolder(folderName);
+    }
+
+    // Si ya existe un archivo con el mismo nombre, eliminarlo antes de subir
+    const existingIter = targetFolder.getFilesByName(fileName);
+    while (existingIter.hasNext()) {
+      existingIter.next().setTrashed(true);
+    }
+
+    // Crear el archivo en Drive
+    const uploadedFile = targetFolder.createFile(decoded);
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: 'Archivo subido exitosamente a Google Drive.',
+      fileId: uploadedFile.getId(),
+      folder: folderName,
+      file: fileName
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: 'Error al subir archivo: ' + err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
