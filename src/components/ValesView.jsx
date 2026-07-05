@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 // https://script.google.com/macros/s/AKfycb..../exec
 // Mientras esto esté vacío, el módulo funciona en modo local/demo
 // (los archivos no se suben realmente a Drive).
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzuMbUxS0pzWnrxsBMB7BZmDUynsPR17EHW6tMlr2b0OT0hxLnEkHFivJtc7UGhxQ/exec';
 
 const PRODUCTOS = ['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'];
 const PROCESOS = ['en tiempo', 'tarde', 'Entregado'];
@@ -16,8 +16,7 @@ const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 
 
 // Enlaces reales a las carpetas raíz de Drive (para el botón "Abrir Carpeta en Drive")
 const CARPETA_CARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
-// TODO: reemplaza este enlace por el real de tu carpeta "Vales de Descarga"
-const CARPETA_DESCARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
+const CARPETA_DESCARGA_URL = 'https://drive.google.com/drive/folders/1AEgVPJKB2vvU-XGtsb768BfnvOr5g7nh';
 
 function mockValesIniciales() {
   return [
