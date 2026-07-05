@@ -2,7 +2,7 @@
 // MÓDULO: VALES DE ARTE (Diseño <-> Tiendas) - CONFIGURACIÓN
 // ============================================================
 const VALES_CARGA_FOLDER_ID = "1biBNC5T018q_2AYMFixiiAdxsYK_g72Z";
-const VALES_DESCARGA_FOLDER_ID = "1biBNC5T018q_2AYMFixiiAdxsYK_g72Z"; // Reemplaza por tu ID de Vales de Descarga si es diferente
+const VALES_DESCARGA_FOLDER_ID = "1AEgVPJKB2vvU-XGtsb768BfnvOr5g7nh";
 const VALES_PRODUCTOS = ["Medalla Fundida", "Pin Fundido", "Plasma Metal", "Vidrio", "Fotograbado", "Producto especial", "Protextil"];
 const VALES_PROCESOS = ["en tiempo", "tarde", "Entregado"];
 
