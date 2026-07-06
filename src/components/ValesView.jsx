@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // =====================================================================
 // CONFIGURACIÓN DEL BACKEND (Google Apps Script Web App)
@@ -35,7 +35,7 @@ function fileToBase64(file) {
   });
 }
 
-export default function ValesView({ userRole, activeStore, selectedStores, showToast, userName }) {
+export default function ValesView({ userRole, activeStore, selectedStores, showToast, userName, selectedMonths }) {
   const store = activeStore || (selectedStores && selectedStores[0]) || 'CB';
   const isAdminOrDesign = userRole === 'admin' || userRole === 'diseno';
   const [vales, setVales] = useState(mockValesIniciales());
@@ -45,6 +45,14 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVale, setEditingVale] = useState(null);
   const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', noVale: '', producto: PRODUCTOS[0], fechaSalida: '' });
+
+  const [fileToUpload, setFileToUpload] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    setNuevoVale(prev => ({ ...prev, tienda: store }));
+  }, [store]);
 
   const notify = useCallback((msg, type = 'success') => {
     if (showToast) showToast(msg, type);
@@ -76,13 +84,32 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     return () => { active = false; };
   }, [cargarVales]);
 
-  // Filtrado por rol: admin/diseño ven todo, la tienda solo ve lo suyo
-  const valesVisibles = isAdminOrDesign
-    ? vales
-    : vales.filter(v => String(v.Tienda).toUpperCase() === String(store).toUpperCase());
+  // Filtrado por rol y por mes (si se especifica)
+  const valesVisibles = useMemo(() => {
+    let filtered = isAdminOrDesign
+      ? vales
+      : vales.filter(v => String(v.Tienda).toUpperCase() === String(store).toUpperCase());
 
-  const handleCrearVale = (e) => {
+    if (selectedMonths && selectedMonths.length > 0) {
+      const monthsList = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      filtered = filtered.filter(v => {
+        if (!v.FechaIngreso) return false;
+        const parts = v.FechaIngreso.split('-');
+        if (parts.length < 2) return false;
+        const monthIndex = parseInt(parts[1], 10) - 1; // 0-11
+        if (monthIndex >= 0 && monthIndex < 12) {
+          const monthName = monthsList[monthIndex];
+          return selectedMonths.includes(monthName);
+        }
+        return false;
+      });
+    }
+    return filtered;
+  }, [vales, isAdminOrDesign, store, selectedMonths]);
+
+  const handleCrearVale = async (e) => {
     e.preventDefault();
+    setIsCreating(true);
     const tiendaFinal = isAdminOrDesign ? (nuevoVale.tienda || store || 'CB') : (store || 'CB');
     const datos = {
       tienda: tiendaFinal,
@@ -109,25 +136,65 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       }]);
       notify('Vale creado (modo demo, aún no conectado a Drive real).');
       setIsModalOpen(false);
+      setIsCreating(false);
+      setFileToUpload(null);
       return;
     }
 
-    fetch(SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'crearVale', datos }),
-    })
-      .then(r => r.json())
-      .then(res => {
-        if (res.status === 'success') {
-          notify(res.message);
-          cargarVales();
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'crearVale', datos }),
+      }).then(r => r.json());
+
+      if (res.status === 'success') {
+        const createdNoVale = res.noVale;
+        
+        // Si hay un archivo seleccionado para cargar, subirlo automáticamente
+        if (fileToUpload) {
+          notify(`Vale ${createdNoVale} creado. Subiendo archivo...`);
+          try {
+            const base64Data = await fileToBase64(fileToUpload);
+            const uploadRes = await fetch(SCRIPT_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'subirArchivoVale',
+                datos: {
+                  noVale: createdNoVale,
+                  tipo: 'carga',
+                  fileName: fileToUpload.name,
+                  mimeType: fileToUpload.type,
+                  base64Data: base64Data,
+                  tienda: tiendaFinal
+                }
+              })
+            }).then(r => r.json());
+
+            if (uploadRes.status === 'success') {
+              notify(`Vale ${createdNoVale} y archivo creados con éxito.`);
+            } else {
+              notify(`Vale creado, pero falló la subida del archivo: ${uploadRes.message}`, 'error');
+            }
+          } catch (uploadErr) {
+            notify('Vale creado, pero falló la conversión del archivo.', 'error');
+          }
         } else {
-          notify('Error al crear el vale: ' + res.message, 'error');
+          notify(res.message);
         }
-      })
-      .catch(() => notify('No se pudo contactar al backend para crear el vale.', 'error'))
-      .finally(() => setIsModalOpen(false));
+        
+        cargarVales();
+        setIsModalOpen(false);
+        setFileToUpload(null);
+      } else {
+        notify('Error al crear el vale: ' + res.message, 'error');
+      }
+    } catch (err) {
+      notify('No se pudo contactar al backend para crear el vale.', 'error');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleGuardarEdicion = async (e) => {
@@ -443,9 +510,55 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                 <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Fecha de Salida Estimada</label>
                 <input type="date" className="form-control" required value={nuevoVale.fechaSalida} onChange={(e) => setNuevoVale(s => ({ ...s, fechaSalida: e.target.value }))} />
               </div>
+              
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Archivo de Carga (Opcional - Imagen o PDF)</label>
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file) setFileToUpload(file);
+                  }}
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '*/*';
+                    input.onchange = (ev) => {
+                      const file = ev.target.files[0];
+                      if (file) setFileToUpload(file);
+                    };
+                    input.click();
+                  }}
+                  style={{
+                    border: isDragOver ? '2px dashed #4f46e5' : '2px dashed var(--border-light)',
+                    background: isDragOver ? '#f3f2ff' : 'var(--bg-body)',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <i className="fas fa-cloud-upload-alt" style={{ fontSize: '24px', color: fileToUpload ? '#4f46e5' : 'var(--text-muted)', marginBottom: '8px' }}></i>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: fileToUpload ? '700' : '500', color: fileToUpload ? '#4f46e5' : 'var(--text-muted)' }}>
+                    {fileToUpload ? `📄 ${fileToUpload.name} (${(fileToUpload.size / 1024).toFixed(1)} KB)` : 'Arrastra tu archivo aquí o haz clic para seleccionarlo'}
+                  </p>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
-                <button type="button" className="topbar-btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="topbar-btn btn-primary">Solicitar Vale</button>
+                <button type="button" className="topbar-btn btn-outline" disabled={isCreating} onClick={() => { setIsModalOpen(false); setFileToUpload(null); }}>Cancelar</button>
+                <button type="submit" className="topbar-btn btn-primary" disabled={isCreating}>
+                  {isCreating ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                      Procesando...
+                    </>
+                  ) : 'Solicitar Vale'}
+                </button>
               </div>
             </form>
           </div>

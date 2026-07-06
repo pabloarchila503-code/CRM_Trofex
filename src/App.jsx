@@ -734,6 +734,7 @@ export default function App() {
           {currentView === 'vales' && (
             <ValesView
               selectedStores={selectedStores}
+              selectedMonths={selectedMonths}
               userRole={userRole}
               userName={userName}
             />
