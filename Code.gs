@@ -79,6 +79,8 @@ function handleRequest(e) {
       result = actualizarProcesoVale(params.noVale, params.proceso);
     } else if (action === 'editarVale') {
       result = editarVale(params.noVale, params.proceso, params.fechaSalida);
+    } else if (action === 'eliminarVale') {
+      result = eliminarVale(params.noVale);
     } else if (action === 'subirArchivoVale') {
       result = subirArchivoVale(params.datos);
     }
@@ -484,7 +486,7 @@ function crearVale(datos) {
     const sheet = setupValesSheet();
     const lastRow = sheet.getLastRow();
     const numero = lastRow; // fila 1 es encabezado, así que lastRow ya es el consecutivo correcto
-    const noVale = "VAL-" + String(numero).padStart(3, "0");
+    const noVale = (datos.noVale && String(datos.noVale).trim()) ? String(datos.noVale).trim() : ("VAL-" + String(numero).padStart(3, "0"));
     const tz = Session.getScriptTimeZone() || "GMT-6";
     const fechaIngreso = datos.fechaIngreso || Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
 
@@ -500,6 +502,28 @@ function crearVale(datos) {
     ]);
 
     return { status: "success", message: "Vale " + noVale + " creado correctamente.", noVale: noVale };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
+  }
+}
+
+/**
+ * Elimina un vale de la hoja 'Vales' por su número de vale.
+ */
+function eliminarVale(noVale) {
+  try {
+    const sheet = setupValesSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colNoVale = headers.indexOf("NoVale");
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
+        sheet.deleteRow(i + 1);
+        return { status: "success", message: "Vale " + noVale + " eliminado correctamente." };
+      }
+    }
+    return { status: "error", message: "Vale no encontrado: " + noVale };
   } catch (e) {
     return { status: "error", message: e.toString() };
   }

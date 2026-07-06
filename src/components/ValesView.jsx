@@ -44,7 +44,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const [uploadingKey, setUploadingKey] = useState(null); // `${noVale}-${tipo}` mientras se sube un archivo
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVale, setEditingVale] = useState(null);
-  const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', producto: PRODUCTOS[0], fechaSalida: '' });
+  const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', noVale: '', producto: PRODUCTOS[0], fechaSalida: '' });
 
   const notify = useCallback((msg, type = 'success') => {
     if (showToast) showToast(msg, type);
@@ -83,8 +83,10 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
 
   const handleCrearVale = (e) => {
     e.preventDefault();
+    const tiendaFinal = isAdminOrDesign ? (nuevoVale.tienda || store || 'CB') : (store || 'CB');
     const datos = {
-      tienda: nuevoVale.tienda,
+      tienda: tiendaFinal,
+      noVale: nuevoVale.noVale ? nuevoVale.noVale.trim() : '',
       producto: nuevoVale.producto,
       fechaIngreso: new Date().toISOString().slice(0, 10),
       fechaSalida: nuevoVale.fechaSalida,
@@ -93,10 +95,11 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     if (!SCRIPT_URL) {
       // Modo local/demo
       const numero = vales.length + 1;
+      const noValeDemo = datos.noVale || ('VAL-' + String(numero).padStart(3, '0'));
       setVales(prev => [...prev, {
         No: numero,
         Tienda: datos.tienda,
-        NoVale: 'VAL-' + String(numero).padStart(3, '0'),
+        NoVale: noValeDemo,
         Producto: datos.producto,
         FechaIngreso: datos.fechaIngreso,
         FechaSalida: datos.fechaSalida,
@@ -145,6 +148,28 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       });
     } catch {
       notify('No se pudo guardar la edición en Drive.', 'error');
+    }
+  };
+
+  const handleEliminarVale = async () => {
+    if (!editingVale) return;
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el vale "${editingVale.NoVale}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    const noVale = editingVale.NoVale;
+    setVales(prev => prev.filter(v => v.NoVale !== noVale));
+    setEditingVale(null);
+    notify(`Vale ${noVale} eliminado correctamente.`);
+
+    if (!SCRIPT_URL) return;
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'eliminarVale', noVale })
+      });
+    } catch {
+      notify('No se pudo eliminar el vale en el servidor.', 'error');
     }
   };
 
@@ -385,14 +410,29 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
               <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>×</button>
             </div>
             <form onSubmit={handleCrearVale} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {isAdminOrDesign && (
+              {isAdminOrDesign ? (
                 <div className="form-group">
                   <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Tienda</label>
                   <select className="form-control" value={nuevoVale.tienda} onChange={(e) => setNuevoVale(s => ({ ...s, tienda: e.target.value }))}>
                     {STORES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Tienda (Solicitante)</label>
+                  <input type="text" className="form-control" disabled value={store || 'CB'} style={{ background: '#f1f5f9', fontWeight: 700, color: '#4f46e5' }} />
+                </div>
               )}
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>No. de Vale (Ej. VAL-004 o 12345)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Ej. VAL-004 (dejar vacío para automático)"
+                  value={nuevoVale.noVale || ''}
+                  onChange={(e) => setNuevoVale(s => ({ ...s, noVale: e.target.value }))}
+                />
+              </div>
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Producto</label>
                 <select className="form-control" value={nuevoVale.producto} onChange={(e) => setNuevoVale(s => ({ ...s, producto: e.target.value }))}>
@@ -485,13 +525,18 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setEditingVale(null)} className="topbar-btn btn-outline" style={{ padding: '8px 16px' }}>
-                  Cancelar
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                <button type="button" onClick={handleEliminarVale} className="topbar-btn btn-outline" style={{ padding: '8px 16px', color: '#ef4444', borderColor: '#ef4444' }}>
+                  <i className="fas fa-trash-alt"></i> Eliminar
                 </button>
-                <button type="submit" className="topbar-btn btn-primary" style={{ padding: '8px 20px', background: '#4f46e5', color: '#fff' }}>
-                  Guardar Cambios
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" onClick={() => setEditingVale(null)} className="topbar-btn btn-outline" style={{ padding: '8px 16px' }}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="topbar-btn btn-primary" style={{ padding: '8px 20px', background: '#4f46e5', color: '#fff' }}>
+                    Guardar Cambios
+                  </button>
+                </div>
               </div>
             </form>
           </div>
