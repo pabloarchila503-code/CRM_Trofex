@@ -278,10 +278,10 @@ function handleLogin(params) {
       return {
         status: 'success',
         user: {
-          email: rowEmail,
-          role: rowRole,
-          store: rowStore,
-          name: rowName || ''
+          email: String(rowEmail).trim(),
+          role: String(rowRole).trim(),
+          store: String(rowStore).trim(),
+          name: rowName ? String(rowName).trim() : ''
         }
       };
     }

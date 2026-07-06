@@ -591,20 +591,24 @@ export default function App() {
         scriptUrl="https://script.google.com/macros/s/AKfycbxf1aiVy7IBo7LCKbTcfLM9u3QWofCleGi57QqwdQQcd1humHOjFOaV8t0XCUtFU5sy/exec"
         onLogin={(user) => {
           setIsLoggedIn(true);
-          let rawRole = user.role ? user.role.toLowerCase() : 'store';
+          let rawRole = user.role ? user.role.toLowerCase().trim() : 'store';
           // Normalizar el rol del diseñador
           if (rawRole.includes('diseño') || rawRole.includes('diseñador') || rawRole.includes('diseno')) {
             rawRole = 'diseno';
+          } else if (rawRole !== 'admin') {
+            // Cualquier variante que no sea explícitamente 'admin' ni diseño se
+            // trata como 'store', para nunca dar acceso total por defecto.
+            rawRole = 'store';
           }
           const normalizedRole = rawRole;
           setUserRole(normalizedRole);
-          setUserName(user.name || '');
-          
-          if (normalizedRole === 'store' && user.store) {
-            const userStores = user.store.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-            setAllowedStores(userStores);
-            setSelectedStores(userStores);
-          } else if (normalizedRole === 'store' && !user.store) {
+          setUserName(user.name ? String(user.name).trim() : '');
+
+          if (normalizedRole === 'store' && user.store && String(user.store).trim()) {
+            const userStores = String(user.store).trim().split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            setAllowedStores(userStores.length ? userStores : ['CB']);
+            setSelectedStores(userStores.length ? userStores : ['CB']);
+          } else if (normalizedRole === 'store') {
             // Failsafe if store user has no assigned store, default to CB
             setAllowedStores(['CB']);
             setSelectedStores(['CB']);

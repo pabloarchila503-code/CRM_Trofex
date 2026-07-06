@@ -49,6 +49,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const [fileToUpload, setFileToUpload] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [activeTab, setActiveTab] = useState('listado'); // 'listado' | 'dashboard'
 
   useEffect(() => {
     setNuevoVale(prev => ({ ...prev, tienda: store }));
@@ -106,6 +107,14 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     }
     return filtered;
   }, [vales, isAdminOrDesign, store, selectedMonths]);
+
+  const conteoDashboard = useMemo(() => {
+    const base = { total: valesVisibles.length, 'en tiempo': 0, tarde: 0, Entregado: 0 };
+    valesVisibles.forEach(v => {
+      if (base[v.Proceso] !== undefined) base[v.Proceso] += 1;
+    });
+    return base;
+  }, [valesVisibles]);
 
   const handleCrearVale = async (e) => {
     e.preventDefault();
@@ -337,6 +346,87 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
         </button>
       </div>
 
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
+        {[
+          { id: 'listado', label: 'Listado General', icon: 'fa-list' },
+          { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '10px 18px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid #4f46e5' : '2px solid transparent',
+              color: activeTab === tab.id ? '#4f46e5' : 'var(--text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <i className={`fas ${tab.icon}`}></i> {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'dashboard' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '18px', marginBottom: '24px' }}>
+            <div className="card" style={{ padding: '20px', borderTop: '3px solid #4f46e5' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Total de Vales</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#4f46e5' }}>{conteoDashboard.total}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {isAdminOrDesign ? 'Todas las tiendas' : `Tienda ${store}`}
+              </div>
+            </div>
+            <div className="card" style={{ padding: '20px', borderTop: '3px solid #d97706' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>En Tiempo</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#d97706' }}>{conteoDashboard['en tiempo']}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Vales dentro del plazo</div>
+            </div>
+            <div className="card" style={{ padding: '20px', borderTop: '3px solid #dc2626' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Tarde</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#dc2626' }}>{conteoDashboard.tarde}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Vales fuera del plazo</div>
+            </div>
+            <div className="card" style={{ padding: '20px', borderTop: '3px solid #16a34a' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Entregado</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: '#16a34a' }}>{conteoDashboard.Entregado}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Vales completados</div>
+            </div>
+          </div>
+
+          {isAdminOrDesign && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-light)' }}>
+                <h3 className="card-title" style={{ fontSize: '14px', margin: 0 }}>Vales por Tienda</h3>
+              </div>
+              <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {STORES.map(s => {
+                  const cantidad = valesVisibles.filter(v => String(v.Tienda).toUpperCase() === s).length;
+                  if (cantidad === 0) return null;
+                  return (
+                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-body)', padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                      <span style={{ fontWeight: 800, fontSize: '12px', color: '#4f46e5' }}>{s}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{cantidad} {cantidad === 1 ? 'vale' : 'vales'}</span>
+                    </div>
+                  );
+                })}
+                {valesVisibles.length === 0 && (
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No hay vales registrados todavía.</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'listado' && (
+      <>
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <div className="card" style={{ flex: '1 1 320px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
           <i className="fab fa-google-drive" style={{ fontSize: '22px', color: '#3b82f6' }}></i>
@@ -468,6 +558,8 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,41,59,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
