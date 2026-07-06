@@ -88,7 +88,11 @@ export default function SalesTargetChart({
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
 
-    const storesToDisplay = selectedStores && selectedStores.length > 0 ? selectedStores : ['CB'];
+    let storesToDisplay = selectedStores && selectedStores.length > 0 ? selectedStores : ['CB'];
+    if (userRole !== 'admin') {
+      const userStore = (selectedStores && selectedStores[0]) || 'CB';
+      storesToDisplay = [userStore];
+    }
     
     const ventaValues = [];
     const metaValues = [];

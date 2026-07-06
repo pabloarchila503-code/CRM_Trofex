@@ -329,11 +329,13 @@ export default function App() {
     setIsLoggedIn(false);
     setUserRole(null);
     setSelectedStores(['CB']);
-    setSelectedStores(['CB']);
     setTimeRange('Mensual');
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     setSelectedMonths([months[new Date().getMonth()]]);
     showToast('Sesión cerrada con éxito', 'info');
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
   };
 
   // Toast helpers
