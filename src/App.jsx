@@ -648,6 +648,7 @@ export default function App() {
               deals={filteredDeals}
               salesTargetData={salesTargetData}
               onOpenStoreEditor={() => setIsStoreModalOpen(true)}
+              activeStore={selectedStores[0]}
               selectedStores={selectedStores}
               userRole={userRole}
               selectedMonths={selectedMonths}

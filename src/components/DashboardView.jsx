@@ -82,7 +82,7 @@ export default function DashboardView({
       }
     } else {
       // Store user: solo su propia tienda
-      const storeCode = String(activeStore || 'CB').trim().toUpperCase();
+      const storeCode = String(activeStore || (selectedStores && selectedStores[0]) || 'CB').trim().toUpperCase();
       result = result.filter(p => String(p.Tienda || '').trim().toUpperCase() === storeCode);
     }
 
@@ -176,7 +176,7 @@ export default function DashboardView({
           </div>
         </div>
         <div className="print-filters-active" style={{ fontSize: '10px', color: '#475569', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px', marginBottom: '10px' }}>
-          <strong>Filtrado por:</strong> Tiendas ({userRole === 'admin' ? (selectedStores.length > 0 ? selectedStores.join(', ') : 'Todas') : activeStore}) | Meses: {selectedMonths.length > 0 ? selectedMonths.join(', ') : 'Todos'}
+          <strong>Filtrado por:</strong> Tiendas ({userRole === 'admin' ? (selectedStores.length > 0 ? selectedStores.join(', ') : 'Todas') : (activeStore || (selectedStores && selectedStores[0]) || 'CB')}) | Meses: {selectedMonths.length > 0 ? selectedMonths.join(', ') : 'Todos'}
         </div>
       </div>
 
@@ -188,11 +188,10 @@ export default function DashboardView({
       <KPICards globalSums={globalSums} />
 
 
-      {/* ── Sales Target Chart ── */}
       <SalesTargetChart
         data={salesTargetData}
         onOpenEditor={onOpenStoreEditor}
-        activeStore={activeStore}
+        activeStore={activeStore || (selectedStores && selectedStores[0]) || 'CB'}
         selectedStores={selectedStores}
         selectedMonths={selectedMonths}
         userRole={userRole}
