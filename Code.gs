@@ -81,6 +81,8 @@ function handleRequest(e) {
       result = editarVale(params.noVale, params.proceso, params.fechaSalida);
     } else if (action === 'eliminarVale') {
       result = eliminarVale(params.noVale);
+    } else if (action === 'solicitarModificacion') {
+      result = solicitarModificacion(params.noVale);
     } else if (action === 'subirArchivoVale') {
       result = subirArchivoVale(params.datos);
     }
@@ -613,10 +615,21 @@ function subirArchivoVale(datos) {
     const parentFolderId = cleanFolderId_(rawParentId);
     const subfolder = getOrCreateStoreSubfolder_(parentFolderId, tienda);
 
+    let targetFolder = subfolder;
+    if (tipo === "carga") {
+      const valeFolderName = String(noVale).trim();
+      const subfolders = subfolder.getFoldersByName(valeFolderName);
+      if (subfolders.hasNext()) {
+        targetFolder = subfolders.next();
+      } else {
+        targetFolder = subfolder.createFolder(valeFolderName);
+      }
+    }
+
     const bytes = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(bytes, mimeType, fileName);
-    const file = subfolder.createFile(blob);
-    const url = file.getUrl();
+    const file = targetFolder.createFile(blob);
+    const url = tipo === "carga" ? targetFolder.getUrl() : file.getUrl();
 
     const urlCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaUrl" : "ArchivoDescargaUrl") + 1;
     const idCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaId" : "ArchivoDescargaId") + 1;
@@ -629,6 +642,37 @@ function subirArchivoVale(datos) {
       url: url,
       fileId: file.getId()
     };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
+  }
+}
+
+/**
+ * Habilita de nuevo la subida de archivos limpiando las URL y IDs de los archivos actuales.
+ */
+function solicitarModificacion(noVale) {
+  try {
+    const sheet = setupValesSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colNoVale = headers.indexOf("NoVale");
+    const colCargaUrl = headers.indexOf("ArchivoCargaUrl") + 1;
+    const colCargaId = headers.indexOf("ArchivoCargaId") + 1;
+    const colDescargaUrl = headers.indexOf("ArchivoDescargaUrl") + 1;
+    const colDescargaId = headers.indexOf("ArchivoDescargaId") + 1;
+    const colProceso = headers.indexOf("Proceso") + 1;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
+        sheet.getRange(i + 1, colCargaUrl).setValue("");
+        sheet.getRange(i + 1, colCargaId).setValue("");
+        sheet.getRange(i + 1, colDescargaUrl).setValue("");
+        sheet.getRange(i + 1, colDescargaId).setValue("");
+        sheet.getRange(i + 1, colProceso).setValue("en tiempo");
+        return { status: "success", message: "Vale " + noVale + " listo para modificaciones (subidas rehabilitadas)." };
+      }
+    }
+    return { status: "error", message: "Vale no encontrado: " + noVale };
   } catch (e) {
     return { status: "error", message: e.toString() };
   }

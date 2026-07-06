@@ -46,7 +46,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const [editingVale, setEditingVale] = useState(null);
   const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', noVale: '', producto: PRODUCTOS[0], fechaSalida: '' });
 
-  const [fileToUpload, setFileToUpload] = useState(null);
+  const [filesToUpload, setFilesToUpload] = useState([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState('listado'); // 'listado' | 'dashboard'
@@ -146,7 +146,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       notify('Vale creado (modo demo, aún no conectado a Drive real).');
       setIsModalOpen(false);
       setIsCreating(false);
-      setFileToUpload(null);
+      setFilesToUpload([]);
       return;
     }
 
@@ -160,34 +160,36 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       if (res.status === 'success') {
         const createdNoVale = res.noVale;
         
-        // Si hay un archivo seleccionado para cargar, subirlo automáticamente
-        if (fileToUpload) {
-          notify(`Vale ${createdNoVale} creado. Subiendo archivo...`);
+        // Si hay archivos seleccionados para cargar, subirlos automáticamente
+        if (filesToUpload && filesToUpload.length > 0) {
+          notify(`Vale ${createdNoVale} creado. Subiendo ${filesToUpload.length} archivos...`);
           try {
-            const base64Data = await fileToBase64(fileToUpload);
-            const uploadRes = await fetch(SCRIPT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({
-                action: 'subirArchivoVale',
-                datos: {
-                  noVale: createdNoVale,
-                  tipo: 'carga',
-                  fileName: fileToUpload.name,
-                  mimeType: fileToUpload.type,
-                  base64Data: base64Data,
-                  tienda: tiendaFinal
-                }
-              })
-            }).then(r => r.json());
+            for (let i = 0; i < filesToUpload.length; i++) {
+              const file = filesToUpload[i];
+              const base64Data = await fileToBase64(file);
+              const uploadRes = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                  action: 'subirArchivoVale',
+                  datos: {
+                    noVale: createdNoVale,
+                    tipo: 'carga',
+                    fileName: file.name,
+                    mimeType: file.type,
+                    base64: base64Data,
+                    tienda: tiendaFinal
+                  }
+                })
+              }).then(r => r.json());
 
-            if (uploadRes.status === 'success') {
-              notify(`Vale ${createdNoVale} y archivo creados con éxito.`);
-            } else {
-              notify(`Vale creado, pero falló la subida del archivo: ${uploadRes.message}`, 'error');
+              if (uploadRes.status !== 'success') {
+                notify(`Error al subir el archivo "${file.name}": ${uploadRes.message}`, 'error');
+              }
             }
+            notify(`Vale ${createdNoVale} y sus archivos se subieron con éxito.`);
           } catch (uploadErr) {
-            notify('Vale creado, pero falló la conversión del archivo.', 'error');
+            notify('Vale creado, pero falló la subida de los archivos.', 'error');
           }
         } else {
           notify(res.message);
@@ -195,7 +197,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
         
         cargarVales();
         setIsModalOpen(false);
-        setFileToUpload(null);
+        setFilesToUpload([]);
       } else {
         notify('Error al crear el vale: ' + res.message, 'error');
       }
@@ -246,6 +248,30 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       });
     } catch {
       notify('No se pudo eliminar el vale en el servidor.', 'error');
+    }
+  };
+
+  const handleSolicitarModificacion = async (noVale) => {
+    if (!window.confirm(`¿Estás seguro de que deseas habilitar modificaciones para el vale "${noVale}"? Esto permitirá subir nuevos archivos a ambas partes.`)) {
+      return;
+    }
+    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ArchivoCargaUrl: '', ArchivoDescargaUrl: '' } : v));
+    notify(`Vale ${noVale} habilitado para modificaciones.`);
+
+    if (!SCRIPT_URL) return;
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'solicitarModificacion', noVale })
+      }).then(r => r.json());
+      if (res.status === 'success') {
+        cargarVales();
+      } else {
+        notify('Error al solicitar modificación: ' + res.message, 'error');
+      }
+    } catch {
+      notify('No se pudo comunicar con el servidor.', 'error');
     }
   };
 
@@ -535,7 +561,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                         <span style={{ fontSize: '11px', color: '#94a3b8' }}>Pendiente</span>
                       )}
                     </td>
-                    <td style={{ padding: '12px 16px' }}>
+                    <td style={{ padding: '12px 16px', display: 'flex', gap: '6px' }}>
                       <button
                         onClick={() => setEditingVale({ ...v })}
                         className="topbar-btn btn-outline"
@@ -543,6 +569,15 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                       >
                         <i className="fas fa-edit"></i> Editar
                       </button>
+                      {v.ArchivoCargaUrl && v.ArchivoDescargaUrl && (
+                        <button
+                          onClick={() => handleSolicitarModificacion(v.NoVale)}
+                          className="topbar-btn btn-outline"
+                          style={{ fontSize: '11px', padding: '4px 10px', color: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <i className="fas fa-undo"></i> Modificar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -611,16 +646,17 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                   onDrop={(e) => {
                     e.preventDefault();
                     setIsDragOver(false);
-                    const file = e.dataTransfer.files[0];
-                    if (file) setFileToUpload(file);
+                    const files = Array.from(e.dataTransfer.files);
+                    if (files.length > 0) setFilesToUpload(prev => [...prev, ...files]);
                   }}
                   onClick={() => {
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = '*/*';
+                    input.multiple = true;
                     input.onchange = (ev) => {
-                      const file = ev.target.files[0];
-                      if (file) setFileToUpload(file);
+                      const files = Array.from(ev.target.files);
+                      if (files.length > 0) setFilesToUpload(prev => [...prev, ...files]);
                     };
                     input.click();
                   }}
@@ -634,15 +670,25 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                     transition: 'all 0.2s',
                   }}
                 >
-                  <i className="fas fa-cloud-upload-alt" style={{ fontSize: '24px', color: fileToUpload ? '#4f46e5' : 'var(--text-muted)', marginBottom: '8px' }}></i>
-                  <p style={{ margin: 0, fontSize: '12px', fontWeight: fileToUpload ? '700' : '500', color: fileToUpload ? '#4f46e5' : 'var(--text-muted)' }}>
-                    {fileToUpload ? `📄 ${fileToUpload.name} (${(fileToUpload.size / 1024).toFixed(1)} KB)` : 'Arrastra tu archivo aquí o haz clic para seleccionarlo'}
+                  <i className="fas fa-cloud-upload-alt" style={{ fontSize: '24px', color: filesToUpload.length > 0 ? '#4f46e5' : 'var(--text-muted)', marginBottom: '8px' }}></i>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: filesToUpload.length > 0 ? '700' : '500', color: filesToUpload.length > 0 ? '#4f46e5' : 'var(--text-muted)' }}>
+                    {filesToUpload.length > 0 ? `Seleccionados ${filesToUpload.length} archivo(s)` : 'Arrastra tus archivos aquí o haz clic para seleccionarlos'}
                   </p>
+                  {filesToUpload.length > 0 && (
+                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }} onClick={(e) => e.stopPropagation()}>
+                      {filesToUpload.map((f, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                          <span style={{ fontSize: '11px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '240px' }}>📄 {f.name}</span>
+                          <button type="button" onClick={() => setFilesToUpload(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px' }}>Quitar</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
-                <button type="button" className="topbar-btn btn-outline" disabled={isCreating} onClick={() => { setIsModalOpen(false); setFileToUpload(null); }}>Cancelar</button>
+                <button type="button" className="topbar-btn btn-outline" disabled={isCreating} onClick={() => { setIsModalOpen(false); setFilesToUpload([]); }}>Cancelar</button>
                 <button type="submit" className="topbar-btn btn-primary" disabled={isCreating}>
                   {isCreating ? (
                     <>
