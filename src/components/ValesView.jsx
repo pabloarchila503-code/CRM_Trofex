@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 // https://script.google.com/macros/s/AKfycb..../exec
 // Mientras esto esté vacío, el módulo funciona en modo local/demo
 // (los archivos no se suben realmente a Drive).
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZFhqAA5VX2Zd4tn3LEvYYaiOVl9mXprPzJzjF4nuZ6cl1g3eZg7ljUL8K7snsBLOf/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSzOB7Eqz8uxj8maGwSDu_ArLdk6hwbPTJSH_innNtoNzhydvcZBLiETQQzkW3bzrK/exec';
 
 const PRODUCTOS = ['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'];
 const PROCESOS = ['en tiempo', 'tarde', 'Entregado'];
