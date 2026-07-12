@@ -1,13 +1,15 @@
 import logoImg from '../assets/logo.png';
 
 export default function Sidebar({ currentView, setView, openCount, onLogout, userRole, selectedStores, userName }) {
-  const profileName = userName ? userName : (userRole === 'admin' ? 'Administrador' : (userRole === 'diseno' ? 'Diseñador' : (selectedStores.length >= 14 ? 'Red General' : (selectedStores.length > 1 ? 'Múltiples Tiendas' : `Asesor Tienda ${selectedStores[0]}`))));
-  const profileRole = userRole === 'admin' ? 'Administrador' : (userRole === 'diseno' ? 'Diseño e Imagen' : 'Asesor de Ventas');
+  const profileName = userName ? userName : (userRole === 'admin' ? 'Administrador' : (userRole === 'exportador' ? 'Exportador' : (userRole === 'diseno' ? 'Diseñador' : (selectedStores.length >= 14 ? 'Red General' : (selectedStores.length > 1 ? 'Múltiples Tiendas' : `Asesor Tienda ${selectedStores[0]}`)))));
+  const profileRole = userRole === 'admin' ? 'Administrador' : (userRole === 'exportador' ? 'Exportador / Logística' : (userRole === 'diseno' ? 'Diseño e Imagen' : 'Asesor de Ventas'));
   const profileAvatar = userRole === 'admin' 
     ? 'https://i.pravatar.cc/150?u=rafael' 
-    : (userRole === 'diseno' 
-      ? 'https://api.dicebear.com/7.x/initials/svg?seed=diseno&backgroundColor=3b82f6'
-      : `https://api.dicebear.com/7.x/initials/svg?seed=${selectedStores[0] || 'CB'}&backgroundColor=ff6d4d`);
+    : (userRole === 'exportador'
+      ? 'https://api.dicebear.com/7.x/initials/svg?seed=exportador&backgroundColor=10b981'
+      : (userRole === 'diseno' 
+        ? 'https://api.dicebear.com/7.x/initials/svg?seed=diseno&backgroundColor=3b82f6'
+        : `https://api.dicebear.com/7.x/initials/svg?seed=${selectedStores[0] || 'CB'}&backgroundColor=ff6d4d`));
 
   // Cargar configuración de permisos desde localStorage
   const getPermissions = () => {
@@ -39,6 +41,7 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
   // Función para determinar si una pestaña debe ser visible para el rol actual
   const isVisible = (viewId) => {
     if (userRole === 'admin') return true; // Admin ve todo
+    if (userRole === 'exportador') return viewId === 'calendario' || viewId === 'dashboard'; // Exportador ve Calendario/Órdenes
     if (userRole === 'diseno') return perms.diseno[viewId] !== false;
     return perms.store[viewId] !== false; // por defecto 'store'
   };

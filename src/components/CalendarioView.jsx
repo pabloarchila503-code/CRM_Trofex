@@ -6,8 +6,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSzOB7Eqz8uxj8maGwSDu_ArLdk6hwbPTJSH_innNtoNzhydvcZBLiETQQzkW3bzrK/exec';
 
 const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
-const TRANSPORT_OPTIONS = ['Camión', 'Moto', 'Mensajería / Courier', 'Pick-up propio', 'Otro'];
-const ORDER_STATUS = ['Pendiente', 'En tránsito', 'Entregado', 'Cancelado'];
+const TRANSPORT_OPTIONS = ['Camión', 'Transporte', 'Mensajero'];
+const ORDER_STATUS = ['Pendiente', 'Recibido', 'Empacado', 'Cancelado'];
 
 const INITIAL_EVENTS = [
   { id: 'ev1', fecha: '2026-06-02', titulo: 'Entrega Medallas Ciclismo',      horaInicio: '10:00', horaFin: '11:30', prioridad: 'Alta',  descripcion: 'Despacho de medallas personalizadas para competencia en Quetzaltenango.', tienda: 'CB',   creadoPor: 'admin@tuempresa.com', replicarGlobal: false },
@@ -25,8 +25,8 @@ const INITIAL_EVENTS = [
 ];
 
 const INITIAL_WORK_ORDERS = [
-  { id: 'wo1', numero: 'DTGT/OUT/00001', tiendas: ['CB'], fechaSalida: '2026-07-01', fechaEntrega: '2026-07-05', transporte: 'Mensajería / Courier', estado: 'Entregado', notas: 'Trofeos copa regional.', archivos: [], creadoEn: '2026-07-01T08:00:00' },
-  { id: 'wo2', numero: 'DTGT/OUT/00002', tiendas: ['JT'], fechaSalida: '2026-07-08', fechaEntrega: '2026-07-12', transporte: 'Camión',               estado: 'En tránsito', notas: 'Medallas graduación.', archivos: [], creadoEn: '2026-07-08T09:30:00' },
+  { id: 'wo1', numero: 'DTGT/OUT/00001', tiendas: ['CB'], fechaSalidaProduccion: '2026-07-01', fechaEntregaCliente: '2026-07-05', transporte: 'Mensajero', estado: 'Empacado', notas: 'Trofeos copa regional.', archivoOrdenUrl: '', archivoValeUrl: '', creadoEn: '2026-07-01T08:00:00' },
+  { id: 'wo2', numero: 'DTGT/OUT/00002', tiendas: ['JT'], fechaSalidaProduccion: '2026-07-08', fechaEntregaCliente: '2026-07-12', transporte: 'Camión',    estado: 'Recibido', notas: 'Medallas graduación.', archivoOrdenUrl: '', archivoValeUrl: '', creadoEn: '2026-07-08T09:30:00' },
 ];
 
 const DAY_NAMES_SHORT  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -51,6 +51,8 @@ function fileToBase64(file) {
 function StatusPill({ status }) {
   const cfg = {
     'Pendiente':   { bg: '#fef3c7', color: '#d97706', icon: 'fa-hourglass-half' },
+    'Recibido':    { bg: '#e0f2fe', color: '#0284c7', icon: 'fa-box-open' },
+    'Empacado':    { bg: '#d1fae5', color: '#059669', icon: 'fa-check-circle' },
     'En tránsito': { bg: '#dbeafe', color: '#2563eb', icon: 'fa-truck' },
     'Entregado':   { bg: '#d1fae5', color: '#059669', icon: 'fa-check-circle' },
     'Cancelado':   { bg: '#fee2e2', color: '#dc2626', icon: 'fa-times-circle' },
@@ -59,6 +61,49 @@ function StatusPill({ status }) {
     <span style={{ fontSize: '11px', fontWeight: '700', color: cfg.color, background: cfg.bg, padding: '4px 10px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
       <i className={`fas ${cfg.icon}`} style={{ fontSize: '10px' }} /> {status}
     </span>
+  );
+}
+
+function InteractiveStatusDropdown({ order, onUpdate, userRole }) {
+  const cfg = {
+    'Pendiente':   { bg: '#fef3c7', color: '#d97706', icon: 'fa-hourglass-half' },
+    'Recibido':    { bg: '#e0f2fe', color: '#0284c7', icon: 'fa-box-open' },
+    'Empacado':    { bg: '#d1fae5', color: '#059669', icon: 'fa-check-circle' },
+    'En tránsito': { bg: '#dbeafe', color: '#2563eb', icon: 'fa-truck' },
+    'Entregado':   { bg: '#d1fae5', color: '#059669', icon: 'fa-check-circle' },
+    'Cancelado':   { bg: '#fee2e2', color: '#dc2626', icon: 'fa-times-circle' },
+  }[order.estado] || { bg: '#f1f5f9', color: '#64748b', icon: 'fa-circle' };
+
+  if (userRole !== 'admin' && userRole !== 'exportador') {
+    return <StatusPill status={order.estado} />;
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }} onClick={e => e.stopPropagation()}>
+      <select
+        value={order.estado}
+        onChange={e => onUpdate(order, e.target.value)}
+        style={{
+          appearance: 'none',
+          fontSize: '11px',
+          fontWeight: '700',
+          color: cfg.color,
+          background: cfg.bg,
+          padding: '4px 24px 4px 10px',
+          borderRadius: '20px',
+          border: `1px solid ${cfg.color}33`,
+          cursor: 'pointer',
+          outline: 'none',
+          fontFamily: 'inherit',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        }}
+      >
+        {ORDER_STATUS.map(st => (
+          <option key={st} value={st} style={{ background: '#fff', color: '#1e293b', fontWeight: '600' }}>{st}</option>
+        ))}
+      </select>
+      <i className="fas fa-chevron-down" style={{ position: 'absolute', right: '9px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: cfg.color, pointerEvents: 'none' }} />
+    </div>
   );
 }
 
@@ -141,7 +186,7 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
   const [storeDropOpen, setStoreDropOpen] = useState(false);
   const storeRef = useRef(null);
 
-  // Load events from Sheets on mount
+  // Load events and orders from Sheets on mount
   useEffect(() => {
     const load = async () => {
       try {
@@ -149,6 +194,13 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
         if (res.status === 'success' && res.eventos && res.eventos.length > 0) {
           setEvents(res.eventos);
           setBackendConnected(true);
+        }
+      } catch { /* use initial data */ }
+
+      try {
+        const resOrd = await fetch(`${SCRIPT_URL}?action=getOrdenes`).then(r => r.json());
+        if (resOrd.status === 'success' && resOrd.ordenes && resOrd.ordenes.length > 0) {
+          setWorkOrders(resOrd.ordenes);
         }
       } catch { /* use initial data */ }
     };
@@ -212,6 +264,14 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
 
   const handleEventClick = (e, evt) => {
     e.stopPropagation();
+    if (evt.isOrderEvent) {
+      const order = workOrders.find(o => String(o.id) === String(evt.orderId) || String(o.numero) === String(evt.orderNumero));
+      if (order && typeof openEditOrderModal === 'function') {
+        setActiveTab('ordenes');
+        openEditOrderModal(order);
+      }
+      return;
+    }
     setSelectedDayForEvent(new Date(evt.fecha + 'T12:00:00'));
     setEditingEventId(evt.id);
     const tiendas = evt.replicarGlobal || evt.tienda === 'Todos' ? STORES : (Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda || defaultStoreForUser]);
@@ -269,12 +329,62 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
     setEditingEventId(null);
   };
 
+  // ── Combined events (Calendar Events + Work Order Dates) ───────────────────
+  const allCombinedEvents = useMemo(() => {
+    const orderEvts = [];
+    workOrders.forEach(o => {
+      if (o.estado === 'Cancelado') return; // no mostrar cancelados en calendario
+      const fSalida = o.fechaSalidaProduccion || o.fechaSalida;
+      const fEntrega = o.fechaEntregaCliente || o.fechaEntrega;
+      const tdas = Array.isArray(o.tiendas) ? o.tiendas : [o.tienda || 'CB'];
+      const tdaSingle = tdas[0] || 'CB';
+
+      if (fSalida) {
+        orderEvts.push({
+          id: `ord_sal_${o.id || o.numero}`,
+          fecha: fSalida,
+          titulo: `🏭 [Salida] ${o.numero}`,
+          horaInicio: '08:00',
+          horaFin: '10:00',
+          prioridad: 'Alta',
+          descripcion: `Salida de producción para orden ${o.numero}.\nTransporte: ${o.transporte || 'No asignado'}\nEstado: ${o.estado}\nNotas: ${o.notas || ''}`,
+          tienda: tdaSingle,
+          tiendas: tdas,
+          isOrderEvent: true,
+          orderId: o.id || o.numero,
+          orderNumero: o.numero,
+          orderType: 'salida',
+          estado: o.estado
+        });
+      }
+      if (fEntrega && fEntrega !== fSalida) {
+        orderEvts.push({
+          id: `ord_ent_${o.id || o.numero}`,
+          fecha: fEntrega,
+          titulo: `🚚 [Entrega] ${o.numero}`,
+          horaInicio: '14:00',
+          horaFin: '16:00',
+          prioridad: 'Alta',
+          descripcion: `Entrega programada al cliente para orden ${o.numero}.\nTransporte: ${o.transporte || 'No asignado'}\nEstado: ${o.estado}\nNotas: ${o.notas || ''}`,
+          tienda: tdaSingle,
+          tiendas: tdas,
+          isOrderEvent: true,
+          orderId: o.id || o.numero,
+          orderNumero: o.numero,
+          orderType: 'entrega',
+          estado: o.estado
+        });
+      }
+    });
+    return [...events, ...orderEvts];
+  }, [events, workOrders]);
+
   // ── Filtered events ────────────────────────────────────────────────────────
-  const filteredEvents = useMemo(() => events.filter(evt => {
+  const filteredEvents = useMemo(() => allCombinedEvents.filter(evt => {
     const storesToCheck = Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda];
     if (evt.replicarGlobal || evt.tienda === 'Todos') return true;
     return selectedStores.length === 14 || storesToCheck.some(s => selectedStores.includes(s));
-  }), [events, selectedStores]);
+  }), [allCombinedEvents, selectedStores]);
 
   // ── Chronogram groups ──────────────────────────────────────────────────────
   const chronogramGroups = useMemo(() => {
@@ -296,22 +406,25 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
   const [orderFilter, setOrderFilter] = useState('Todas');
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
-  const fileInputRef = useRef(null);
+  const fileOrdenRef = useRef(null);
+  const fileValeRef = useRef(null);
 
   const [orderForm, setOrderForm] = useState({
     numero: '', tiendas: [defaultStoreForUser],
-    fechaSalida: '', fechaEntrega: '',
+    fechaSalidaProduccion: '', fechaEntregaCliente: '',
     transporte: TRANSPORT_OPTIONS[0], estado: 'Pendiente', notas: '',
-    files: [],
+    fileOrden: null, fileVale: null,
+    archivoOrdenUrl: '', archivoValeUrl: ''
   });
 
   const openNewOrderModal = () => {
     setEditingOrderId(null);
     setOrderForm({
       numero: '', tiendas: [defaultStoreForUser],
-      fechaSalida: new Date().toISOString().slice(0, 10), fechaEntrega: '',
+      fechaSalidaProduccion: new Date().toISOString().slice(0, 10), fechaEntregaCliente: '',
       transporte: TRANSPORT_OPTIONS[0], estado: 'Pendiente', notas: '',
-      files: [],
+      fileOrden: null, fileVale: null,
+      archivoOrdenUrl: '', archivoValeUrl: ''
     });
     setIsOrderModalOpen(true);
   };
@@ -319,88 +432,146 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
   const openEditOrderModal = (order) => {
     setEditingOrderId(order.id);
     setOrderForm({
-      numero: order.numero,
+      numero: order.numero || '',
       tiendas: Array.isArray(order.tiendas) ? order.tiendas : [order.tienda || defaultStoreForUser],
-      fechaSalida: order.fechaSalida, fechaEntrega: order.fechaEntrega,
-      transporte: order.transporte, estado: order.estado, notas: order.notas,
-      files: [],
+      fechaSalidaProduccion: order.fechaSalidaProduccion || order.fechaSalida || '',
+      fechaEntregaCliente: order.fechaEntregaCliente || order.fechaEntrega || '',
+      transporte: order.transporte || TRANSPORT_OPTIONS[0],
+      estado: order.estado || 'Pendiente',
+      notas: order.notas || '',
+      fileOrden: null, fileVale: null,
+      archivoOrdenUrl: order.archivoOrdenUrl || '',
+      archivoValeUrl: order.archivoValeUrl || ''
     });
     setIsOrderModalOpen(true);
   };
 
-  // File upload — same pattern as ValesView
+  const saveOrdenToSheets = async (orderData) => {
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'saveOrden', datos: orderData }),
+      });
+    } catch { /* silent */ }
+  };
+
+  const handleUpdateEstado = async (order, newEstado) => {
+    setWorkOrders(prev => prev.map(o => (o.id === order.id || o.numero === order.numero) ? { ...o, estado: newEstado } : o));
+    notify('order', `📦 Estado actualizado: ${order.numero} → ${newEstado}`);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'updateOrdenEstado', datos: { id: order.id, numero: order.numero, estado: newEstado } }),
+      });
+    } catch { /* silent */ }
+  };
+
+  const handleDeleteOrder = async (order, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (!window.confirm(`¿Estás seguro de eliminar la orden ${order.numero}?`)) return;
+    setWorkOrders(prev => prev.filter(o => o.id !== order.id && o.numero !== order.numero));
+    notify('order', `🗑️ Orden eliminada: ${order.numero}`);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'eliminarOrden', datos: { id: order.id, numero: order.numero } }),
+      });
+    } catch { /* silent */ }
+  };
+
   const handleSaveOrder = async (e) => {
     e.preventDefault();
     if (!orderForm.numero.trim()) { alert('Por favor ingresa el número de orden.'); return; }
-    if (!orderForm.fechaSalida)   { alert('Ingresa la Fecha de Salida.'); return; }
+    if (!orderForm.fechaSalidaProduccion) { alert('Ingresa la Fecha de Salida de Producción.'); return; }
 
-    let uploadedFiles = [];
-    if (orderForm.files.length > 0) {
+    let newOrdenUrl = orderForm.archivoOrdenUrl;
+    let newValeUrl = orderForm.archivoValeUrl;
+
+    if (orderForm.fileOrden || orderForm.fileVale) {
       setUploadingFiles(true);
-      setUploadProgress(`Subiendo ${orderForm.files.length} archivo(s)…`);
       try {
-        for (let i = 0; i < orderForm.files.length; i++) {
-          const file = orderForm.files[i];
-          setUploadProgress(`Subiendo ${i + 1} / ${orderForm.files.length}: ${file.name}`);
-          try {
-            const base64 = await fileToBase64(file);
-            const res = await fetch(SCRIPT_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({
-                action: 'subirArchivoOrden',
-                datos: {
-                  noOrden: orderForm.numero,
-                  base64,
-                  mimeType: file.type || 'application/octet-stream',
-                  fileName: file.name,
-                },
-              }),
-            }).then(r => r.json());
-
-            if (res.status === 'success') {
-              uploadedFiles.push({ nombre: file.name, url: res.url, fileId: res.fileId });
-            } else {
-              uploadedFiles.push({ nombre: file.name, url: null, error: res.message });
-            }
-          } catch (err) {
-            uploadedFiles.push({ nombre: file.name, url: null, error: 'Error de red' });
-          }
+        if (orderForm.fileOrden) {
+          setUploadProgress(`Subiendo archivo de Orden: ${orderForm.fileOrden.name}…`);
+          const base64 = await fileToBase64(orderForm.fileOrden);
+          const res = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'subirArchivoOrden',
+              datos: {
+                noOrden: orderForm.numero,
+                tipoArchivo: 'orden',
+                base64,
+                mimeType: orderForm.fileOrden.type || 'application/pdf',
+                fileName: orderForm.fileOrden.name,
+              },
+            }),
+          }).then(r => r.json());
+          if (res.status === 'success' && res.url) newOrdenUrl = res.url;
         }
+
+        if (orderForm.fileVale) {
+          setUploadProgress(`Subiendo archivo de Vale: ${orderForm.fileVale.name}…`);
+          const base64 = await fileToBase64(orderForm.fileVale);
+          const res = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'subirArchivoOrden',
+              datos: {
+                noOrden: orderForm.numero,
+                tipoArchivo: 'vale',
+                base64,
+                mimeType: orderForm.fileVale.type || 'application/pdf',
+                fileName: orderForm.fileVale.name,
+              },
+            }),
+          }).then(r => r.json());
+          if (res.status === 'success' && res.url) newValeUrl = res.url;
+        }
+      } catch (err) {
+        console.error('Error al subir archivos:', err);
       } finally {
         setUploadingFiles(false);
         setUploadProgress('');
       }
     }
 
+    const orderObj = {
+      id: editingOrderId || ('wo' + Date.now()),
+      numero: orderForm.numero,
+      tiendas: orderForm.tiendas,
+      fechaSalidaProduccion: orderForm.fechaSalidaProduccion,
+      fechaEntregaCliente: orderForm.fechaEntregaCliente,
+      transporte: orderForm.transporte,
+      estado: orderForm.estado,
+      notas: orderForm.notas,
+      archivoOrdenUrl: newOrdenUrl,
+      archivoValeUrl: newValeUrl,
+      creadoEn: new Date().toISOString(),
+    };
+
     if (editingOrderId) {
-      setWorkOrders(prev => prev.map(o => o.id === editingOrderId
-        ? { ...o, numero: orderForm.numero, tiendas: orderForm.tiendas, fechaSalida: orderForm.fechaSalida, fechaEntrega: orderForm.fechaEntrega, transporte: orderForm.transporte, estado: orderForm.estado, notas: orderForm.notas, archivos: [...(o.archivos || []), ...uploadedFiles] }
-        : o
-      ));
+      setWorkOrders(prev => prev.map(o => (o.id === editingOrderId || o.numero === orderForm.numero) ? orderObj : o));
       notify('order', `📦 Orden actualizada: ${orderForm.numero} · ${orderForm.estado}`);
     } else {
-      const newOrder = {
-        id: 'wo' + Date.now(),
-        numero: orderForm.numero, tiendas: orderForm.tiendas,
-        fechaSalida: orderForm.fechaSalida, fechaEntrega: orderForm.fechaEntrega,
-        transporte: orderForm.transporte, estado: orderForm.estado,
-        notas: orderForm.notas, archivos: uploadedFiles,
-        creadoEn: new Date().toISOString(),
-      };
-      setWorkOrders(prev => [...prev, newOrder]);
+      setWorkOrders(prev => [...prev, orderObj]);
       notify('order', `📦 Nueva Orden: ${orderForm.numero} · ${orderForm.tiendas.join(', ')}`);
     }
+    await saveOrdenToSheets(orderObj);
     setIsOrderModalOpen(false);
     setEditingOrderId(null);
   };
 
   const visibleOrders = useMemo(() => {
-    let list = userRole === 'admin'
+    let list = (userRole === 'admin' || userRole === 'exportador')
       ? workOrders
       : workOrders.filter(o => (Array.isArray(o.tiendas) ? o.tiendas : [o.tienda]).some(t => selectedStores.includes(t)));
     if (orderFilter !== 'Todas') list = list.filter(o => o.estado === orderFilter);
-    return list.sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn));
+    return list.sort((a, b) => new Date(b.creadoEn || 0) - new Date(a.creadoEn || 0));
   }, [workOrders, userRole, selectedStores, orderFilter]);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -523,7 +694,7 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
                           const pColor = evt.prioridad === 'Alta' ? '#EF4444' : evt.prioridad === 'Media' ? '#D97706' : '#2563EB';
                           const pBg    = evt.prioridad === 'Alta' ? 'rgba(239,68,68,0.08)' : evt.prioridad === 'Media' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
                           const isGlobal = evt.replicarGlobal || evt.tienda === 'Todos';
-                          const label = isGlobal ? `[GLOBAL] ${evt.titulo}` : `[${evt.tienda}] ${evt.titulo}`;
+                          const label = evt.isOrderEvent ? evt.titulo : (isGlobal ? `[GLOBAL] ${evt.titulo}` : `[${evt.tienda}] ${evt.titulo}`);
                           return (
                             <div key={eIdx} onClick={ev => handleEventClick(ev, evt)} title={`${label} (${formatTime(evt.horaInicio, evt.horaFin)})`}
                               style={{ fontSize: '8.5px', fontWeight: '800', background: pBg, color: pColor, padding: '2px 5px', borderRadius: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', borderLeft: `2.5px solid ${pColor}` }}>
@@ -642,7 +813,7 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
                                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(79,70,229,0.14)'}
                                   onMouseLeave={e => e.currentTarget.style.background = 'rgba(79,70,229,0.07)'}
                                 >
-                                  <i className="fas fa-edit" style={{ fontSize: '11px' }} /> Editar
+                                  <i className={`fas ${evt.isOrderEvent ? 'fa-external-link-alt' : 'fa-edit'}`} style={{ fontSize: '11px' }} /> {evt.isOrderEvent ? 'Ver / Actualizar Orden' : 'Editar'}
                                 </button>
                               </div>
                             </div>
@@ -722,30 +893,46 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
                         <span key={t} style={{ fontSize: '10px', fontWeight: '700', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '5px' }}>{t}</span>
                       ))}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{order.fechaSalida ? new Date(order.fechaSalida + 'T12:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
-                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{order.fechaEntrega ? new Date(order.fechaEntrega + 'T12:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
+                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{(order.fechaSalidaProduccion || order.fechaSalida) ? new Date((order.fechaSalidaProduccion || order.fechaSalida) + 'T12:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
+                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{(order.fechaEntregaCliente || order.fechaEntrega) ? new Date((order.fechaEntregaCliente || order.fechaEntrega) + 'T12:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
                     <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <i className="fas fa-truck" style={{ fontSize: '10px', color: '#94a3b8' }} /> {order.transporte}
                     </div>
-                    <div><StatusPill status={order.estado} /></div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      {order.archivos && order.archivos.length > 0 && order.archivos.slice(0, 2).map((a, i) => (
-                        a.url ? (
+                    <div><InteractiveStatusDropdown order={order} onUpdate={handleUpdateEstado} userRole={userRole} /></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                      {/* Archivo Orden */}
+                      {(order.archivoOrdenUrl || (order.archivos && order.archivos.find(a => a.url && (a.nombre?.toLowerCase().includes('orden') || a.tipo === 'orden')))) && (
+                        <a href={order.archivoOrdenUrl || order.archivos.find(a => a.url && (a.nombre?.toLowerCase().includes('orden') || a.tipo === 'orden')).url} target="_blank" rel="noreferrer"
+                          style={{ fontSize: '10px', fontWeight: '700', color: '#4f46e5', background: '#ede9fe', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                          <i className="fas fa-file-invoice" /> Orden
+                        </a>
+                      )}
+                      {/* Archivo Vale */}
+                      {(order.archivoValeUrl || (order.archivos && order.archivos.find(a => a.url && (a.nombre?.toLowerCase().includes('vale') || a.tipo === 'vale')))) && (
+                        <a href={order.archivoValeUrl || order.archivos.find(a => a.url && (a.nombre?.toLowerCase().includes('vale') || a.tipo === 'vale')).url} target="_blank" rel="noreferrer"
+                          style={{ fontSize: '10px', fontWeight: '700', color: '#059669', background: '#d1fae5', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                          <i className="fas fa-receipt" /> Vale
+                        </a>
+                      )}
+                      {/* Fallback para antiguos archivos que no tengan URL identificada as Orden/Vale */}
+                      {!order.archivoOrdenUrl && !order.archivoValeUrl && order.archivos && order.archivos.length > 0 && order.archivos.slice(0, 2).map((a, i) => (
+                        a.url && (
                           <a key={i} href={a.url} target="_blank" rel="noreferrer"
-                            style={{ fontSize: '10px', fontWeight: '700', color: '#2563eb', background: '#dbeafe', padding: '2px 6px', borderRadius: '4px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <i className="fas fa-file" /> {a.nombre ? a.nombre.slice(0, 6) + '…' : 'archivo'}
+                            style={{ fontSize: '10px', fontWeight: '700', color: '#2563eb', background: '#dbeafe', padding: '3px 8px', borderRadius: '6px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <i className="fas fa-file" /> {a.nombre ? a.nombre.slice(0, 6) + '…' : 'Archivo'}
                           </a>
-                        ) : (
-                          <span key={i} title={a.error || 'Sin URL'} style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', textDecoration: 'line-through' }}>
-                            {a.nombre ? a.nombre.slice(0, 6) + '…' : 'error'}
-                          </span>
                         )
                       ))}
-                      {order.archivos && order.archivos.length > 2 && <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700' }}>+{order.archivos.length - 2}</span>}
-                      <button onClick={() => openEditOrderModal(order)}
-                        style={{ background: 'rgba(79,70,229,0.07)', border: '1px solid rgba(79,70,229,0.15)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: '700', color: '#4f46e5' }}>
+                      <button title="Editar Orden" onClick={(e) => { e.stopPropagation(); openEditOrderModal(order); }}
+                        style={{ background: 'rgba(79,70,229,0.08)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: '700', color: '#4f46e5' }}>
                         <i className="fas fa-edit" />
                       </button>
+                      {userRole === 'admin' && (
+                        <button title="Eliminar Orden" onClick={(e) => handleDeleteOrder(order, e)}
+                          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: '700', color: '#ef4444' }}>
+                          <i className="fas fa-trash-alt" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -860,12 +1047,12 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontSize: '10.5px' }}>📤 Fecha de Salida</label>
-                  <input type="date" className="form-control" value={orderForm.fechaSalida} onChange={e => setOrderForm(p => ({ ...p, fechaSalida: e.target.value }))} required />
+                  <label className="form-label" style={{ fontSize: '10.5px' }}>📤 Fecha de Salida Producción</label>
+                  <input type="date" className="form-control" value={orderForm.fechaSalidaProduccion} onChange={e => setOrderForm(p => ({ ...p, fechaSalidaProduccion: e.target.value }))} required />
                 </div>
                 <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontSize: '10.5px' }}>📥 Fecha de Entrega</label>
-                  <input type="date" className="form-control" value={orderForm.fechaEntrega} onChange={e => setOrderForm(p => ({ ...p, fechaEntrega: e.target.value }))} />
+                  <label className="form-label" style={{ fontSize: '10.5px' }}>📥 Fecha de Entrega al Cliente</label>
+                  <input type="date" className="form-control" value={orderForm.fechaEntregaCliente} onChange={e => setOrderForm(p => ({ ...p, fechaEntregaCliente: e.target.value }))} />
                 </div>
               </div>
 
@@ -904,42 +1091,83 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
                 <textarea className="form-control" placeholder="Descripción del contenido, instrucciones especiales..." rows="2" value={orderForm.notas} onChange={e => setOrderForm(p => ({ ...p, notas: e.target.value }))} />
               </div>
 
-              {/* File upload — identical pattern to ValesView */}
-              <div className="form-group" style={{ textAlign: 'left' }}>
-                <label className="form-label" style={{ fontSize: '10.5px' }}>📎 Adjuntar Archivos (PDF, imágenes, Word…)</label>
-                <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
-                  onChange={e => setOrderForm(p => ({ ...p, files: Array.from(e.target.files) }))}
-                  style={{ display: 'none' }} />
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ border: '2px dashed #c7d2fe', borderRadius: '10px', padding: '20px', textAlign: 'center', cursor: 'pointer', background: orderForm.files.length > 0 ? '#f0f4ff' : '#fafafa', transition: 'all 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = '#4f46e5'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = '#c7d2fe'}
-                >
-                  {orderForm.files.length > 0 ? (
-                    <div>
-                      <i className="fas fa-check-circle" style={{ fontSize: '22px', color: '#4f46e5', marginBottom: '6px', display: 'block' }} />
-                      <div style={{ fontWeight: '700', fontSize: '13px', color: '#4f46e5' }}>{orderForm.files.length} archivo(s) seleccionado(s)</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>{orderForm.files.map(f => f.name).join(', ')}</div>
-                      <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, files: [] })); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                        style={{ marginTop: '8px', fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
-                        Quitar archivos
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <i className="fas fa-cloud-upload-alt" style={{ fontSize: '26px', color: '#c7d2fe', marginBottom: '8px', display: 'block' }} />
-                      <div style={{ fontWeight: '700', fontSize: '13px', color: '#64748b' }}>Haz clic para seleccionar archivos</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Se subirán directamente a Google Drive</div>
-                    </div>
-                  )}
-                </div>
-                {uploadingFiles && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', color: '#4f46e5', fontSize: '12px', fontWeight: '700' }}>
-                    <i className="fas fa-spinner fa-spin" /> {uploadProgress || 'Subiendo a Google Drive…'}
+              {/* Documentos: 1. Orden | 2. Vale */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {/* 1. Archivo de Orden */}
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '10.5px' }}>📋 1. Archivo de Orden</label>
+                  <input ref={fileOrdenRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
+                    onChange={e => setOrderForm(p => ({ ...p, fileOrden: e.target.files[0] || null }))}
+                    style={{ display: 'none' }} />
+                  <div
+                    onClick={() => fileOrdenRef.current?.click()}
+                    style={{ border: '2px dashed #c7d2fe', borderRadius: '10px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: (orderForm.fileOrden || orderForm.archivoOrdenUrl) ? '#f0f4ff' : '#fafafa', transition: 'all 0.2s' }}
+                  >
+                    {orderForm.fileOrden ? (
+                      <div>
+                        <i className="fas fa-file-invoice" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
+                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#4f46e5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orderForm.fileOrden.name}</div>
+                        <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, fileOrden: null })); if (fileOrdenRef.current) fileOrdenRef.current.value = ''; }}
+                          style={{ marginTop: '6px', fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
+                          Quitar
+                        </button>
+                      </div>
+                    ) : orderForm.archivoOrdenUrl ? (
+                      <div>
+                        <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
+                        <a href={orderForm.archivoOrdenUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#4f46e5' }}>Ver Orden subida</a>
+                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>Haz clic para reemplazar</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <i className="fas fa-cloud-upload-alt" style={{ fontSize: '20px', color: '#c7d2fe', marginBottom: '4px', display: 'block' }} />
+                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#64748b' }}>Subir Orden</div>
+                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>PDF, Imagen, Word…</div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+
+                {/* 2. Archivo de Vale */}
+                <div className="form-group" style={{ textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontSize: '10.5px' }}>🧾 2. Archivo de Vale</label>
+                  <input ref={fileValeRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
+                    onChange={e => setOrderForm(p => ({ ...p, fileVale: e.target.files[0] || null }))}
+                    style={{ display: 'none' }} />
+                  <div
+                    onClick={() => fileValeRef.current?.click()}
+                    style={{ border: '2px dashed #a7f3d0', borderRadius: '10px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: (orderForm.fileVale || orderForm.archivoValeUrl) ? '#ecfdf5' : '#fafafa', transition: 'all 0.2s' }}
+                  >
+                    {orderForm.fileVale ? (
+                      <div>
+                        <i className="fas fa-receipt" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
+                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#059669', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orderForm.fileVale.name}</div>
+                        <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, fileVale: null })); if (fileValeRef.current) fileValeRef.current.value = ''; }}
+                          style={{ marginTop: '6px', fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
+                          Quitar
+                        </button>
+                      </div>
+                    ) : orderForm.archivoValeUrl ? (
+                      <div>
+                        <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
+                        <a href={orderForm.archivoValeUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>Ver Vale subido</a>
+                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>Haz clic para reemplazar</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <i className="fas fa-cloud-upload-alt" style={{ fontSize: '20px', color: '#a7f3d0', marginBottom: '4px', display: 'block' }} />
+                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#64748b' }}>Subir Vale</div>
+                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>PDF, Imagen, Word…</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
+              {uploadingFiles && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', color: '#4f46e5', fontSize: '12px', fontWeight: '700' }}>
+                  <i className="fas fa-spinner fa-spin" /> {uploadProgress || 'Subiendo archivos a Google Drive…'}
+                </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
                 <button type="button" className="topbar-btn btn-outline" onClick={() => setIsOrderModalOpen(false)}>Cancelar</button>

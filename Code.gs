@@ -95,6 +95,14 @@ function handleRequest(e) {
       result = getNotifications();
     } else if (action === 'subirArchivoOrden') {
       result = subirArchivoOrden(params.datos);
+    } else if (action === 'saveOrden') {
+      result = saveOrden(params.datos);
+    } else if (action === 'getOrdenes') {
+      result = getOrdenes();
+    } else if (action === 'eliminarOrden') {
+      result = eliminarOrden(params.noOrden);
+    } else if (action === 'updateOrdenEstado') {
+      result = updateOrdenEstado(params.noOrden, params.estado);
     }
 
     return ContentService.createTextOutput(JSON.stringify(result))
@@ -825,30 +833,27 @@ function getNotifications() {
 // ──────────────────────────────────────────────────────────────────
 // MÓDULO: ARCHIVOS DE ÓRDENES DE TRABAJO
 // ──────────────────────────────────────────────────────────────────
-const ORDENES_FOLDER_ID = '18_lVSz2vKLXr1p8FXAOW28N4y2ojxq98'; // Same main Drive folder
+// Dedicated folder: CRM > Ordenes (created by user)
+const ORDENES_FOLDER_ID = '17oCaQxmzLJZIU_YP1PrXUv4MziXl4tgA';
 
+/**
+ * Sube un archivo a la carpeta de Órdenes en Drive.
+ * datos.tipoArchivo: 'orden' | 'vale'  (subcarpeta dentro de la orden)
+ */
 function subirArchivoOrden(datos) {
   try {
     const noOrden = datos.noOrden;
+    const tipoArchivo = datos.tipoArchivo === 'vale' ? 'vale' : 'orden';
     const base64Data = datos.base64;
     const mimeType = datos.mimeType || 'application/octet-stream';
-    const fileName = datos.fileName || ('orden_' + noOrden);
-    
+    const fileName = datos.fileName || (tipoArchivo + '_' + noOrden);
+
     if (!base64Data) throw new Error('No se recibió el contenido del archivo.');
-    
-    const mainFolder = DriveApp.getFolderById(ORDENES_FOLDER_ID);
-    
-    // Get or create OrdenesWork folder
-    let ordenesFolder;
-    const ordenesFolders = mainFolder.getFoldersByName('OrdenesWork');
-    if (ordenesFolders.hasNext()) {
-      ordenesFolder = ordenesFolders.next();
-    } else {
-      ordenesFolder = mainFolder.createFolder('OrdenesWork');
-    }
-    
-    // Get or create subfolder for this specific order number
-    const safeOrdenName = noOrden.replace(/\//g, '_');
+
+    const ordenesFolder = DriveApp.getFolderById(ORDENES_FOLDER_ID);
+
+    // Subcarpeta por número de orden
+    const safeOrdenName = noOrden.replace(/\//g, '_').replace(/\s/g, '_');
     let ordenFolder;
     const subFolders = ordenesFolder.getFoldersByName(safeOrdenName);
     if (subFolders.hasNext()) {
@@ -856,18 +861,196 @@ function subirArchivoOrden(datos) {
     } else {
       ordenFolder = ordenesFolder.createFolder(safeOrdenName);
     }
-    
+
+    // Subcarpeta por tipo: orden/ o vale/
+    let tipoFolder;
+    const tipoFolders = ordenFolder.getFoldersByName(tipoArchivo);
+    if (tipoFolders.hasNext()) {
+      tipoFolder = tipoFolders.next();
+    } else {
+      tipoFolder = ordenFolder.createFolder(tipoArchivo);
+    }
+
     const bytes = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(bytes, mimeType, fileName);
-    const file = ordenFolder.createFile(blob);
-    
+    const file = tipoFolder.createFile(blob);
+
+    // Escribir inmediatamente la URL y el ID en la hoja OrdenesWork
+    try {
+      const sheet = setupOrdenesWorkSheet();
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const colNumero = headers.indexOf('numero');
+      const colId = headers.indexOf('id');
+      const urlCol = headers.indexOf(tipoArchivo === 'vale' ? 'archivoValeUrl' : 'archivoOrdenUrl') + 1;
+      const idCol = headers.indexOf(tipoArchivo === 'vale' ? 'archivoValeId' : 'archivoOrdenId') + 1;
+
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][colNumero]).trim() === String(noOrden).trim() || String(data[i][colId]).trim() === String(noOrden).trim()) {
+          sheet.getRange(i + 1, urlCol).setValue(file.getUrl());
+          sheet.getRange(i + 1, idCol).setValue(file.getId());
+          break;
+        }
+      }
+    } catch (sheetErr) {
+      // Si falla escribir en la celda no detenemos la respuesta del subida a Drive
+    }
+
     return {
       status: 'success',
-      message: 'Archivo "' + fileName + '" subido a Orden ' + noOrden,
+      message: 'Archivo "' + fileName + '" subido a Órdenes/' + safeOrdenName + '/' + tipoArchivo,
       url: file.getUrl(),
       fileId: file.getId(),
-      fileName: fileName
+      fileName: fileName,
+      tipoArchivo: tipoArchivo
     };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MÓDULO: ÓRDENES DE TRABAJO — Persistencia en Google Sheets
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Hoja: OrdenesWork
+ * Columnas: id, numero, tiendas, fechaSalidaProduccion, fechaEntregaCliente,
+ *           transporte, estado, notas, archivoOrdenUrl, archivoOrdenId,
+ *           archivoValeUrl, archivoValeId, creadoPor, creadoEn
+ */
+function setupOrdenesWorkSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('OrdenesWork');
+  if (!sheet) {
+    sheet = ss.insertSheet('OrdenesWork');
+    sheet.appendRow([
+      'id', 'numero', 'tiendas', 'fechaSalidaProduccion', 'fechaEntregaCliente',
+      'transporte', 'estado', 'notas',
+      'archivoOrdenUrl', 'archivoOrdenId',
+      'archivoValeUrl', 'archivoValeId',
+      'creadoPor', 'creadoEn'
+    ]);
+    sheet.getRange(1, 1, 1, 14).setFontWeight('bold')
+      .setBackground('#1e293b').setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function saveOrden(datos) {
+  try {
+    const sheet = setupOrdenesWorkSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('id');
+
+    let existingRow = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colId]) === String(datos.id)) {
+        existingRow = i + 1;
+        break;
+      }
+    }
+
+    const tiendas = Array.isArray(datos.tiendas) ? datos.tiendas.join(', ') : (datos.tiendas || '');
+
+    const rowData = [
+      datos.id,
+      datos.numero,
+      tiendas,
+      datos.fechaSalidaProduccion || '',
+      datos.fechaEntregaCliente || '',
+      datos.transporte || '',
+      datos.estado || 'Pendiente',
+      datos.notas || '',
+      datos.archivoOrdenUrl || '',
+      datos.archivoOrdenId || '',
+      datos.archivoValeUrl || '',
+      datos.archivoValeId || '',
+      datos.creadoPor || '',
+      datos.creadoEn || new Date().toISOString()
+    ];
+
+    if (existingRow > 0) {
+      // Update: preserve file URLs if not provided in update
+      const existing = data[existingRow - 1];
+      const colOrdenUrl = headers.indexOf('archivoOrdenUrl');
+      const colValeUrl = headers.indexOf('archivoValeUrl');
+      if (!datos.archivoOrdenUrl && existing[colOrdenUrl]) rowData[8] = existing[colOrdenUrl];
+      if (!datos.archivoOrdenId && existing[headers.indexOf('archivoOrdenId')]) rowData[9] = existing[headers.indexOf('archivoOrdenId')];
+      if (!datos.archivoValeUrl && existing[colValeUrl]) rowData[10] = existing[colValeUrl];
+      if (!datos.archivoValeId && existing[headers.indexOf('archivoValeId')]) rowData[11] = existing[headers.indexOf('archivoValeId')];
+      sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+      return { status: 'success', message: 'Orden actualizada: ' + datos.numero };
+    } else {
+      sheet.appendRow(rowData);
+      return { status: 'success', message: 'Orden guardada: ' + datos.numero };
+    }
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function getOrdenes() {
+  try {
+    const sheet = setupOrdenesWorkSheet();
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return { status: 'success', ordenes: [] };
+    const headers = data[0];
+    const ordenes = [];
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue; // skip empty rows
+      const row = {};
+      for (let j = 0; j < headers.length; j++) {
+        row[headers[j]] = data[i][j];
+      }
+      // Parse tiendas back to array
+      row.tiendas = row.tiendas ? String(row.tiendas).split(',').map(s => s.trim()).filter(Boolean) : [];
+      ordenes.push(row);
+    }
+    return { status: 'success', ordenes };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function eliminarOrden(noOrden) {
+  try {
+    const sheet = setupOrdenesWorkSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('id');
+    const colNumero = headers.indexOf('numero');
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colId]) === String(noOrden) || String(data[i][colNumero]) === String(noOrden)) {
+        sheet.deleteRow(i + 1);
+        return { status: 'success', message: 'Orden eliminada: ' + noOrden };
+      }
+    }
+    return { status: 'error', message: 'Orden no encontrada: ' + noOrden };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function updateOrdenEstado(noOrden, estado) {
+  try {
+    const sheet = setupOrdenesWorkSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('id');
+    const colNumero = headers.indexOf('numero');
+    const colEstado = headers.indexOf('estado') + 1;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colId]) === String(noOrden) || String(data[i][colNumero]) === String(noOrden)) {
+        sheet.getRange(i + 1, colEstado).setValue(estado);
+        return { status: 'success', message: 'Estado actualizado a: ' + estado };
+      }
+    }
+    return { status: 'error', message: 'Orden no encontrada: ' + noOrden };
   } catch (e) {
     return { status: 'error', message: e.toString() };
   }
