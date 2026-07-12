@@ -319,8 +319,8 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     const valeObj = vales.find(v => v.NoVale === noVale);
     if (!valeObj) return;
 
-    if (esValeCongelado(valeObj)) {
-      notify('⚠️ No se pueden solicitar más modificaciones: el vale está congelado tras superar el límite de 3 modificaciones y 1 día sin autorización.', 'error');
+    if (esValeOtroVale(valeObj)) {
+      notify('⚠️ No se pueden solicitar más modificaciones: el vale está en estado Otro Vale tras superar el límite de modificaciones y plazo.', 'error');
       return;
     }
 
@@ -329,7 +329,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     if (currentProceso === 'Modificación 1') nextProceso = 'Modificación 2';
     else if (currentProceso === 'Modificación 2') nextProceso = 'Modificación 3';
     else if (currentProceso === 'Modificación 3') {
-      notify('⚠️ Ya te encuentras en la Modificación 3 (Límite máximo permitido). Si no es autorizado en 1 día, el vale se congelará.', 'warning');
+      notify('⚠️ Ya te encuentras en la Modificación 3 (Límite máximo permitido). Si no es autorizado en 1 día, se generará un Otro Vale.', 'warning');
       nextProceso = 'Modificación 3';
     }
 
@@ -339,12 +339,6 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
 
     const updates = { Proceso: nextProceso };
     if (nextProceso === 'Modificación 3' && !valeObj.FechaUltimaModificacion) {
-      updates.FechaUltimaModificacion = new Date().toISOString();
-    }
-
-    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
-    if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
-    if (nextProceso === 'Modificación 3') {
       updates.FechaUltimaModificacion = new Date().toISOString();
     }
 
@@ -1020,11 +1014,11 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
               <button onClick={() => setEditingVale(null)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
             </div>
 
-            {esValeCongelado(editingVale) && (
-              <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '8px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <i className="fas fa-snowflake" style={{ color: '#ef4444', fontSize: '20px' }}></i>
-                <div style={{ fontSize: '12px', color: '#991b1b' }}>
-                  <strong>VALE CONGELADO:</strong> Se alcanzó o superó la 3ra modificación y el plazo de 24 horas sin autorización. El vale está protegido y no permite subir más archivos ni solicitar cambios.
+            {esValeOtroVale(editingVale) && (
+              <div style={{ background: '#eff6ff', border: '1px solid #3b82f6', borderRadius: '8px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <i className="fas fa-clipboard-list" style={{ color: '#3b82f6', fontSize: '20px' }}></i>
+                <div style={{ fontSize: '12px', color: '#1e40af' }}>
+                  <strong>OTRO VALE:</strong> Se alcanzó o superó la 3ra modificación y el plazo de 24 horas sin autorización. El vale está en estado Otro Vale.
                 </div>
               </div>
             )}
@@ -1038,7 +1032,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                   </label>
                   <select
                     value={editingVale.Proceso || 'en tiempo'}
-                    disabled={esValeCongelado(editingVale) && !isAdminOrDesign}
+                    disabled={esValeOtroVale(editingVale) && !isAdminOrDesign}
                     onChange={(e) => setEditingVale({ ...editingVale, Proceso: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#fff', fontSize: '13px', fontWeight: 700 }}
                   >
@@ -1055,7 +1049,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                   </label>
                   <input
                     type="date"
-                    disabled={esValeCongelado(editingVale) && !isAdminOrDesign}
+                    disabled={esValeOtroVale(editingVale) && !isAdminOrDesign}
                     value={editingVale.FechaSalida || ''}
                     onChange={(e) => setEditingVale({ ...editingVale, FechaSalida: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#fff', fontSize: '13px' }}
@@ -1076,7 +1070,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                     {editingVale.ArchivoCargaUrl ? (
                       <a href={editingVale.ArchivoCargaUrl} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#3b82f6' }}>Ver Carga del Vale</a>
                     ) : null}
-                    {!esValeCongelado(editingVale) && (
+                    {!esValeOtroVale(editingVale) && (
                       <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'carga')} className="topbar-btn btn-outline" style={{ fontSize: '11px' }}>
                         {editingVale.ArchivoCargaUrl ? '+ Reemplazar Carga' : '+ Subir Carga'}
                       </button>
@@ -1114,7 +1108,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {editingVale.ArchivoDescarga2Url ? (
                         <a href={editingVale.ArchivoDescarga2Url} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a' }}>Ver Arte Mod 1</a>
-                      ) : isAdminOrDesign && !esValeCongelado(editingVale) ? (
+                      ) : isAdminOrDesign && !esValeOtroVale(editingVale) ? (
                         <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'descarga2')} className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a', borderColor: '#16a34a' }}>+ Subir Arte 2</button>
                       ) : (
                         <span style={{ fontSize: '11px', color: '#94a3b8', alignSelf: 'center' }}>Pendiente</span>
@@ -1130,7 +1124,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {editingVale.ArchivoDescarga3Url ? (
                         <a href={editingVale.ArchivoDescarga3Url} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a' }}>Ver Arte Final 3</a>
-                      ) : isAdminOrDesign && !esValeCongelado(editingVale) ? (
+                      ) : isAdminOrDesign && !esValeOtroVale(editingVale) ? (
                         <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'descarga3')} className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a', borderColor: '#16a34a' }}>+ Subir Arte 3</button>
                       ) : (
                         <span style={{ fontSize: '11px', color: '#94a3b8', alignSelf: 'center' }}>Pendiente</span>
