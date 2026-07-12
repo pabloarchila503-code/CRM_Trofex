@@ -762,7 +762,20 @@ function getCalendarEvents() {
     for (let i = 1; i < data.length; i++) {
       const row = {};
       for (let j = 0; j < headers.length; j++) {
-        row[headers[j]] = data[i][j];
+        let val = data[i][j];
+        if (val instanceof Date) {
+          if (headers[j] === 'fecha') {
+            const yyyy = val.getFullYear();
+            const mm = String(val.getMonth() + 1).padStart(2, '0');
+            const dd = String(val.getDate()).padStart(2, '0');
+            val = `${yyyy}-${mm}-${dd}`;
+          } else {
+            val = val.toISOString();
+          }
+        } else if (typeof val === 'string' && headers[j] === 'fecha' && val.includes('T')) {
+          val = val.substring(0, 10);
+        }
+        row[headers[j]] = val;
       }
       row.replicarGlobal = row.replicarGlobal === 'SI';
       eventos.push(row);
@@ -1003,7 +1016,20 @@ function getOrdenes() {
       if (!data[i][0]) continue; // skip empty rows
       const row = {};
       for (let j = 0; j < headers.length; j++) {
-        row[headers[j]] = data[i][j];
+        let val = data[i][j];
+        if (val instanceof Date) {
+          if (headers[j] === 'fechaSalidaProduccion' || headers[j] === 'fechaEntregaCliente') {
+            const yyyy = val.getFullYear();
+            const mm = String(val.getMonth() + 1).padStart(2, '0');
+            const dd = String(val.getDate()).padStart(2, '0');
+            val = `${yyyy}-${mm}-${dd}`;
+          } else {
+            val = val.toISOString();
+          }
+        } else if (typeof val === 'string' && (headers[j] === 'fechaSalidaProduccion' || headers[j] === 'fechaEntregaCliente') && val.includes('T')) {
+          val = val.substring(0, 10);
+        }
+        row[headers[j]] = val;
       }
       // Parse tiendas back to array
       row.tiendas = row.tiendas ? String(row.tiendas).split(',').map(s => s.trim()).filter(Boolean) : [];

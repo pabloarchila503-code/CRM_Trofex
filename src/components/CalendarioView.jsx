@@ -34,6 +34,38 @@ const DAY_NAMES_FULL   = ['Domingo','Lunes','Martes','Miércoles','Jueves','Vier
 const MONTH_NAMES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Safe Date Helpers (prevents "Invalid Date" and normalizes timestamps)
+// ─────────────────────────────────────────────────────────────────────────────
+function extractDateStr(dateVal) {
+  if (!dateVal) return '';
+  const s = String(dateVal).trim();
+  if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.substring(0, 10);
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+    const parts = s.split('/');
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().substring(0, 10);
+  }
+  return s;
+}
+
+function formatDisplayDateSafe(dateVal) {
+  const cleanStr = extractDateStr(dateVal);
+  if (!cleanStr) return '—';
+  try {
+    const d = new Date(cleanStr + 'T12:00:00');
+    if (isNaN(d.getTime())) return cleanStr;
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return cleanStr || '—';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Helper: fileToBase64
 // ─────────────────────────────────────────────────────────────────────────────
 function fileToBase64(file) {
@@ -335,8 +367,8 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
       id: editingOrderId || ('wo' + Date.now()),
       numero: orderForm.numero,
       tiendas: orderForm.tiendas,
-      fechaSalidaProduccion: orderForm.fechaSalidaProduccion,
-      fechaEntregaCliente: orderForm.fechaEntregaCliente,
+      fechaSalidaProduccion: extractDateStr(orderForm.fechaSalidaProduccion),
+      fechaEntregaCliente: extractDateStr(orderForm.fechaEntregaCliente),
       transporte: orderForm.transporte,
       estado: orderForm.estado,
       notas: orderForm.notas,
@@ -371,7 +403,11 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getCalendarEvents`).then(r => r.json());
         if (res.status === 'success' && res.eventos && res.eventos.length > 0) {
-          setEvents(res.eventos);
+          const cleanEvts = res.eventos.map(e => ({
+            ...e,
+            fecha: extractDateStr(e.fecha)
+          }));
+          setEvents(cleanEvts);
           setBackendConnected(true);
         }
       } catch { /* use initial data */ }
@@ -379,7 +415,12 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
       try {
         const resOrd = await fetch(`${SCRIPT_URL}?action=getOrdenes`).then(r => r.json());
         if (resOrd.status === 'success' && resOrd.ordenes && resOrd.ordenes.length > 0) {
-          setWorkOrders(resOrd.ordenes);
+          const cleanOrders = resOrd.ordenes.map(o => ({
+            ...o,
+            fechaSalidaProduccion: extractDateStr(o.fechaSalidaProduccion || o.fechaSalida),
+            fechaEntregaCliente: extractDateStr(o.fechaEntregaCliente || o.fechaEntrega),
+          }));
+          setWorkOrders(cleanOrders);
         }
       } catch { /* use initial data */ }
     };
@@ -509,8 +550,8 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
     const orderEvts = [];
     workOrders.forEach(o => {
       if (o.estado === 'Cancelado') return; // no mostrar cancelados en calendario
-      const fSalida = o.fechaSalidaProduccion || o.fechaSalida;
-      const fEntrega = o.fechaEntregaCliente || o.fechaEntrega;
+      const fSalida = extractDateStr(o.fechaSalidaProduccion || o.fechaSalida);
+      const fEntrega = extractDateStr(o.fechaEntregaCliente || o.fechaEntrega);
       const tdas = Array.isArray(o.tiendas) ? o.tiendas : [o.tienda || 'CB'];
       const tdaSingle = tdas[0] || 'CB';
 
@@ -556,10 +597,17 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
 
   // ── Filtered events ────────────────────────────────────────────────────────
   const filteredEvents = useMemo(() => allCombinedEvents.filter(evt => {
+    // Si el usuario es exportador, SOLO ve eventos provenientes de órdenes de trabajo (isOrderEvent === true)
+    // Las actividades creadas en calendario por las tiendas no deben aparecerle
+    if (userRole === 'exportador') {
+      if (!evt.isOrderEvent) return false;
+      const storesToCheck = Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda];
+      return selectedStores.length >= STORES.length || storesToCheck.some(s => selectedStores.includes(s));
+    }
     const storesToCheck = Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda];
     if (evt.replicarGlobal || evt.tienda === 'Todos') return true;
-    return selectedStores.length === 14 || storesToCheck.some(s => selectedStores.includes(s));
-  }), [allCombinedEvents, selectedStores]);
+    return selectedStores.length >= STORES.length || storesToCheck.some(s => selectedStores.includes(s));
+  }), [allCombinedEvents, selectedStores, userRole]);
 
   // ── Chronogram groups ──────────────────────────────────────────────────────
   const chronogramGroups = useMemo(() => {
@@ -893,8 +941,8 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
                         <span key={t} style={{ fontSize: '10px', fontWeight: '700', color: '#475569', background: '#f1f5f9', padding: '2px 6px', borderRadius: '5px' }}>{t}</span>
                       ))}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{(order.fechaSalidaProduccion || order.fechaSalida) ? new Date((order.fechaSalidaProduccion || order.fechaSalida) + 'T12:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
-                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{(order.fechaEntregaCliente || order.fechaEntrega) ? new Date((order.fechaEntregaCliente || order.fechaEntrega) + 'T12:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
+                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{formatDisplayDateSafe(order.fechaSalidaProduccion || order.fechaSalida)}</div>
+                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>{formatDisplayDateSafe(order.fechaEntregaCliente || order.fechaEntrega)}</div>
                     <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <i className="fas fa-truck" style={{ fontSize: '10px', color: '#94a3b8' }} /> {order.transporte}
                     </div>
