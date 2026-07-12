@@ -199,9 +199,9 @@ export default function Topbar({
 
       {/* ── FILTROS MULTI-TAG ── */}
       <div
-        className={(currentView === 'calendario' || currentView === 'tareas') ? 'd-none' : ''}
+        className={(currentView === 'calendario' || currentView === 'tareas' || currentView === 'ajustes') ? 'd-none' : ''}
         style={{
-          display: (currentView === 'calendario' || currentView === 'tareas') ? 'none' : 'flex',
+          display: (currentView === 'calendario' || currentView === 'tareas' || currentView === 'ajustes') ? 'none' : 'flex',
           alignItems: 'center',
           gap: '10px',
           flex: 1,
@@ -277,10 +277,10 @@ export default function Topbar({
         {/* ── FILTRO MESES (todos los usuarios) ── */}
         <div
           ref={monthRef}
-          className={['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos'].includes(currentView) ? 'd-none' : ''}
+          className={['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos', 'ajustes'].includes(currentView) ? 'd-none' : ''}
           style={{
             position: 'relative',
-            display: ['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos'].includes(currentView) ? 'none' : 'block'
+            display: ['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos', 'ajustes'].includes(currentView) ? 'none' : 'block'
           }}
         >
           <button

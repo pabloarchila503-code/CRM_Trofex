@@ -15,47 +15,67 @@ const MENU_ITEMS = [
   { id: 'carreras', name: 'Carreras', category: 'Ventas' }
 ];
 
+const DEFAULT_PERMISSIONS = {
+  store: {
+    dashboard: true,
+    productos: false,
+    tendencias: false,
+    tareas: true,
+    vales: true,
+    'analisis-rendimiento': false,
+    calendario: true,
+    'rendimiento-programado': false,
+    prospecciones: true,
+    '80-20': true,
+    proyecto: true,
+    carreras: true
+  },
+  diseno: {
+    dashboard: false,
+    productos: false,
+    tendencias: false,
+    tareas: false,
+    vales: true,
+    'analisis-rendimiento': false,
+    calendario: true,
+    'rendimiento-programado': false,
+    prospecciones: false,
+    '80-20': false,
+    proyecto: false,
+    carreras: false
+  },
+  exportador: {
+    dashboard: true,
+    productos: false,
+    tendencias: false,
+    tareas: false,
+    vales: false,
+    'analisis-rendimiento': false,
+    calendario: true,
+    'rendimiento-programado': false,
+    prospecciones: false,
+    '80-20': false,
+    proyecto: false,
+    carreras: false
+  }
+};
+
 export default function AdminSettingsView() {
   const [permissions, setPermissions] = useState(() => {
     const saved = localStorage.getItem('TROFEX_USER_PERMISSIONS_CONFIG');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          store: { ...DEFAULT_PERMISSIONS.store, ...(parsed.store || {}) },
+          diseno: { ...DEFAULT_PERMISSIONS.diseno, ...(parsed.diseno || {}) },
+          exportador: { ...DEFAULT_PERMISSIONS.exportador, ...(parsed.exportador || {}) }
+        };
       } catch (e) {
         console.error(e);
       }
     }
-    // Configuración por defecto de permisos por rol
-    return {
-      store: {
-        dashboard: true,
-        productos: false,
-        tendencias: false,
-        tareas: true,
-        vales: true,
-        'analisis-rendimiento': false,
-        calendario: true,
-        'rendimiento-programado': false,
-        prospecciones: true,
-        '80-20': true,
-        proyecto: true,
-        carreras: true
-      },
-      diseno: {
-        dashboard: false,
-        productos: false,
-        tendencias: false,
-        tareas: false,
-        vales: true,
-        'analisis-rendimiento': false,
-        calendario: true,
-        'rendimiento-programado': false,
-        prospecciones: false,
-        '80-20': false,
-        proyecto: false,
-        carreras: false
-      }
-    };
+    return DEFAULT_PERMISSIONS;
   });
 
   useEffect(() => {
@@ -74,37 +94,7 @@ export default function AdminSettingsView() {
 
   const resetToDefault = () => {
     if (window.confirm('¿Deseas restaurar los accesos predeterminados?')) {
-      const defaults = {
-        store: {
-          dashboard: true,
-          productos: false,
-          tendencias: false,
-          tareas: true,
-          vales: true,
-          'analisis-rendimiento': false,
-          calendario: true,
-          'rendimiento-programado': false,
-          prospecciones: true,
-          '80-20': true,
-          proyecto: true,
-          carreras: true
-        },
-        diseno: {
-          dashboard: false,
-          productos: false,
-          tendencias: false,
-          tareas: false,
-          vales: true,
-          'analisis-rendimiento': false,
-          calendario: true,
-          'rendimiento-programado': false,
-          prospecciones: false,
-          '80-20': false,
-          proyecto: false,
-          carreras: false
-        }
-      };
-      setPermissions(defaults);
+      setPermissions(DEFAULT_PERMISSIONS);
       alert('Accesos restaurados.');
     }
   };
@@ -138,7 +128,7 @@ export default function AdminSettingsView() {
         </div>
 
         {/* ===== CONTENEDOR CONFIGURADOR ===== */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '24px' }}>
           
           {/* PERFIL ASESOR TIENDAS */}
           <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -202,6 +192,44 @@ export default function AdminSettingsView() {
                     
                     <button
                       onClick={() => togglePermission('diseno', item.id)}
+                      style={{
+                        padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s',
+                        background: isAllowed ? '#dcfce7' : '#fee2e2',
+                        color: isAllowed ? '#15803d' : '#b91c1c'
+                      }}
+                    >
+                      {isAllowed ? '✓ Visible' : '✕ Oculto'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* PERFIL EXPORTADOR / LOGÍSTICA */}
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px', borderBottom: '2px solid #f1f5f9', paddingBottom: '12px' }}>
+              <div style={{ width: '42px', height: '42px', background: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                <i className="fas fa-truck-loading"></i>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#1e293b' }}>Perfil: Exportador / Logística</h3>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>Rol: `exportador`</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {MENU_ITEMS.map(item => {
+                const isAllowed = permissions.exportador && permissions.exportador[item.id] !== false;
+                return (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#fafafa', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{item.name}</div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '700', marginTop: '2px' }}>Categoría: {item.category}</div>
+                    </div>
+                    
+                    <button
+                      onClick={() => togglePermission('exportador', item.id)}
                       style={{
                         padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s',
                         background: isAllowed ? '#dcfce7' : '#fee2e2',

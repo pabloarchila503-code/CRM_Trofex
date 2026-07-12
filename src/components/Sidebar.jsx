@@ -32,6 +32,11 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
         dashboard: false, productos: false, tendencias: false, tareas: false, vales: true,
         'analisis-rendimiento': false, calendario: true, 'rendimiento-programado': false,
         prospecciones: false, '80-20': false, proyecto: false, carreras: false
+      },
+      exportador: {
+        dashboard: true, productos: false, tendencias: false, tareas: false, vales: false,
+        'analisis-rendimiento': false, calendario: true, 'rendimiento-programado': false,
+        prospecciones: false, '80-20': false, proyecto: false, carreras: false
       }
     };
   };
@@ -41,7 +46,9 @@ export default function Sidebar({ currentView, setView, openCount, onLogout, use
   // Función para determinar si una pestaña debe ser visible para el rol actual
   const isVisible = (viewId) => {
     if (userRole === 'admin') return true; // Admin ve todo
-    if (userRole === 'exportador') return viewId === 'calendario' || viewId === 'dashboard'; // Exportador ve Calendario/Órdenes
+    if (userRole === 'exportador') {
+      return perms.exportador ? perms.exportador[viewId] !== false : (viewId === 'calendario' || viewId === 'dashboard');
+    }
     if (userRole === 'diseno') return perms.diseno[viewId] !== false;
     return perms.store[viewId] !== false; // por defecto 'store'
   };
