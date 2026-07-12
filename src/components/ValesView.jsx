@@ -3,26 +3,34 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 // =====================================================================
 // CONFIGURACIÓN DEL BACKEND (Google Apps Script Web App)
 // =====================================================================
-// Pega aquí la URL de tu despliegue de Apps Script (Implementar > Nueva
-// implementación > Aplicación web), algo como:
-// https://script.google.com/macros/s/AKfycb..../exec
-// Mientras esto esté vacío, el módulo funciona en modo local/demo
-// (los archivos no se suben realmente a Drive).
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyrI5mKnFOMo8zf8cixTy_5c8XJbgFNPxOvUbDzngEeFBdSpS6It_U-B0IOCLiefex7/exec';
 
 const PRODUCTOS = ['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'];
-const PROCESOS = ['en tiempo', 'tarde', 'Entregado'];
+const PROCESOS = ['en tiempo', 'tarde', 'Entregado', 'Modificación 1', 'Modificación 2', 'Modificación 3', 'Autorizado', 'Congelado'];
 const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
-// Enlaces reales a las carpetas raíz de Drive (para el botón "Abrir Carpeta en Drive")
 const CARPETA_CARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
 const CARPETA_DESCARGA_URL = 'https://drive.google.com/drive/folders/1AEgVPJKB2vvU-XGtsb768BfnvOr5g7nh';
 
 function mockValesIniciales() {
   return [
-    { No: 1, Tienda: 'CB', NoVale: 'VAL-001', Producto: 'Medalla Fundida', FechaIngreso: '2026-07-01', FechaSalida: '2026-07-05', Proceso: 'tarde', ArchivoCargaUrl: '', ArchivoDescargaUrl: '' },
-    { No: 2, Tienda: 'JT', NoVale: 'VAL-002', Producto: 'Vidrio', FechaIngreso: '2026-07-03', FechaSalida: '2026-07-06', Proceso: 'tarde', ArchivoCargaUrl: '', ArchivoDescargaUrl: '' },
-    { No: 3, Tienda: 'Z3', NoVale: 'VAL-003', Producto: 'Pin Fundido', FechaIngreso: '2026-06-28', FechaSalida: '2026-07-02', Proceso: 'tarde', ArchivoCargaUrl: '', ArchivoDescargaUrl: '' },
+    { 
+      No: 1, Tienda: 'CB', NoVale: 'VAL-001', Producto: 'Medalla Fundida', 
+      FechaIngreso: '2026-07-08', FechaSalida: '2026-07-12', Proceso: 'Entregado', 
+      ArchivoCargaUrl: 'https://example.com/carga1.pdf', ArchivoDescargaUrl: 'https://example.com/descarga1.pdf', 
+      ArchivoCarga2Url: '', ArchivoDescarga2Url: '', ArchivoOrdenTrabajoUrl: '' 
+    },
+    { 
+      No: 2, Tienda: 'JT', NoVale: 'VAL-002', Producto: 'Vidrio', 
+      FechaIngreso: '2026-07-11', FechaSalida: '2026-07-15', Proceso: 'en tiempo', 
+      ArchivoCargaUrl: '', ArchivoDescargaUrl: '' 
+    },
+    { 
+      No: 3, Tienda: 'Z3', NoVale: 'VAL-003', Producto: 'Pin Fundido', 
+      FechaIngreso: '2026-07-06', FechaSalida: '2026-07-10', Proceso: 'Modificación 1', 
+      ArchivoCargaUrl: 'https://example.com/carga1.pdf', ArchivoDescargaUrl: 'https://example.com/descarga1.pdf', 
+      ArchivoCarga2Url: '', ArchivoDescarga2Url: '' 
+    },
   ];
 }
 
@@ -35,13 +43,66 @@ function fileToBase64(file) {
   });
 }
 
+function calcularFechaLimiteHabiles(fechaIngresoStr, diasHabiles = 3) {
+  if (!fechaIngresoStr) return null;
+  const parts = String(fechaIngresoStr).split('-');
+  if (parts.length < 3) return null;
+  let d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  let count = 0;
+  while (count < diasHabiles) {
+    d.setDate(d.getDate() + 1);
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+  }
+  return d;
+}
+
+function esValeCongelado(v) {
+  if (!v) return false;
+  if (v.Proceso === 'Congelado') return true;
+  if (v.Proceso === 'Modificación 3' && v.Proceso !== 'Autorizado') {
+    if (v.FechaUltimaModificacion) {
+      const fechaMod = new Date(v.FechaUltimaModificacion).getTime();
+      const actual = new Date().getTime();
+      const diffHoras = (actual - fechaMod) / (1000 * 60 * 60);
+      if (diffHoras >= 24) return true;
+    }
+  }
+  return false;
+}
+
+function obtenerEstadoAutomatico(v) {
+  if (!v) return 'en tiempo';
+  if (esValeCongelado(v)) return 'Congelado';
+  if (['Entregado', 'Autorizado', 'Modificación 1', 'Modificación 2', 'Modificación 3', 'Congelado'].includes(v.Proceso)) {
+    return v.Proceso;
+  }
+  const fechaLimite = calcularFechaLimiteHabiles(v.FechaIngreso, 3);
+  if (!fechaLimite) return v.Proceso || 'en tiempo';
+  const actual = new Date();
+  fechaLimite.setHours(23, 59, 59, 999);
+  return actual > fechaLimite ? 'tarde' : 'en tiempo';
+}
+
+function getUrlPropByTipo(tipo) {
+  if (tipo === 'descarga') return 'ArchivoDescargaUrl';
+  if (tipo === 'carga2') return 'ArchivoCarga2Url';
+  if (tipo === 'descarga2') return 'ArchivoDescarga2Url';
+  if (tipo === 'carga3') return 'ArchivoCarga3Url';
+  if (tipo === 'descarga3') return 'ArchivoDescarga3Url';
+  if (tipo === 'orden_trabajo') return 'ArchivoOrdenTrabajoUrl';
+  return 'ArchivoCargaUrl';
+}
+
 export default function ValesView({ userRole, activeStore, selectedStores, showToast, userName, selectedMonths }) {
   const store = activeStore || (selectedStores && selectedStores[0]) || 'CB';
   const isAdminOrDesign = userRole === 'admin' || userRole === 'diseno';
   const [vales, setVales] = useState(mockValesIniciales());
   const [isLoading, setIsLoading] = useState(Boolean(SCRIPT_URL));
   const [isBackendConnected, setIsBackendConnected] = useState(false);
-  const [uploadingKey, setUploadingKey] = useState(null); // `${noVale}-${tipo}` mientras se sube un archivo
+  const [uploadingKey, setUploadingKey] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVale, setEditingVale] = useState(null);
   const [nuevoVale, setNuevoVale] = useState({ tienda: store || 'CB', noVale: '', producto: PRODUCTOS[0], fechaSalida: '' });
@@ -49,7 +110,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const [filesToUpload, setFilesToUpload] = useState([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState('listado'); // 'listado' | 'dashboard'
+  const [activeTab, setActiveTab] = useState('listado');
 
   useEffect(() => {
     setNuevoVale(prev => ({ ...prev, tienda: store }));
@@ -61,7 +122,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   }, [showToast]);
 
   const cargarVales = useCallback(async () => {
-    if (!SCRIPT_URL) return; // Modo local/demo: se queda con el mock inicial
+    if (!SCRIPT_URL) return;
     const rol = userRole === 'admin' ? 'admin' : userRole === 'diseno' ? 'diseno' : 'store';
     const url = `${SCRIPT_URL}?action=vales&rol=${encodeURIComponent(rol)}&tienda=${encodeURIComponent(store || '')}`;
     try {
@@ -69,23 +130,18 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       if (res.status === 'success') {
         setVales(res.datos || []);
         setIsBackendConnected(true);
-      } else {
-        notify('No se pudieron cargar los vales: ' + res.message, 'error');
       }
     } catch {
-      notify('No se pudo conectar con el backend de Drive. Mostrando datos de demostración.', 'error');
-      setIsBackendConnected(false);
+      notify('No se pudo conectar con el servidor Drive.', 'error');
     }
   }, [userRole, store, notify]);
 
   useEffect(() => {
     let active = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial estándar de datos remotos
     cargarVales().finally(() => { if (active) setIsLoading(false); });
     return () => { active = false; };
   }, [cargarVales]);
 
-  // Filtrado por rol y por mes (si se especifica)
   const valesVisibles = useMemo(() => {
     let filtered = isAdminOrDesign
       ? vales
@@ -97,154 +153,145 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
         if (!v.FechaIngreso) return false;
         const parts = v.FechaIngreso.split('-');
         if (parts.length < 2) return false;
-        const monthIndex = parseInt(parts[1], 10) - 1; // 0-11
-        if (monthIndex >= 0 && monthIndex < 12) {
-          const monthName = monthsList[monthIndex];
-          return selectedMonths.includes(monthName);
-        }
-        return false;
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        if (isNaN(monthIndex) || monthIndex < 0 || monthIndex > 11) return false;
+        return selectedMonths.includes(monthsList[monthIndex]);
       });
     }
     return filtered;
   }, [vales, isAdminOrDesign, store, selectedMonths]);
 
-  const conteoDashboard = useMemo(() => {
-    const base = { total: valesVisibles.length, 'en tiempo': 0, tarde: 0, Entregado: 0 };
+  const stats = useMemo(() => {
+    const total = valesVisibles.length;
+    let enTiempo = 0, tarde = 0, autorizados = 0, enModificacion = 0;
     valesVisibles.forEach(v => {
-      if (base[v.Proceso] !== undefined) base[v.Proceso] += 1;
+      const estado = obtenerEstadoAutomatico(v);
+      if (estado === 'en tiempo' || estado === 'Entregado') enTiempo++;
+      else if (estado === 'tarde' || estado === 'Congelado') tarde++;
+      else if (estado === 'Autorizado') autorizados++;
+      else if (String(estado).startsWith('Modificación')) enModificacion++;
     });
-    return base;
+    return { total, enTiempo, tarde, autorizados, enModificacion };
   }, [valesVisibles]);
 
-  const handleCrearVale = async (e) => {
+  const handleSolicitarVale = async (e) => {
     e.preventDefault();
-    setIsCreating(true);
-    const tiendaFinal = isAdminOrDesign ? (nuevoVale.tienda || store || 'CB') : (store || 'CB');
-    const datos = {
-      tienda: tiendaFinal,
-      noVale: nuevoVale.noVale ? nuevoVale.noVale.trim() : '',
-      producto: nuevoVale.producto,
-      fechaIngreso: new Date().toISOString().slice(0, 10),
-      fechaSalida: nuevoVale.fechaSalida,
-    };
-
-    if (!SCRIPT_URL) {
-      // Modo local/demo
-      const numero = vales.length + 1;
-      const noValeDemo = datos.noVale || ('VAL-' + String(numero).padStart(3, '0'));
-      setVales(prev => [...prev, {
-        No: numero,
-        Tienda: datos.tienda,
-        NoVale: noValeDemo,
-        Producto: datos.producto,
-        FechaIngreso: datos.fechaIngreso,
-        FechaSalida: datos.fechaSalida,
-        Proceso: 'en tiempo',
-        ArchivoCargaUrl: '',
-        ArchivoDescargaUrl: '',
-      }]);
-      notify('Vale creado (modo demo, aún no conectado a Drive real).');
-      setIsModalOpen(false);
-      setIsCreating(false);
-      setFilesToUpload([]);
+    if (!nuevoVale.tienda || !nuevoVale.producto) {
+      notify('Por favor completa los campos obligatorios.', 'error');
       return;
     }
 
-    try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'crearVale', datos }),
-      }).then(r => r.json());
+    setIsCreating(true);
+    const num = vales.length + 1;
+    const noValeGenerado = (nuevoVale.noVale && nuevoVale.noVale.trim()) ? nuevoVale.noVale.trim() : `VAL-${String(num).padStart(3, '0')}`;
+    const today = new Date().toISOString().split('T')[0];
+    const newValeObj = {
+      No: num,
+      Tienda: nuevoVale.tienda,
+      NoVale: noValeGenerado,
+      Producto: nuevoVale.producto,
+      FechaIngreso: today,
+      FechaSalida: nuevoVale.fechaSalida || '',
+      Proceso: 'en tiempo',
+      ArchivoCargaUrl: '',
+      ArchivoDescargaUrl: '',
+      ArchivoCarga2Url: '',
+      ArchivoDescarga2Url: '',
+      ArchivoCarga3Url: '',
+      ArchivoDescarga3Url: '',
+      ArchivoOrdenTrabajoUrl: '',
+      FechaUltimaModificacion: ''
+    };
 
-      if (res.status === 'success') {
-        const createdNoVale = res.noVale;
-        
-        // Si hay archivos seleccionados para cargar, subirlos automáticamente
-        if (filesToUpload && filesToUpload.length > 0) {
-          notify(`Vale ${createdNoVale} creado. Subiendo ${filesToUpload.length} archivos...`);
-          try {
-            for (let i = 0; i < filesToUpload.length; i++) {
-              const file = filesToUpload[i];
-              const base64Data = await fileToBase64(file);
-              const uploadRes = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
-                  action: 'subirArchivoVale',
-                  datos: {
-                    noVale: createdNoVale,
-                    tipo: 'carga',
-                    fileName: file.name,
-                    mimeType: file.type,
-                    base64: base64Data,
-                    tienda: tiendaFinal
-                  }
-                })
-              }).then(r => r.json());
+    setVales(prev => [...prev, newValeObj]);
 
-              if (uploadRes.status !== 'success') {
-                notify(`Error al subir el archivo "${file.name}": ${uploadRes.message}`, 'error');
-              }
-            }
-            notify(`Vale ${createdNoVale} y sus archivos se subieron con éxito.`);
-          } catch (uploadErr) {
-            notify('Vale creado, pero falló la subida de los archivos.', 'error');
-          }
+    if (filesToUpload.length > 0) {
+      try {
+        const file = filesToUpload[0];
+        const base64 = await fileToBase64(file);
+        if (SCRIPT_URL) {
+          const res = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'subirArchivoVale', datos: { noVale: noValeGenerado, tipo: 'carga', base64, mimeType: file.type, fileName: file.name } }),
+          }).then(r => r.json());
+          if (res.status === 'success') setVales(prev => prev.map(v => v.NoVale === noValeGenerado ? { ...v, ArchivoCargaUrl: res.url } : v));
         } else {
-          notify(res.message);
+          setVales(prev => prev.map(v => v.NoVale === noValeGenerado ? { ...v, ArchivoCargaUrl: URL.createObjectURL(file) } : v));
         }
-        
-        cargarVales();
-        setIsModalOpen(false);
-        setFilesToUpload([]);
-      } else {
-        notify('Error al crear el vale: ' + res.message, 'error');
+      } catch {
+        notify('El vale se creó, pero hubo un problema al subir el archivo adjunto.', 'error');
       }
-    } catch (err) {
-      notify('No se pudo contactar al backend para crear el vale.', 'error');
-    } finally {
-      setIsCreating(false);
     }
+
+    if (SCRIPT_URL) {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'crearVale', datos: { tienda: nuevoVale.tienda, noVale: noValeGenerado, producto: nuevoVale.producto, fechaSalida: nuevoVale.fechaSalida || '' } }),
+        });
+      } catch {
+        notify('El vale se creó localmente pero hubo un fallo con el servidor Drive.', 'error');
+      }
+    }
+
+    notify(`Vale ${noValeGenerado} creado exitosamente.`);
+    setIsCreating(false);
+    setIsModalOpen(false);
+    setFilesToUpload([]);
+    setNuevoVale({ tienda: store || 'CB', noVale: '', producto: PRODUCTOS[0], fechaSalida: '' });
   };
 
   const handleGuardarEdicion = async (e) => {
     e.preventDefault();
     if (!editingVale) return;
 
-    const { NoVale, Proceso, FechaSalida } = editingVale;
-    setVales(prev => prev.map(v => v.NoVale === NoVale ? { ...v, Proceso, FechaSalida } : v));
+    if (editingVale.Proceso === 'Autorizado') {
+      const hasAnyDescarga = Boolean(editingVale.ArchivoDescargaUrl || editingVale.ArchivoDescarga2Url || editingVale.ArchivoDescarga3Url);
+      if (!hasAnyDescarga) {
+        notify('⚠️ No puedes autorizar este vale porque el diseñador no ha subido ninguna propuesta de arte.', 'error');
+        return;
+      }
+    }
+
+    const updates = { ...editingVale };
+    if (editingVale.Proceso === 'Modificación 3' && !editingVale.FechaUltimaModificacion) {
+      updates.FechaUltimaModificacion = new Date().toISOString();
+    }
+
+    setVales(prev => prev.map(v => v.NoVale === updates.NoVale ? updates : v));
+    notify(`Vale ${updates.NoVale} actualizado exitosamente.`);
     setEditingVale(null);
-    notify(`Vale ${NoVale} actualizado correctamente.`);
 
     if (!SCRIPT_URL) return;
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'editarVale', noVale: NoVale, proceso: Proceso, fechaSalida: FechaSalida })
+        body: JSON.stringify({ action: 'editarVale', noVale: updates.NoVale, proceso: updates.Proceso, fechaSalida: updates.FechaSalida || '' }),
       });
     } catch {
-      notify('No se pudo guardar la edición en Drive.', 'error');
+      notify('No se pudieron sincronizar los cambios de edición con el servidor.', 'error');
     }
   };
 
-  const handleEliminarVale = async () => {
+  const handleEliminarVale = async (e) => {
+    e.stopPropagation();
     if (!editingVale) return;
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar el vale "${editingVale.NoVale}"? Esta acción no se puede deshacer.`)) {
-      return;
-    }
-    const noVale = editingVale.NoVale;
-    setVales(prev => prev.filter(v => v.NoVale !== noVale));
+    const { NoVale } = editingVale;
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el vale "${NoVale}"?`)) return;
+
+    setVales(prev => prev.filter(v => v.NoVale !== NoVale));
     setEditingVale(null);
-    notify(`Vale ${noVale} eliminado correctamente.`);
+    notify(`Vale ${NoVale} eliminado correctamente.`);
 
     if (!SCRIPT_URL) return;
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'eliminarVale', noVale })
+        body: JSON.stringify({ action: 'eliminarVale', noVale: NoVale })
       });
     } catch {
       notify('No se pudo eliminar el vale en el servidor.', 'error');
@@ -252,32 +299,67 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   };
 
   const handleSolicitarModificacion = async (noVale) => {
-    if (!window.confirm(`¿Estás seguro de que deseas habilitar modificaciones para el vale "${noVale}"? Esto permitirá subir nuevos archivos a ambas partes.`)) {
+    const valeObj = vales.find(v => v.NoVale === noVale);
+    if (!valeObj) return;
+
+    if (esValeCongelado(valeObj)) {
+      notify('⚠️ No se pueden solicitar más modificaciones: el vale está congelado tras superar el límite de 3 modificaciones y 1 día sin autorización.', 'error');
       return;
     }
-    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ArchivoCargaUrl: '', ArchivoDescargaUrl: '' } : v));
-    notify(`Vale ${noVale} habilitado para modificaciones.`);
+
+    const currentProceso = valeObj.Proceso || 'en tiempo';
+    let nextProceso = 'Modificación 1';
+    if (currentProceso === 'Modificación 1') nextProceso = 'Modificación 2';
+    else if (currentProceso === 'Modificación 2') nextProceso = 'Modificación 3';
+    else if (currentProceso === 'Modificación 3') {
+      notify('⚠️ Ya te encuentras en la Modificación 3 (Límite máximo permitido). Si no es autorizado en 1 día, el vale se congelará.', 'warning');
+      nextProceso = 'Modificación 3';
+    }
+
+    if (!window.confirm(`¿Estás seguro de que deseas solicitar "${nextProceso}" para el vale "${noVale}"? Esto habilitará la sección de carga para esta modificación sin perder el historial anterior.`)) {
+      return;
+    }
+
+    const updates = { Proceso: nextProceso };
+    if (nextProceso === 'Modificación 3' && !valeObj.FechaUltimaModificacion) {
+      updates.FechaUltimaModificacion = new Date().toISOString();
+    }
+
+    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+    if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+    notify(`Vale ${noVale} en "${nextProceso}". Subidas de modificación habilitadas.`);
 
     if (!SCRIPT_URL) return;
     try {
-      const res = await fetch(SCRIPT_URL, {
+      await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'solicitarModificacion', noVale })
-      }).then(r => r.json());
-      if (res.status === 'success') {
-        cargarVales();
-      } else {
-        notify('Error al solicitar modificación: ' + res.message, 'error');
-      }
+      });
     } catch {
-      notify('No se pudo comunicar con el servidor.', 'error');
+      notify('No se pudo comunicar con el servidor para guardar la modificación.', 'error');
     }
   };
 
   const handleProcesoChange = (noVale, proceso) => {
-    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, Proceso: proceso } : v));
-    if (!SCRIPT_URL) return; // modo demo, solo cambia en memoria
+    const valeObj = vales.find(v => v.NoVale === noVale);
+    if (proceso === 'Autorizado') {
+      const hasAnyDescarga = Boolean(valeObj && (valeObj.ArchivoDescargaUrl || valeObj.ArchivoDescarga2Url || valeObj.ArchivoDescarga3Url));
+      if (!hasAnyDescarga) {
+        notify('⚠️ No se puede marcar como Autorizado hasta que el diseñador suba al menos una propuesta de arte.', 'error');
+        return;
+      }
+    }
+
+    const updates = { Proceso: proceso };
+    if (proceso === 'Modificación 3' && (!valeObj || !valeObj.FechaUltimaModificacion)) {
+      updates.FechaUltimaModificacion = new Date().toISOString();
+    }
+
+    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+    if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+
+    if (!SCRIPT_URL) return;
     fetch(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -286,6 +368,12 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   };
 
   const handleUpload = (noVale, tipo) => {
+    const valeObj = vales.find(v => v.NoVale === noVale);
+    if (valeObj && esValeCongelado(valeObj)) {
+      notify('⚠️ No se pueden subir archivos a un vale congelado tras exceder el plazo y límite de modificaciones.', 'error');
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '*/*';
@@ -297,11 +385,18 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       setUploadingKey(key);
 
       if (!SCRIPT_URL) {
-        // Modo local/demo: simula la subida (no llega a Drive real)
         setTimeout(() => {
           setUploadingKey(null);
-          notify(`Modo demo: "${file.name}" no se subió realmente a Drive porque falta configurar SCRIPT_URL en ValesView.jsx.`, 'error');
-        }, 800);
+          const propName = getUrlPropByTipo(tipo);
+          const updates = { [propName]: URL.createObjectURL(file) };
+          if (tipo === 'descarga3' || tipo === 'carga3') {
+            updates.Proceso = 'Modificación 3';
+            updates.FechaUltimaModificacion = new Date().toISOString();
+          }
+          setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+          if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+          notify(`Archivo "${file.name}" cargado localmente (Modo Demo).`);
+        }, 600);
         return;
       }
 
@@ -310,23 +405,19 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
         const res = await fetch(SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'subirArchivoVale',
-            datos: {
-              noVale,
-              tipo, // 'carga' | 'descarga'
-              base64,
-              mimeType: file.type,
-              fileName: file.name,
-            },
-          }),
+          body: JSON.stringify({ action: 'subirArchivoVale', datos: { noVale, tipo, base64, mimeType: file.type, fileName: file.name } }),
         }).then(r => r.json());
 
         if (res.status === 'success') {
           notify(res.message);
-          setVales(prev => prev.map(v => v.NoVale === noVale
-            ? { ...v, [tipo === 'carga' ? 'ArchivoCargaUrl' : 'ArchivoDescargaUrl']: res.url }
-            : v));
+          const propName = getUrlPropByTipo(tipo);
+          const updates = { [propName]: res.url };
+          if (tipo === 'descarga3' || tipo === 'carga3') {
+            updates.Proceso = 'Modificación 3';
+            updates.FechaUltimaModificacion = new Date().toISOString();
+          }
+          setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+          if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
         } else {
           notify('Error al subir el archivo: ' + res.message, 'error');
         }
@@ -339,115 +430,98 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     input.click();
   };
 
-  const procesoColor = (proceso) => {
-    if (proceso === 'Entregado') return { color: '#16a34a', bg: 'rgba(22,163,74,0.1)' };
-    if (proceso === 'tarde') return { color: '#dc2626', bg: 'rgba(220,38,38,0.1)' };
-    return { color: '#d97706', bg: 'rgba(217,119,6,0.1)' }; // en tiempo
+  const procesoColor = (proceso, v) => {
+    const estadoReal = v ? obtenerEstadoAutomatico(v) : proceso;
+    if (estadoReal === 'Autorizado') return { color: '#059669', bg: 'rgba(5,150,105,0.15)', border: '1px solid #059669' };
+    if (estadoReal === 'Congelado') return { color: '#2563eb', bg: 'rgba(37,99,235,0.15)', border: '1px solid #2563eb' };
+    if (estadoReal === 'Entregado') return { color: '#16a34a', bg: 'rgba(22,163,74,0.12)', border: '1px solid #16a34a' };
+    if (estadoReal === 'tarde') return { color: '#dc2626', bg: 'rgba(220,38,38,0.12)', border: '1px solid #dc2626' };
+    if (String(estadoReal || '').startsWith('Modificación')) return { color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', border: '1px solid #7c3aed' };
+    return { color: '#d97706', bg: 'rgba(217,119,6,0.12)', border: '1px solid #d97706' };
   };
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
       {!SCRIPT_URL && (
-        <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '10px', padding: '10px 16px', marginBottom: '16px', fontSize: '12px', color: '#92400E', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <i className="fas fa-triangle-exclamation"></i>
-          Modo demostración: falta configurar <code>SCRIPT_URL</code> en <code>ValesView.jsx</code> con tu Web App de Google Apps Script. Los archivos no se están subiendo realmente a Drive todavía.
+        <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <i className="fas fa-exclamation-triangle" style={{ color: '#d97706' }}></i>
+          <span style={{ fontSize: '12px', color: '#92400e' }}>
+            <strong>Modo demostración local:</strong> Los archivos y cambios se gestionan con URLs simuladas. Configura <code>SCRIPT_URL</code> para sincronizar con Google Drive real.
+          </span>
         </div>
       )}
 
+      {/* ENCABEZADO Y TABS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '24px', background: 'var(--bg-body)', padding: '10px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>🎨</span>
-            <div>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>Vales de Artes - Diseño</h1>
-              <p style={{ fontSize: '13px', margin: '2px 0 0', opacity: 0.9 }}>Gestión, seguimiento y control de diseños solicitados para producción</p>
-            </div>
-          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 4px 0' }}>
+            {isAdminOrDesign ? 'Módulo de Vales de Arte (Diseño)' : `Solicitudes de Vales: Tienda ${store}`}
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+            {isAdminOrDesign
+              ? 'Control general de arte, 3 modificaciones permitidas (3 días hábiles) y carga de órdenes autorizadas.'
+              : 'Solicita vales, revisa propuestas del diseñador, solicita hasta 3 modificaciones y autoriza.'}
+          </p>
         </div>
-        <button className="topbar-btn btn-primary" style={{ background: '#fff', color: '#4f46e5', fontWeight: 700 }} onClick={() => {
-          setNuevoVale({ tienda: store || STORES[0], producto: PRODUCTOS[0], fechaSalida: '' });
-          setIsModalOpen(true);
-        }}>
-          <i className="fas fa-plus" style={{ marginRight: '6px' }}></i> Solicitar Vale de Arte
-        </button>
-      </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
-        {[
-          { id: 'listado', label: 'Listado General', icon: 'fa-list' },
-          { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
-        ].map(tab => (
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ background: 'var(--bg-body)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-light)', display: 'flex' }}>
+            <button
+              onClick={() => setActiveTab('listado')}
+              style={{
+                padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                background: activeTab === 'listado' ? '#4f46e5' : 'transparent',
+                color: activeTab === 'listado' ? '#fff' : 'var(--text-muted)',
+              }}
+            >
+              <i className="fas fa-list" style={{ marginRight: '6px' }}></i> Listado General
+            </button>
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              style={{
+                padding: '6px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                background: activeTab === 'dashboard' ? '#4f46e5' : 'transparent',
+                color: activeTab === 'dashboard' ? '#fff' : 'var(--text-muted)',
+              }}
+            >
+              <i className="fas fa-chart-pie" style={{ marginRight: '6px' }}></i> Indicadores
+            </button>
+          </div>
+
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '10px 18px',
-              fontSize: '13px',
-              fontWeight: 700,
-              background: 'transparent',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid #4f46e5' : '2px solid transparent',
-              color: activeTab === tab.id ? '#4f46e5' : 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
+            onClick={() => setIsModalOpen(true)}
+            className="topbar-btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px' }}
           >
-            <i className={`fas ${tab.icon}`}></i> {tab.label}
+            <i className="fas fa-plus"></i> Solicitar Nuevo Vale
           </button>
-        ))}
+        </div>
       </div>
 
       {activeTab === 'dashboard' && (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '18px', marginBottom: '24px' }}>
-            <div className="card" style={{ padding: '20px', borderTop: '3px solid #4f46e5' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Total de Vales</div>
-              <div style={{ fontSize: '32px', fontWeight: 800, color: '#4f46e5' }}>{conteoDashboard.total}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {isAdminOrDesign ? 'Todas las tiendas' : `Tienda ${store}`}
-              </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #4f46e5' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Solicitados</div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>{stats.total}</div>
             </div>
-            <div className="card" style={{ padding: '20px', borderTop: '3px solid #d97706' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>En Tiempo</div>
-              <div style={{ fontSize: '32px', fontWeight: 800, color: '#d97706' }}>{conteoDashboard['en tiempo']}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Vales dentro del plazo</div>
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #d97706' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>En Tiempo (≤ 3 días)</div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>{stats.enTiempo}</div>
             </div>
-            <div className="card" style={{ padding: '20px', borderTop: '3px solid #dc2626' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Tarde</div>
-              <div style={{ fontSize: '32px', fontWeight: 800, color: '#dc2626' }}>{conteoDashboard.tarde}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Vales fuera del plazo</div>
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #7c3aed' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>En Modificación (1 a 3)</div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#7c3aed', marginTop: '4px' }}>{stats.enModificacion}</div>
             </div>
-            <div className="card" style={{ padding: '20px', borderTop: '3px solid #16a34a' }}>
-              <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>Entregado</div>
-              <div style={{ fontSize: '32px', fontWeight: 800, color: '#16a34a' }}>{conteoDashboard.Entregado}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Vales completados</div>
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #059669' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Autorizados (Producción)</div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>{stats.autorizados}</div>
+            </div>
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #dc2626' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tarde o Congelados</div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#dc2626', marginTop: '4px' }}>{stats.tarde}</div>
             </div>
           </div>
-
-          {isAdminOrDesign && (
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-light)' }}>
-                <h3 className="card-title" style={{ fontSize: '14px', margin: 0 }}>Vales por Tienda</h3>
-              </div>
-              <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {STORES.map(s => {
-                  const cantidad = valesVisibles.filter(v => String(v.Tienda).toUpperCase() === s).length;
-                  if (cantidad === 0) return null;
-                  return (
-                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-body)', padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                      <span style={{ fontWeight: 800, fontSize: '12px', color: '#4f46e5' }}>{s}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{cantidad} {cantidad === 1 ? 'vale' : 'vales'}</span>
-                    </div>
-                  );
-                })}
-                {valesVisibles.length === 0 && (
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No hay vales registrados todavía.</span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -482,7 +556,10 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
-          <h3 className="card-title" style={{ fontSize: '14px', margin: 0 }}>Listado General de Vales de Arte</h3>
+          <div>
+            <h3 className="card-title" style={{ fontSize: '14px', margin: 0 }}>Listado General de Vales de Arte</h3>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Regla: 3 días hábiles para elaboración. Máximo 3 modificaciones.</span>
+          </div>
           <span style={{ fontSize: '11px', fontWeight: 800, color: '#4f46e5', background: 'rgba(79,70,229,0.1)', padding: '4px 10px', borderRadius: '20px' }}>
             {isLoading ? 'Cargando...' : `${valesVisibles.length} vales`}
           </span>
@@ -492,99 +569,160 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg-body)', textAlign: 'left' }}>
-                {['No.', 'Tienda', 'No. Vale', 'Producto', 'Fecha Ingreso', 'Fecha Salida', 'Proceso', 'Subir Carga (Tiendas)', 'Subir Descarga (Diseñador)', 'Acciones'].map(h => (
-                  <th key={h} style={{ padding: '10px 16px', fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                {['No.', 'Tienda', 'No. Vale', 'Producto', 'Fecha Ingreso', 'Fecha Salida', 'Proceso / Estado', 'Subir Carga (Tiendas)', 'Subir Descarga (Diseñador)', 'Orden de Trabajo (Autorizado)', 'Acciones'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', fontSize: '10px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {valesVisibles.map((v, idx) => {
-                const pc = procesoColor(v.Proceso);
-                const cargandoCarga = uploadingKey === `${v.NoVale}-carga`;
-                const cargandoDescarga = uploadingKey === `${v.NoVale}-descarga`;
+                const estadoActual = obtenerEstadoAutomatico(v);
+                const pc = procesoColor(estadoActual, v);
+                const congelado = esValeCongelado(v);
+                const hasAnyDescarga = Boolean(v.ArchivoDescargaUrl || v.ArchivoDescarga2Url || v.ArchivoDescarga3Url);
+                
+                const activeCargaSlot = 'carga';
+                let activeDescargaSlot = 'descarga';
+                if (v.Proceso === 'Modificación 1') { activeDescargaSlot = 'descarga2'; }
+                else if (v.Proceso === 'Modificación 2' || v.Proceso === 'Modificación 3') { activeDescargaSlot = 'descarga3'; }
+
+                const cargandoCarga = uploadingKey === `${v.NoVale}-${activeCargaSlot}`;
+                const cargandoDescarga = uploadingKey === `${v.NoVale}-${activeDescargaSlot}`;
+                const cargandoOrden = uploadingKey === `${v.NoVale}-orden_trabajo`;
+
                 return (
-                  <tr key={v.NoVale} style={{ borderTop: '1px solid var(--border-light)' }}>
-                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{idx + 1}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#4f46e5' }}>{v.Tienda}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700 }}>{v.NoVale}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{v.Producto}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{v.FechaIngreso}</td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px' }}>{v.FechaSalida}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {isAdminOrDesign ? (
+                  <tr key={v.NoVale} style={{ borderTop: '1px solid var(--border-light)', background: congelado ? '#fef2f2' : estadoActual === 'Autorizado' ? '#ecfdf5' : 'transparent' }}>
+                    <td style={{ padding: '12px 14px', fontSize: '12px' }}>{idx + 1}</td>
+                    <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 700, color: '#4f46e5' }}>{v.Tienda}</td>
+                    <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 700 }}>{v.NoVale}</td>
+                    <td style={{ padding: '12px 14px', fontSize: '12px' }}>{v.Producto}</td>
+                    <td style={{ padding: '12px 14px', fontSize: '12px' }}>{v.FechaIngreso}</td>
+                    <td style={{ padding: '12px 14px', fontSize: '12px' }}>{v.FechaSalida || '—'}</td>
+                    
+                    <td style={{ padding: '12px 14px' }}>
+                      {isAdminOrDesign && !congelado ? (
                         <select
-                          value={v.Proceso}
+                          value={v.Proceso || 'en tiempo'}
                           onChange={(e) => handleProcesoChange(v.NoVale, e.target.value)}
-                          style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                          style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: pc.border, color: pc.color, background: pc.bg }}
                         >
-                          {PROCESOS.map(p => <option key={p} value={p}>{p}</option>)}
+                          {PROCESOS.map(p => (
+                            <option key={p} value={p} disabled={p === 'Autorizado' && !hasAnyDescarga}>
+                              {p === 'Autorizado' && !hasAnyDescarga ? 'Autorizado (Falta arte)' : p}
+                            </option>
+                          ))}
                         </select>
                       ) : (
-                        <span style={{ fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', color: pc.color, background: pc.bg, textTransform: 'uppercase' }}>
-                          {v.Proceso}
+                        <span style={{ fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px', color: pc.color, background: pc.bg, border: pc.border, textTransform: 'uppercase', display: 'inline-block' }}>
+                          {congelado ? '❄️ CONGELADO' : estadoActual}
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {v.ArchivoCargaUrl ? (
-                        <a href={v.ArchivoCargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700, textDecoration: 'none' }}>
-                          <i className="fas fa-file"></i> Ver Arte Carga
-                        </a>
-                      ) : userRole === 'diseno' ? (
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin archivo</span>
+
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {v.ArchivoCargaUrl && (
+                          <a href={v.ArchivoCargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700, textDecoration: 'none' }}>
+                            <i className="fas fa-file"></i> Carga del Vale
+                          </a>
+                        )}
+                        {!congelado && (
+                          <button
+                            onClick={() => handleUpload(v.NoVale, 'carga')}
+                            disabled={cargandoCarga}
+                            className="topbar-btn btn-outline"
+                            style={{ fontSize: '10px', padding: '3px 8px', color: '#3b82f6', borderColor: '#3b82f6', alignSelf: 'flex-start', marginTop: '2px' }}
+                          >
+                            {cargandoCarga ? 'Subiendo...' : (v.ArchivoCargaUrl ? '+ Reemplazar' : '+ Subir Carga')}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {v.ArchivoDescargaUrl && (
+                          <a href={v.ArchivoDescargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>
+                            <i className="fas fa-check"></i> Propuesta 1
+                          </a>
+                        )}
+                        {v.ArchivoDescarga2Url && (
+                          <a href={v.ArchivoDescarga2Url} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#7c3aed', fontWeight: 700, textDecoration: 'none' }}>
+                            <i className="fas fa-check"></i> Propuesta 2
+                          </a>
+                        )}
+                        {v.ArchivoDescarga3Url && (
+                          <a href={v.ArchivoDescarga3Url} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#d97706', fontWeight: 700, textDecoration: 'none' }}>
+                            <i className="fas fa-check"></i> Propuesta 3
+                          </a>
+                        )}
+                        {isAdminOrDesign && !congelado && (
+                          <button
+                            onClick={() => handleUpload(v.NoVale, activeDescargaSlot)}
+                            disabled={cargandoDescarga}
+                            className="topbar-btn btn-outline"
+                            style={{ fontSize: '10px', padding: '3px 8px', color: '#16a34a', borderColor: '#16a34a', alignSelf: 'flex-start', marginTop: '2px' }}
+                          >
+                            {cargandoDescarga ? 'Subiendo...' : `+ Subir (${activeDescargaSlot === 'descarga3' ? 'Prop. 3' : activeDescargaSlot === 'descarga2' ? 'Prop. 2' : 'Prop. 1'})`}
+                          </button>
+                        )}
+                        {!hasAnyDescarga && !isAdminOrDesign && (
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>En diseño...</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: '12px 14px' }}>
+                      {estadoActual === 'Autorizado' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {v.ArchivoOrdenTrabajoUrl ? (
+                            <a href={v.ArchivoOrdenTrabajoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#059669', fontWeight: 800, textDecoration: 'none' }}>
+                              <i className="fas fa-file-contract"></i> Ver Orden Trabajo
+                            </a>
+                          ) : (
+                            <span style={{ fontSize: '10px', color: '#d97706', fontWeight: 700 }}>Falta subir OT</span>
+                          )}
+                          <button
+                            onClick={() => handleUpload(v.NoVale, 'orden_trabajo')}
+                            disabled={cargandoOrden}
+                            className="topbar-btn btn-primary"
+                            style={{ fontSize: '10px', padding: '4px 8px', background: '#059669', alignSelf: 'flex-start' }}
+                          >
+                            {cargandoOrden ? 'Subiendo OT...' : v.ArchivoOrdenTrabajoUrl ? 'Reemplazar OT' : '📄 Subir Orden Trabajo'}
+                          </button>
+                        </div>
                       ) : (
-                        <button
-                          onClick={() => handleUpload(v.NoVale, 'carga')}
-                          disabled={cargandoCarga}
-                          className="topbar-btn btn-outline"
-                          style={{ fontSize: '10px', padding: '4px 10px', color: '#3b82f6', borderColor: '#3b82f6' }}
-                        >
-                          {cargandoCarga ? 'Subiendo...' : 'Subir Carga'}
-                        </button>
+                        <span style={{ fontSize: '11px', color: '#cbd5e1' }}>Requiere Autorización</span>
                       )}
                     </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {v.ArchivoDescargaUrl ? (
-                        <a href={v.ArchivoDescargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>
-                          <i className="fas fa-download"></i> Descargar Arte Final
-                        </a>
-                      ) : isAdminOrDesign ? (
+
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button
-                          onClick={() => handleUpload(v.NoVale, 'descarga')}
-                          disabled={cargandoDescarga}
+                          onClick={() => setEditingVale({ ...v })}
                           className="topbar-btn btn-outline"
-                          style={{ fontSize: '10px', padding: '4px 10px', color: '#16a34a', borderColor: '#16a34a' }}
+                          style={{ fontSize: '11px', padding: '4px 10px', color: '#4f46e5', borderColor: '#4f46e5', display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
-                          {cargandoDescarga ? 'Subiendo...' : 'Subir Descarga'}
+                          <i className="fas fa-folder-open"></i> Detalle / Historial
                         </button>
-                      ) : (
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Pendiente</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 16px', display: 'flex', gap: '6px' }}>
-                      <button
-                        onClick={() => setEditingVale({ ...v })}
-                        className="topbar-btn btn-outline"
-                        style={{ fontSize: '11px', padding: '4px 10px', color: '#4f46e5', borderColor: '#4f46e5', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <i className="fas fa-edit"></i> Editar
-                      </button>
-                      {v.ArchivoCargaUrl && v.ArchivoDescargaUrl && (
-                        <button
-                          onClick={() => handleSolicitarModificacion(v.NoVale)}
-                          className="topbar-btn btn-outline"
-                          style={{ fontSize: '11px', padding: '4px 10px', color: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <i className="fas fa-undo"></i> Modificar
-                        </button>
-                      )}
+
+                        {!congelado && estadoActual !== 'Autorizado' && hasAnyDescarga && (
+                          <button
+                            onClick={() => handleSolicitarModificacion(v.NoVale)}
+                            className="topbar-btn btn-outline"
+                            style={{ fontSize: '11px', padding: '4px 10px', color: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <i className="fas fa-edit"></i> Modificar ({v.Proceso === 'Modificación 2' ? '3/3' : v.Proceso === 'Modificación 1' ? '2/3' : '1/3'})
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {valesVisibles.length === 0 && (
                 <tr>
-                  <td colSpan={10} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
                     No hay vales de arte registrados todavía.
                   </td>
                 </tr>
@@ -596,50 +734,83 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
       </>
       )}
 
+      {/* MODAL SOLICITAR VALE */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,41,59,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="card" style={{ width: '420px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card" style={{ width: '480px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
-              <h3 className="card-title" style={{ fontSize: '15px', margin: 0 }}>Solicitar Vale de Arte</h3>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>×</button>
+              <div>
+                <h3 className="card-title" style={{ fontSize: '16px', margin: 0 }}>Solicitud de Nuevo Vale de Arte</h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Sube tu archivo de referencia y selecciona el producto</span>
+              </div>
+              <button onClick={() => { setIsModalOpen(false); setFilesToUpload([]); }} style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
             </div>
-            <form onSubmit={handleCrearVale} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {isAdminOrDesign ? (
-                <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Tienda</label>
-                  <select className="form-control" value={nuevoVale.tienda} onChange={(e) => setNuevoVale(s => ({ ...s, tienda: e.target.value }))}>
+
+            <form onSubmit={handleSolicitarVale} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Tienda Solicitante
+                </label>
+                {isAdminOrDesign ? (
+                  <select
+                    value={nuevoVale.tienda}
+                    onChange={(e) => setNuevoVale({ ...nuevoVale, tienda: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px' }}
+                  >
                     {STORES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
-                </div>
-              ) : (
-                <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Tienda (Solicitante)</label>
-                  <input type="text" className="form-control" disabled value={store || 'CB'} style={{ background: '#f1f5f9', fontWeight: 700, color: '#4f46e5' }} />
-                </div>
-              )}
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>No. de Vale (Ej. VAL-004 o 12345)</label>
+                ) : (
+                  <input
+                    type="text"
+                    disabled
+                    value={store}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontWeight: 700, fontSize: '13px' }}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  No. de Vale (Opcional - Se genera auto)
+                </label>
                 <input
                   type="text"
-                  className="form-control"
-                  placeholder="Ej. VAL-004 (dejar vacío para automático)"
-                  value={nuevoVale.noVale || ''}
-                  onChange={(e) => setNuevoVale(s => ({ ...s, noVale: e.target.value }))}
+                  placeholder={`Ej: VAL-${String(vales.length + 1).padStart(3, '0')}`}
+                  value={nuevoVale.noVale}
+                  onChange={(e) => setNuevoVale({ ...nuevoVale, noVale: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px' }}
                 />
               </div>
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Producto</label>
-                <select className="form-control" value={nuevoVale.producto} onChange={(e) => setNuevoVale(s => ({ ...s, producto: e.target.value }))}>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Tipo de Producto *
+                </label>
+                <select
+                  value={nuevoVale.producto}
+                  onChange={(e) => setNuevoVale({ ...nuevoVale, producto: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px' }}
+                >
                   {PRODUCTOS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Fecha de Salida Estimada</label>
-                <input type="date" className="form-control" required value={nuevoVale.fechaSalida} onChange={(e) => setNuevoVale(s => ({ ...s, fechaSalida: e.target.value }))} />
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Fecha de Salida Estimada (Opcional)
+                </label>
+                <input
+                  type="date"
+                  value={nuevoVale.fechaSalida}
+                  onChange={(e) => setNuevoVale({ ...nuevoVale, fechaSalida: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px' }}
+                />
               </div>
-              
-              <div className="form-group">
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: 700 }}>Archivo de Carga (Opcional - Imagen o PDF)</label>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                  Archivo de Referencia (Carga Inicial)
+                </label>
                 <div
                   onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                   onDragLeave={() => setIsDragOver(false)}
@@ -703,86 +874,181 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
         </div>
       )}
 
+      {/* MODAL DETALLE Y GESTIÓN DE HISTORIAL / MODIFICACIONES */}
       {editingVale && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,41,59,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="card" style={{ width: '450px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card" style={{ width: '680px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px' }}>
               <div>
-                <h3 className="card-title" style={{ fontSize: '16px', margin: 0, color: '#4f46e5' }}>Editar Vale: {editingVale.NoVale}</h3>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tienda: <strong>{editingVale.Tienda}</strong></span>
+                <h3 className="card-title" style={{ fontSize: '16px', margin: 0, color: '#4f46e5' }}>Gestión Integral del Vale: {editingVale.NoVale}</h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tienda: <strong>{editingVale.Tienda}</strong> | Producto: <strong>{editingVale.Producto}</strong></span>
               </div>
-              <button onClick={() => setEditingVale(null)} style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+              <button onClick={() => setEditingVale(null)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
             </div>
 
-            <form onSubmit={handleGuardarEdicion} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  No. de Vale (No editable)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={editingVale.NoVale || ''}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontWeight: 700, fontSize: '13px' }}
-                />
+            {esValeCongelado(editingVale) && (
+              <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '8px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <i className="fas fa-snowflake" style={{ color: '#ef4444', fontSize: '20px' }}></i>
+                <div style={{ fontSize: '12px', color: '#991b1b' }}>
+                  <strong>VALE CONGELADO:</strong> Se alcanzó o superó la 3ra modificación y el plazo de 24 horas sin autorización. El vale está protegido y no permite subir más archivos ni solicitar cambios.
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleGuardarEdicion} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-light)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Estado / Proceso Actual
+                  </label>
+                  <select
+                    value={editingVale.Proceso || 'en tiempo'}
+                    disabled={esValeCongelado(editingVale) && !isAdminOrDesign}
+                    onChange={(e) => setEditingVale({ ...editingVale, Proceso: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#fff', fontSize: '13px', fontWeight: 700 }}
+                  >
+                    {PROCESOS.map(p => {
+                      const hasAnyDescarga = Boolean(editingVale.ArchivoDescargaUrl || editingVale.ArchivoDescarga2Url || editingVale.ArchivoDescarga3Url);
+                      return <option key={p} value={p} disabled={p === 'Autorizado' && !hasAnyDescarga}>{p}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Fecha Salida Estimada
+                  </label>
+                  <input
+                    type="date"
+                    disabled={esValeCongelado(editingVale) && !isAdminOrDesign}
+                    value={editingVale.FechaSalida || ''}
+                    onChange={(e) => setEditingVale({ ...editingVale, FechaSalida: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#fff', fontSize: '13px' }}
+                  />
+                </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Producto (No editable)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={editingVale.Producto || ''}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontSize: '13px' }}
-                />
+                <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 10px 0' }}>
+                  📂 1. Archivo de Carga / Referencia de Tienda (Único)
+                </h4>
+                <div style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#3b82f6' }}>Carga Inicial del Vale</span>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Archivo u orden de trabajo enviado originalmente por la tienda</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {editingVale.ArchivoCargaUrl ? (
+                      <a href={editingVale.ArchivoCargaUrl} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#3b82f6' }}>Ver Carga del Vale</a>
+                    ) : null}
+                    {!esValeCongelado(editingVale) && (
+                      <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'carga')} className="topbar-btn btn-outline" style={{ fontSize: '11px' }}>
+                        {editingVale.ArchivoCargaUrl ? '+ Reemplazar Carga' : '+ Subir Carga'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>🎨 2. Historial de Propuestas del Diseñador (3 Descargas)</span>
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Plazo de elaboración: 3 días hábiles</span>
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a' }}>1. Propuesta de Arte 1</span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Primera propuesta entregada por el equipo de diseño</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {editingVale.ArchivoDescargaUrl ? (
+                        <a href={editingVale.ArchivoDescargaUrl} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a' }}>Ver Arte 1</a>
+                      ) : isAdminOrDesign ? (
+                        <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'descarga')} className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a', borderColor: '#16a34a' }}>+ Subir Arte 1</button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', alignSelf: 'center' }}>En elaboración...</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: editingVale.Proceso === 'Modificación 1' ? '#f3f2ff' : '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed' }}>2. Propuesta de Arte Mod. 1 (Descarga 2)</span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Segunda propuesta tras solicitar la primera modificación</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {editingVale.ArchivoDescarga2Url ? (
+                        <a href={editingVale.ArchivoDescarga2Url} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a' }}>Ver Arte Mod 1</a>
+                      ) : isAdminOrDesign && !esValeCongelado(editingVale) ? (
+                        <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'descarga2')} className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a', borderColor: '#16a34a' }}>+ Subir Arte 2</button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', alignSelf: 'center' }}>Pendiente</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: (editingVale.Proceso === 'Modificación 2' || editingVale.Proceso === 'Modificación 3') ? '#fffbeb' : '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#d97706' }}>3. Propuesta de Arte Mod. 2 / 3 (Descarga 3 - Última)</span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tercera propuesta (Límite antes del congelamiento)</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {editingVale.ArchivoDescarga3Url ? (
+                        <a href={editingVale.ArchivoDescarga3Url} target="_blank" rel="noreferrer" className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a' }}>Ver Arte Final 3</a>
+                      ) : isAdminOrDesign && !esValeCongelado(editingVale) ? (
+                        <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'descarga3')} className="topbar-btn btn-outline" style={{ fontSize: '11px', color: '#16a34a', borderColor: '#16a34a' }}>+ Subir Arte 3</button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', alignSelf: 'center' }}>Pendiente</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Fecha de Ingreso (No editable)
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={editingVale.FechaIngreso || ''}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: '#f8fafc', color: '#64748b', fontSize: '13px' }}
-                />
+              <div style={{ background: editingVale.Proceso === 'Autorizado' ? '#ecfdf5' : '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid ' + (editingVale.Proceso === 'Autorizado' ? '#10b981' : 'var(--border-light)'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: editingVale.Proceso === 'Autorizado' ? '#065f46' : 'var(--text-main)' }}>
+                    📄 Orden de Trabajo para Solicitar Producción
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {editingVale.Proceso === 'Autorizado'
+                      ? 'El vale ha sido aprobado por el cliente. Sube la Orden de Trabajo firmada o generada para enviar a planta.'
+                      : 'Esta opción se habilita cuando el estado del vale cambia a "Autorizado".'}
+                  </div>
+                </div>
+
+                <div>
+                  {editingVale.Proceso === 'Autorizado' ? (
+                    editingVale.ArchivoOrdenTrabajoUrl ? (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <a href={editingVale.ArchivoOrdenTrabajoUrl} target="_blank" rel="noreferrer" className="topbar-btn btn-primary" style={{ background: '#059669', fontSize: '12px' }}>
+                          <i className="fas fa-download"></i> Ver Orden de Trabajo
+                        </a>
+                        <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'orden_trabajo')} className="topbar-btn btn-outline" style={{ fontSize: '11px' }}>
+                          Reemplazar
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleUpload(editingVale.NoVale, 'orden_trabajo')} className="topbar-btn btn-primary" style={{ background: '#059669', fontSize: '12px' }}>
+                        <i className="fas fa-upload"></i> Subir Orden de Trabajo
+                      </button>
+                    )
+                  ) : (
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', background: '#e2e8f0', padding: '6px 12px', borderRadius: '6px' }}>
+                      Requiere Estado: Autorizado
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Estado / Proceso
-                </label>
-                <select
-                  value={editingVale.Proceso || 'en tiempo'}
-                  onChange={(e) => setEditingVale({ ...editingVale, Proceso: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px', fontWeight: 700 }}
-                >
-                  {PROCESOS.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  Fecha de Salida Estimada
-                </label>
-                <input
-                  type="date"
-                  value={editingVale.FechaSalida || ''}
-                  onChange={(e) => setEditingVale({ ...editingVale, FechaSalida: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'var(--bg-body)', fontSize: '13px' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid var(--border-light)', paddingTop: '14px' }}>
                 <button type="button" onClick={handleEliminarVale} className="topbar-btn btn-outline" style={{ padding: '8px 16px', color: '#ef4444', borderColor: '#ef4444' }}>
-                  <i className="fas fa-trash-alt"></i> Eliminar
+                  <i className="fas fa-trash-alt"></i> Eliminar Vale
                 </button>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button type="button" onClick={() => setEditingVale(null)} className="topbar-btn btn-outline" style={{ padding: '8px 16px' }}>
-                    Cancelar
+                    Cerrar
                   </button>
                   <button type="submit" className="topbar-btn btn-primary" style={{ padding: '8px 20px', background: '#4f46e5', color: '#fff' }}>
                     Guardar Cambios

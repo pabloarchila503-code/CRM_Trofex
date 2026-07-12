@@ -4,7 +4,7 @@
 const VALES_CARGA_FOLDER_ID = "1biBNC5T018q_2AYMFixiiAdxsYK_g72Z";
 const VALES_DESCARGA_FOLDER_ID = "1AEgVPJKB2vvU-XGtsb768BfnvOr5g7nh";
 const VALES_PRODUCTOS = ["Medalla Fundida", "Pin Fundido", "Plasma Metal", "Vidrio", "Fotograbado", "Producto especial", "Protextil"];
-const VALES_PROCESOS = ["en tiempo", "tarde", "Entregado"];
+const VALES_PROCESOS = ["en tiempo", "tarde", "Entregado", "Modificación 1", "Modificación 2", "Modificación 3", "Autorizado", "Congelado"];
 
 function doGet(e) {
   return handleRequest(e);
@@ -423,18 +423,29 @@ function handleExcelUpload(params) {
 // FUNCIONES DEL MÓDULO VALES DE ARTE
 // ============================================================
 /**
- * Crea la hoja 'Vales' si no existe, con sus encabezados.
+ * Crea la hoja 'Vales' si no existe, con sus encabezados, o asegura que tenga las columnas requeridas.
  */
 function setupValesSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName("Vales");
+  const requiredHeaders = [
+    "No", "Tienda", "NoVale", "Producto", "FechaIngreso", "FechaSalida",
+    "Proceso", "ArchivoCargaUrl", "ArchivoCargaId", "ArchivoDescargaUrl", "ArchivoDescargaId",
+    "ArchivoCarga2Url", "ArchivoCarga2Id", "ArchivoDescarga2Url", "ArchivoDescarga2Id",
+    "ArchivoCarga3Url", "ArchivoCarga3Id", "ArchivoDescarga3Url", "ArchivoDescarga3Id",
+    "ArchivoOrdenTrabajoUrl", "ArchivoOrdenTrabajoId", "FechaUltimaModificacion"
+  ];
   if (!sheet) {
     sheet = ss.insertSheet("Vales");
-    sheet.appendRow([
-      "No", "Tienda", "NoVale", "Producto", "FechaIngreso", "FechaSalida",
-      "Proceso", "ArchivoCargaUrl", "ArchivoCargaId", "ArchivoDescargaUrl", "ArchivoDescargaId"
-    ]);
-    sheet.getRange("A1:K1").setFontWeight("bold").setBackground("#f1f5f9");
+    sheet.appendRow(requiredHeaders);
+    sheet.getRange(1, 1, 1, requiredHeaders.length).setFontWeight("bold").setBackground("#f1f5f9");
+  } else {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
+    requiredHeaders.forEach(h => {
+      if (headers.indexOf(h) === -1) {
+        sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h).setFontWeight("bold").setBackground("#f1f5f9");
+      }
+    });
   }
   return sheet;
 }
@@ -510,7 +521,7 @@ function crearVale(datos) {
     const tz = Session.getScriptTimeZone() || "GMT-6";
     const fechaIngreso = datos.fechaIngreso || Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
 
-    sheet.appendRow([
+    const row = [
       numero,
       datos.tienda,
       noVale,
@@ -518,8 +529,12 @@ function crearVale(datos) {
       fechaIngreso,
       datos.fechaSalida || "",
       "en tiempo",
-      "", "", "", ""
-    ]);
+      "", "", "", "", // Carga 1 & Descarga 1
+      "", "", "", "", // Carga 2 & Descarga 2
+      "", "", "", "", // Carga 3 & Descarga 3
+      "", "", ""      // Orden de Trabajo & FechaUltimaModificacion
+    ];
+    sheet.appendRow(row);
 
     return { status: "success", message: "Vale " + noVale + " creado correctamente.", noVale: noVale };
   } catch (e) {
@@ -550,7 +565,7 @@ function eliminarVale(noVale) {
 }
 
 /**
- * Actualiza el estado de Proceso de un vale (en tiempo / tarde / Entregado).
+ * Actualiza el estado de Proceso de un vale (en tiempo / tarde / Entregado / Modificaciones / Autorizado / Congelado).
  */
 function actualizarProcesoVale(noVale, proceso) {
   try {
@@ -559,10 +574,14 @@ function actualizarProcesoVale(noVale, proceso) {
     const headers = data[0];
     const colNoVale = headers.indexOf("NoVale");
     const colProceso = headers.indexOf("Proceso") + 1;
+    const colFechaUltModif = headers.indexOf("FechaUltimaModificacion") + 1;
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
         sheet.getRange(i + 1, colProceso).setValue(proceso);
+        if (proceso === "Modificación 3" && colFechaUltModif > 0) {
+          sheet.getRange(i + 1, colFechaUltModif).setValue(new Date().toISOString());
+        }
         return { status: "success", message: "Proceso actualizado." };
       }
     }
@@ -583,10 +602,16 @@ function editarVale(noVale, proceso, fechaSalida) {
     const colNoVale = headers.indexOf("NoVale");
     const colProceso = headers.indexOf("Proceso") + 1;
     const colFechaSalida = headers.indexOf("FechaSalida") + 1;
+    const colFechaUltModif = headers.indexOf("FechaUltimaModificacion") + 1;
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
-        if (proceso) sheet.getRange(i + 1, colProceso).setValue(proceso);
+        if (proceso) {
+          sheet.getRange(i + 1, colProceso).setValue(proceso);
+          if (proceso === "Modificación 3" && colFechaUltModif > 0) {
+            sheet.getRange(i + 1, colFechaUltModif).setValue(new Date().toISOString());
+          }
+        }
         if (fechaSalida !== undefined) sheet.getRange(i + 1, colFechaSalida).setValue(fechaSalida);
         return { status: "success", message: "Vale actualizado correctamente." };
       }
@@ -600,15 +625,15 @@ function editarVale(noVale, proceso, fechaSalida) {
 /**
  * Sube un archivo real a Google Drive dentro de la subcarpeta de la tienda
  * correspondiente (dentro de "Vales de Carga" o "Vales de Descarga"),
- * y guarda el link resultante en la hoja 'Vales'.
+ * y guarda el link en la columna de modificación / etapa que corresponda.
  */
 function subirArchivoVale(datos) {
   try {
     const noVale = datos.noVale;
-    const tipo = datos.tipo === "descarga" ? "descarga" : "carga";
+    const tipo = datos.tipo || "carga"; // carga, descarga, carga2, descarga2, carga3, descarga3, orden_trabajo
     const base64Data = datos.base64;
     const mimeType = datos.mimeType || "application/octet-stream";
-    const fileName = datos.fileName || ("vale_" + noVale);
+    const fileName = datos.fileName || ("vale_" + noVale + "_" + tipo);
 
     if (!base64Data) throw new Error("No se recibió el contenido del archivo.");
 
@@ -629,12 +654,13 @@ function subirArchivoVale(datos) {
     }
     if (rowIdx === -1) throw new Error("Vale no encontrado: " + noVale);
 
-    const rawParentId = tipo === "carga" ? VALES_CARGA_FOLDER_ID : VALES_DESCARGA_FOLDER_ID;
+    const isCarga = (tipo === "carga" || tipo === "carga2" || tipo === "carga3" || tipo === "orden_trabajo");
+    const rawParentId = isCarga ? VALES_CARGA_FOLDER_ID : VALES_DESCARGA_FOLDER_ID;
     const parentFolderId = cleanFolderId_(rawParentId);
     const subfolder = getOrCreateStoreSubfolder_(parentFolderId, tienda);
 
     let targetFolder = subfolder;
-    if (tipo === "carga") {
+    if (isCarga) {
       const valeFolderName = String(noVale).trim();
       const subfolders = subfolder.getFoldersByName(valeFolderName);
       if (subfolders.hasNext()) {
@@ -647,16 +673,31 @@ function subirArchivoVale(datos) {
     const bytes = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(bytes, mimeType, fileName);
     const file = targetFolder.createFile(blob);
-    const url = tipo === "carga" ? targetFolder.getUrl() : file.getUrl();
+    const url = isCarga ? targetFolder.getUrl() : file.getUrl();
 
-    const urlCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaUrl" : "ArchivoDescargaUrl") + 1;
-    const idCol = headers.indexOf(tipo === "carga" ? "ArchivoCargaId" : "ArchivoDescargaId") + 1;
-    sheet.getRange(rowIdx, urlCol).setValue(url);
-    sheet.getRange(rowIdx, idCol).setValue(file.getId());
+    let urlColName = "ArchivoCargaUrl";
+    let idColName = "ArchivoCargaId";
+    if (tipo === "descarga") { urlColName = "ArchivoDescargaUrl"; idColName = "ArchivoDescargaId"; }
+    else if (tipo === "carga2") { urlColName = "ArchivoCarga2Url"; idColName = "ArchivoCarga2Id"; }
+    else if (tipo === "descarga2") { urlColName = "ArchivoDescarga2Url"; idColName = "ArchivoDescarga2Id"; }
+    else if (tipo === "carga3") { urlColName = "ArchivoCarga3Url"; idColName = "ArchivoCarga3Id"; }
+    else if (tipo === "descarga3") { urlColName = "ArchivoDescarga3Url"; idColName = "ArchivoDescarga3Id"; }
+    else if (tipo === "orden_trabajo") { urlColName = "ArchivoOrdenTrabajoUrl"; idColName = "ArchivoOrdenTrabajoId"; }
+
+    const urlCol = headers.indexOf(urlColName) + 1;
+    const idCol = headers.indexOf(idColName) + 1;
+    if (urlCol > 0) sheet.getRange(rowIdx, urlCol).setValue(url);
+    if (idCol > 0) sheet.getRange(rowIdx, idCol).setValue(file.getId());
+
+    // Si sube la 3ra modificación, actualizar fecha de última modificación para regla de congelamiento
+    if (tipo === "descarga3" || tipo === "carga3") {
+      const colFechaUltModif = headers.indexOf("FechaUltimaModificacion") + 1;
+      if (colFechaUltModif > 0) sheet.getRange(rowIdx, colFechaUltModif).setValue(new Date().toISOString());
+    }
 
     return {
       status: "success",
-      message: "Archivo \"" + fileName + "\" subido correctamente a Vales de " + (tipo === "carga" ? "Carga" : "Descarga") + "/" + tienda,
+      message: "Archivo \"" + fileName + "\" subido correctamente a Vales (" + tipo + ") / " + tienda,
       url: url,
       fileId: file.getId()
     };
@@ -666,7 +707,7 @@ function subirArchivoVale(datos) {
 }
 
 /**
- * Habilita de nuevo la subida de archivos limpiando las URL y IDs de los archivos actuales.
+ * Transita el vale al siguiente estado de Modificación (1, 2 o 3) y habilita la subida correspondiente sin borrar las anteriores.
  */
 function solicitarModificacion(noVale) {
   try {
@@ -674,20 +715,23 @@ function solicitarModificacion(noVale) {
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
     const colNoVale = headers.indexOf("NoVale");
-    const colCargaUrl = headers.indexOf("ArchivoCargaUrl") + 1;
-    const colCargaId = headers.indexOf("ArchivoCargaId") + 1;
-    const colDescargaUrl = headers.indexOf("ArchivoDescargaUrl") + 1;
-    const colDescargaId = headers.indexOf("ArchivoDescargaId") + 1;
     const colProceso = headers.indexOf("Proceso") + 1;
+    const colFechaUltModif = headers.indexOf("FechaUltimaModificacion") + 1;
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][colNoVale]).trim() === String(noVale).trim()) {
-        sheet.getRange(i + 1, colCargaUrl).setValue("");
-        sheet.getRange(i + 1, colCargaId).setValue("");
-        sheet.getRange(i + 1, colDescargaUrl).setValue("");
-        sheet.getRange(i + 1, colDescargaId).setValue("");
-        sheet.getRange(i + 1, colProceso).setValue("en tiempo");
-        return { status: "success", message: "Vale " + noVale + " listo para modificaciones (subidas rehabilitadas)." };
+        const currentProceso = String(data[i][colProceso - 1] || "");
+        let nextProceso = "Modificación 1";
+        if (currentProceso === "Modificación 1") nextProceso = "Modificación 2";
+        else if (currentProceso === "Modificación 2") nextProceso = "Modificación 3";
+        else if (currentProceso === "Modificación 3") nextProceso = "Modificación 3"; // Ya en la tercera
+
+        sheet.getRange(i + 1, colProceso).setValue(nextProceso);
+        if (nextProceso === "Modificación 3" && colFechaUltModif > 0) {
+          sheet.getRange(i + 1, colFechaUltModif).setValue(new Date().toISOString());
+        }
+
+        return { status: "success", message: "Vale " + noVale + " en " + nextProceso + ". Subidas habilitadas." };
       }
     }
     return { status: "error", message: "Vale no encontrado: " + noVale };
