@@ -241,6 +241,7 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
   });
 
   const openNewOrderModal = () => {
+    if (userRole === 'exportador') return;
     setEditingOrderId(null);
     setOrderForm({
       numero: '', tiendas: [defaultStoreForUser],
@@ -307,6 +308,30 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
 
   const handleSaveOrder = async (e) => {
     e.preventDefault();
+    if (userRole === 'exportador') {
+      const existingOrder = workOrders.find(o => o.id === editingOrderId || o.numero === orderForm.numero) || {};
+      const orderObj = {
+        ...existingOrder,
+        id: editingOrderId || existingOrder.id || ('wo' + Date.now()),
+        numero: existingOrder.numero || orderForm.numero,
+        tiendas: existingOrder.tiendas || orderForm.tiendas,
+        fechaSalidaProduccion: existingOrder.fechaSalidaProduccion || orderForm.fechaSalidaProduccion,
+        fechaEntregaCliente: existingOrder.fechaEntregaCliente || orderForm.fechaEntregaCliente,
+        transporte: existingOrder.transporte || orderForm.transporte,
+        estado: orderForm.estado,
+        notas: existingOrder.notas || orderForm.notas,
+        archivoOrdenUrl: existingOrder.archivoOrdenUrl || orderForm.archivoOrdenUrl,
+        archivoValeUrl: existingOrder.archivoValeUrl || orderForm.archivoValeUrl,
+        creadoEn: existingOrder.creadoEn || new Date().toISOString(),
+      };
+      setWorkOrders(prev => prev.map(o => (o.id === editingOrderId || o.numero === orderForm.numero) ? orderObj : o));
+      notify('order', `📦 Estado de orden actualizado: ${orderObj.numero} · ${orderObj.estado}`);
+      await saveOrdenToSheets(orderObj);
+      setIsOrderModalOpen(false);
+      setEditingOrderId(null);
+      return;
+    }
+
     if (!orderForm.numero.trim()) { alert('Por favor ingresa el número de orden.'); return; }
     if (!orderForm.fechaSalidaProduccion) { alert('Ingresa la Fecha de Salida de Producción.'); return; }
 
@@ -638,12 +663,12 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
           </h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {activeTab === 'calendario' && (
+          {activeTab === 'calendario' && userRole !== 'exportador' && (
             <button className="topbar-btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '10px' }} onClick={handleOpenCreateModal}>
               <i className="fas fa-plus" /> Añadir Actividad
             </button>
           )}
-          {activeTab === 'ordenes' && (
+          {activeTab === 'ordenes' && userRole !== 'exportador' && (
             <button className="topbar-btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '10px' }} onClick={openNewOrderModal}>
               <i className="fas fa-plus" /> Nueva Orden
             </button>
@@ -1089,37 +1114,42 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
               <div className="form-group" style={{ textAlign: 'left' }}>
                 <label className="form-label" style={{ fontSize: '10.5px' }}>N° Orden de Trabajo</label>
                 <input type="text" className="form-control" placeholder="Ej: DTGT/OUT/00001" value={orderForm.numero}
-                  onChange={e => setOrderForm(p => ({ ...p, numero: e.target.value }))} required
-                  style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '14px', letterSpacing: '0.05em' }} />
+                  onChange={e => setOrderForm(p => ({ ...p, numero: e.target.value }))} required={userRole !== 'exportador'} disabled={userRole === 'exportador'}
+                  style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '14px', letterSpacing: '0.05em', background: userRole === 'exportador' ? '#f8fafc' : '', color: userRole === 'exportador' ? '#64748b' : '', cursor: userRole === 'exportador' ? 'not-allowed' : '' }} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>📤 Fecha de Salida Producción</label>
-                  <input type="date" className="form-control" value={orderForm.fechaSalidaProduccion} onChange={e => setOrderForm(p => ({ ...p, fechaSalidaProduccion: e.target.value }))} required />
+                  <input type="date" className="form-control" value={orderForm.fechaSalidaProduccion} onChange={e => setOrderForm(p => ({ ...p, fechaSalidaProduccion: e.target.value }))} required={userRole !== 'exportador'} disabled={userRole === 'exportador'}
+                    style={{ background: userRole === 'exportador' ? '#f8fafc' : '', color: userRole === 'exportador' ? '#64748b' : '', cursor: userRole === 'exportador' ? 'not-allowed' : '' }} />
                 </div>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>📥 Fecha de Entrega al Cliente</label>
-                  <input type="date" className="form-control" value={orderForm.fechaEntregaCliente} onChange={e => setOrderForm(p => ({ ...p, fechaEntregaCliente: e.target.value }))} />
+                  <input type="date" className="form-control" value={orderForm.fechaEntregaCliente} onChange={e => setOrderForm(p => ({ ...p, fechaEntregaCliente: e.target.value }))} disabled={userRole === 'exportador'}
+                    style={{ background: userRole === 'exportador' ? '#f8fafc' : '', color: userRole === 'exportador' ? '#64748b' : '', cursor: userRole === 'exportador' ? 'not-allowed' : '' }} />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: userRole === 'exportador' ? '1fr' : '1fr 1fr', gap: '12px' }}>
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>🚚 Medio de Transporte</label>
-                  <select className="select-filter" value={orderForm.transporte} onChange={e => setOrderForm(p => ({ ...p, transporte: e.target.value }))} style={{ width: '100%', padding: '10px' }}>
+                  <select className="select-filter" value={orderForm.transporte} onChange={e => setOrderForm(p => ({ ...p, transporte: e.target.value }))} disabled={userRole === 'exportador'}
+                    style={{ width: '100%', padding: '10px', background: userRole === 'exportador' ? '#f8fafc' : '', color: userRole === 'exportador' ? '#64748b' : '', cursor: userRole === 'exportador' ? 'not-allowed' : '' }}>
                     {TRANSPORT_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-                <div className="form-group" style={{ textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontSize: '10.5px' }}>🏪 Tienda(s)</label>
-                  <StoreMultiSelect
-                    value={orderForm.tiendas}
-                    onChange={v => setOrderForm(p => ({ ...p, tiendas: v }))}
-                    disabled={userRole !== 'admin'}
-                    singleValue={selectedStores[0] || 'CB'}
-                  />
-                </div>
+                {userRole !== 'exportador' && (
+                  <div className="form-group" style={{ textAlign: 'left' }}>
+                    <label className="form-label" style={{ fontSize: '10.5px' }}>🏪 Tienda(s)</label>
+                    <StoreMultiSelect
+                      value={orderForm.tiendas}
+                      onChange={v => setOrderForm(p => ({ ...p, tiendas: v }))}
+                      disabled={userRole !== 'admin'}
+                      singleValue={selectedStores[0] || 'CB'}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="form-group" style={{ textAlign: 'left' }}>
@@ -1136,7 +1166,8 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
 
               <div className="form-group" style={{ textAlign: 'left' }}>
                 <label className="form-label" style={{ fontSize: '10.5px' }}>Notas (opcional)</label>
-                <textarea className="form-control" placeholder="Descripción del contenido, instrucciones especiales..." rows="2" value={orderForm.notas} onChange={e => setOrderForm(p => ({ ...p, notas: e.target.value }))} />
+                <textarea className="form-control" placeholder="Descripción del contenido, instrucciones especiales..." rows="2" value={orderForm.notas} onChange={e => setOrderForm(p => ({ ...p, notas: e.target.value }))} disabled={userRole === 'exportador'}
+                  style={{ background: userRole === 'exportador' ? '#f8fafc' : '', color: userRole === 'exportador' ? '#64748b' : '', cursor: userRole === 'exportador' ? 'not-allowed' : '' }} />
               </div>
 
               {/* Documentos: 1. Orden | 2. Vale */}
@@ -1144,71 +1175,117 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
                 {/* 1. Archivo de Orden */}
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>📋 1. Archivo de Orden</label>
-                  <input ref={fileOrdenRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
-                    onChange={e => setOrderForm(p => ({ ...p, fileOrden: e.target.files[0] || null }))}
-                    style={{ display: 'none' }} />
-                  <div
-                    onClick={() => fileOrdenRef.current?.click()}
-                    style={{ border: '2px dashed #c7d2fe', borderRadius: '10px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: (orderForm.fileOrden || orderForm.archivoOrdenUrl) ? '#f0f4ff' : '#fafafa', transition: 'all 0.2s' }}
-                  >
-                    {orderForm.fileOrden ? (
-                      <div>
-                        <i className="fas fa-file-invoice" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
-                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#4f46e5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orderForm.fileOrden.name}</div>
-                        <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, fileOrden: null })); if (fileOrdenRef.current) fileOrdenRef.current.value = ''; }}
-                          style={{ marginTop: '6px', fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
-                          Quitar
-                        </button>
+                  {userRole === 'exportador' ? (
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', textAlign: 'center', background: '#f8fafc', minHeight: '82px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                      {orderForm.archivoOrdenUrl || orderForm.fileOrden ? (
+                        <div>
+                          <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
+                          {orderForm.archivoOrdenUrl ? (
+                            <a href={orderForm.archivoOrdenUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#4f46e5' }}>Ver Orden subida</a>
+                          ) : (
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#4f46e5' }}>{orderForm.fileOrden?.name}</div>
+                          )}
+                          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>Solo lectura</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <i className="fas fa-file-invoice" style={{ fontSize: '20px', color: '#cbd5e1', marginBottom: '4px', display: 'block' }} />
+                          <div style={{ fontWeight: '600', fontSize: '12px', color: '#94a3b8' }}>Sin archivo cargado</div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <input ref={fileOrdenRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
+                        onChange={e => setOrderForm(p => ({ ...p, fileOrden: e.target.files[0] || null }))}
+                        style={{ display: 'none' }} />
+                      <div
+                        onClick={() => fileOrdenRef.current?.click()}
+                        style={{ border: '2px dashed #c7d2fe', borderRadius: '10px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: (orderForm.fileOrden || orderForm.archivoOrdenUrl) ? '#f0f4ff' : '#fafafa', transition: 'all 0.2s' }}
+                      >
+                        {orderForm.fileOrden ? (
+                          <div>
+                            <i className="fas fa-file-invoice" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
+                            <div style={{ fontWeight: '700', fontSize: '12px', color: '#4f46e5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orderForm.fileOrden.name}</div>
+                            <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, fileOrden: null })); if (fileOrdenRef.current) fileOrdenRef.current.value = ''; }}
+                              style={{ marginTop: '6px', fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
+                              Quitar
+                            </button>
+                          </div>
+                        ) : orderForm.archivoOrdenUrl ? (
+                          <div>
+                            <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
+                            <a href={orderForm.archivoOrdenUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#4f46e5' }}>Ver Orden subida</a>
+                            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>Haz clic para reemplazar</div>
+                          </div>
+                        ) : (
+                          <div>
+                            <i className="fas fa-cloud-upload-alt" style={{ fontSize: '20px', color: '#c7d2fe', marginBottom: '4px', display: 'block' }} />
+                            <div style={{ fontWeight: '700', fontSize: '12px', color: '#64748b' }}>Subir Orden</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>PDF, Imagen, Word…</div>
+                          </div>
+                        )}
                       </div>
-                    ) : orderForm.archivoOrdenUrl ? (
-                      <div>
-                        <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#4f46e5', marginBottom: '4px', display: 'block' }} />
-                        <a href={orderForm.archivoOrdenUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#4f46e5' }}>Ver Orden subida</a>
-                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>Haz clic para reemplazar</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <i className="fas fa-cloud-upload-alt" style={{ fontSize: '20px', color: '#c7d2fe', marginBottom: '4px', display: 'block' }} />
-                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#64748b' }}>Subir Orden</div>
-                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>PDF, Imagen, Word…</div>
-                      </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
 
                 {/* 2. Archivo de Vale */}
                 <div className="form-group" style={{ textAlign: 'left' }}>
                   <label className="form-label" style={{ fontSize: '10.5px' }}>🧾 2. Archivo de Vale</label>
-                  <input ref={fileValeRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
-                    onChange={e => setOrderForm(p => ({ ...p, fileVale: e.target.files[0] || null }))}
-                    style={{ display: 'none' }} />
-                  <div
-                    onClick={() => fileValeRef.current?.click()}
-                    style={{ border: '2px dashed #a7f3d0', borderRadius: '10px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: (orderForm.fileVale || orderForm.archivoValeUrl) ? '#ecfdf5' : '#fafafa', transition: 'all 0.2s' }}
-                  >
-                    {orderForm.fileVale ? (
-                      <div>
-                        <i className="fas fa-receipt" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
-                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#059669', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orderForm.fileVale.name}</div>
-                        <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, fileVale: null })); if (fileValeRef.current) fileValeRef.current.value = ''; }}
-                          style={{ marginTop: '6px', fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
-                          Quitar
-                        </button>
+                  {userRole === 'exportador' ? (
+                    <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', textAlign: 'center', background: '#f8fafc', minHeight: '82px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                      {orderForm.archivoValeUrl || orderForm.fileVale ? (
+                        <div>
+                          <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
+                          {orderForm.archivoValeUrl ? (
+                            <a href={orderForm.archivoValeUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>Ver Vale subido</a>
+                          ) : (
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>{orderForm.fileVale?.name}</div>
+                          )}
+                          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>Solo lectura</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <i className="fas fa-receipt" style={{ fontSize: '20px', color: '#cbd5e1', marginBottom: '4px', display: 'block' }} />
+                          <div style={{ fontWeight: '600', fontSize: '12px', color: '#94a3b8' }}>Sin archivo cargado</div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <input ref={fileValeRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
+                        onChange={e => setOrderForm(p => ({ ...p, fileVale: e.target.files[0] || null }))}
+                        style={{ display: 'none' }} />
+                      <div
+                        onClick={() => fileValeRef.current?.click()}
+                        style={{ border: '2px dashed #a7f3d0', borderRadius: '10px', padding: '14px', textAlign: 'center', cursor: 'pointer', background: (orderForm.fileVale || orderForm.archivoValeUrl) ? '#ecfdf5' : '#fafafa', transition: 'all 0.2s' }}
+                      >
+                        {orderForm.fileVale ? (
+                          <div>
+                            <i className="fas fa-receipt" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
+                            <div style={{ fontWeight: '700', fontSize: '12px', color: '#059669', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orderForm.fileVale.name}</div>
+                            <button type="button" onClick={e => { e.stopPropagation(); setOrderForm(p => ({ ...p, fileVale: null })); if (fileValeRef.current) fileValeRef.current.value = ''; }}
+                              style={{ marginTop: '6px', fontSize: '10px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '700' }}>
+                              Quitar
+                            </button>
+                          </div>
+                        ) : orderForm.archivoValeUrl ? (
+                          <div>
+                            <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
+                            <a href={orderForm.archivoValeUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>Ver Vale subido</a>
+                            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>Haz clic para reemplazar</div>
+                          </div>
+                        ) : (
+                          <div>
+                            <i className="fas fa-cloud-upload-alt" style={{ fontSize: '20px', color: '#a7f3d0', marginBottom: '4px', display: 'block' }} />
+                            <div style={{ fontWeight: '700', fontSize: '12px', color: '#64748b' }}>Subir Vale</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>PDF, Imagen, Word…</div>
+                          </div>
+                        )}
                       </div>
-                    ) : orderForm.archivoValeUrl ? (
-                      <div>
-                        <i className="fas fa-check-circle" style={{ fontSize: '20px', color: '#059669', marginBottom: '4px', display: 'block' }} />
-                        <a href={orderForm.archivoValeUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>Ver Vale subido</a>
-                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>Haz clic para reemplazar</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <i className="fas fa-cloud-upload-alt" style={{ fontSize: '20px', color: '#a7f3d0', marginBottom: '4px', display: 'block' }} />
-                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#64748b' }}>Subir Vale</div>
-                        <div style={{ fontSize: '10px', color: '#94a3b8' }}>PDF, Imagen, Word…</div>
-                      </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
               </div>
               {uploadingFiles && (
@@ -1220,7 +1297,7 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
                 <button type="button" className="topbar-btn btn-outline" onClick={() => setIsOrderModalOpen(false)}>Cancelar</button>
                 <button type="submit" className="topbar-btn btn-primary" disabled={uploadingFiles} style={{ opacity: uploadingFiles ? 0.7 : 1 }}>
-                  {uploadingFiles ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }} />{uploadProgress || 'Subiendo…'}</> : (editingOrderId ? 'Guardar Cambios' : 'Registrar Orden')}
+                  {uploadingFiles ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }} />{uploadProgress || 'Subiendo…'}</> : (userRole === 'exportador' ? 'Guardar Estado' : (editingOrderId ? 'Guardar Cambios' : 'Registrar Orden'))}
                 </button>
               </div>
             </form>
