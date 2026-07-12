@@ -6,7 +6,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyrI5mKnFOMo8zf8cixTy_5c8XJbgFNPxOvUbDzngEeFBdSpS6It_U-B0IOCLiefex7/exec';
 
 const PRODUCTOS = ['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'];
-const PROCESOS = ['en tiempo', 'tarde', 'Entregado', 'Modificación 1', 'Modificación 2', 'Modificación 3', 'Autorizado', 'Congelado'];
+// Los procesos son automáticos; solo 'Autorizado' es manual (botón del asesor)
+// 'Otro Vale' reemplaza 'Congelado'
 const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
 const CARPETA_CARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
@@ -59,31 +60,47 @@ function calcularFechaLimiteHabiles(fechaIngresoStr, diasHabiles = 3) {
   return d;
 }
 
-function esValeCongelado(v) {
+// Verifica si el vale pasó a "Otro Vale" (ex-Congelado):
+// sucede cuando el Proceso es 'Modificación 3', el diseñador ya subió el 3er arte,
+// y han pasado +24h sin que el asesor lo autorice.
+function esValeOtroVale(v) {
   if (!v) return false;
-  if (v.Proceso === 'Congelado') return true;
-  if (v.Proceso === 'Modificación 3' && v.Proceso !== 'Autorizado') {
+  if (v.Proceso === 'Otro Vale') return true;
+  // Si el diseñador ya subió la Descarga 3 y no está Autorizado después de 1 día
+  if (v.ArchivoDescarga3Url && v.Proceso !== 'Autorizado') {
+    if (v.FechaDescarga3) {
+      const fechaMod = new Date(v.FechaDescarga3).getTime();
+      const diffHoras = (Date.now() - fechaMod) / (1000 * 60 * 60);
+      if (diffHoras >= 24) return true;
+    }
+    // Fallback: usar FechaUltimaModificacion
     if (v.FechaUltimaModificacion) {
       const fechaMod = new Date(v.FechaUltimaModificacion).getTime();
-      const actual = new Date().getTime();
-      const diffHoras = (actual - fechaMod) / (1000 * 60 * 60);
+      const diffHoras = (Date.now() - fechaMod) / (1000 * 60 * 60);
       if (diffHoras >= 24) return true;
     }
   }
   return false;
 }
 
+// Calcula el estado del vale de forma completamente automática.
+// El único estado manual es 'Autorizado' (el asesor lo presiona explícitamente).
 function obtenerEstadoAutomatico(v) {
-  if (!v) return 'en tiempo';
-  if (esValeCongelado(v)) return 'Congelado';
-  if (['Entregado', 'Autorizado', 'Modificación 1', 'Modificación 2', 'Modificación 3', 'Congelado'].includes(v.Proceso)) {
-    return v.Proceso;
-  }
+  if (!v) return 'En Tiempo';
+  // Autorizado es permanente (lo aprueba el asesor)
+  if (v.Proceso === 'Autorizado') return 'Autorizado';
+  // Otro Vale (ex-Congelado)
+  if (esValeOtroVale(v)) return 'Otro Vale';
+  // Modificaciones solicitadas por el asesor
+  if (['Modificación 1', 'Modificación 2', 'Modificación 3'].includes(v.Proceso)) return v.Proceso;
+  // Diseñador subió el arte → Entregado
+  if (v.ArchivoDescargaUrl || v.ArchivoDescarga2Url || v.ArchivoDescarga3Url) return 'Entregado';
+  // SLA: 3 días hábiles
   const fechaLimite = calcularFechaLimiteHabiles(v.FechaIngreso, 3);
-  if (!fechaLimite) return v.Proceso || 'en tiempo';
+  if (!fechaLimite) return 'En Tiempo';
   const actual = new Date();
   fechaLimite.setHours(23, 59, 59, 999);
-  return actual > fechaLimite ? 'tarde' : 'en tiempo';
+  return actual > fechaLimite ? 'Tarde' : 'En Tiempo';
 }
 
 function getUrlPropByTipo(tipo) {
@@ -166,8 +183,8 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
     let enTiempo = 0, tarde = 0, autorizados = 0, enModificacion = 0;
     valesVisibles.forEach(v => {
       const estado = obtenerEstadoAutomatico(v);
-      if (estado === 'en tiempo' || estado === 'Entregado') enTiempo++;
-      else if (estado === 'tarde' || estado === 'Congelado') tarde++;
+      if (estado === 'En Tiempo' || estado === 'Entregado') enTiempo++;
+      else if (estado === 'Tarde' || estado === 'Otro Vale') tarde++;
       else if (estado === 'Autorizado') autorizados++;
       else if (String(estado).startsWith('Modificación')) enModificacion++;
     });
@@ -327,38 +344,125 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
 
     setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
     if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
-    notify(`Vale ${noVale} en "${nextProceso}". Subidas de modificación habilitadas.`);
+    if (nextProceso === 'Modificación 3') {
+      updates.FechaUltimaModificacion = new Date().toISOString();
+    }
+
+    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+    if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+    notify(`✅ Vale ${noVale} pasa a "${nextProceso}". El diseñador puede subir la nueva propuesta.`);
 
     if (!SCRIPT_URL) return;
     try {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'solicitarModificacion', noVale })
+        body: JSON.stringify({ action: 'actualizarProcesoVale', noVale, proceso: nextProceso }),
       });
     } catch {
       notify('No se pudo comunicar con el servidor para guardar la modificación.', 'error');
     }
   };
 
-  const handleProcesoChange = (noVale, proceso) => {
+  // ASESOR: Autorizar vale (único estado manual)
+  const handleAutorizar = async (noVale) => {
     const valeObj = vales.find(v => v.NoVale === noVale);
-    if (proceso === 'Autorizado') {
-      const hasAnyDescarga = Boolean(valeObj && (valeObj.ArchivoDescargaUrl || valeObj.ArchivoDescarga2Url || valeObj.ArchivoDescarga3Url));
-      if (!hasAnyDescarga) {
-        notify('⚠️ No se puede marcar como Autorizado hasta que el diseñador suba al menos una propuesta de arte.', 'error');
-        return;
-      }
+    if (!valeObj) return;
+    const hasAnyDescarga = Boolean(valeObj.ArchivoDescargaUrl || valeObj.ArchivoDescarga2Url || valeObj.ArchivoDescarga3Url);
+    if (!hasAnyDescarga) {
+      notify('⚠️ No puedes autorizar hasta que el diseñador suba al menos una propuesta de arte.', 'error');
+      return;
     }
+    if (!window.confirm(`¿Confirmar autorización del vale "${noVale}"?\n\nEsto cierra el ciclo de diseño y habilita la carga de la Orden de Trabajo.`)) return;
 
-    const updates = { Proceso: proceso };
-    if (proceso === 'Modificación 3' && (!valeObj || !valeObj.FechaUltimaModificacion)) {
-      updates.FechaUltimaModificacion = new Date().toISOString();
-    }
-
+    const updates = { Proceso: 'Autorizado' };
     setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
     if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+    notify(`✅ Vale ${noVale} AUTORIZADO. Puedes subir la Orden de Trabajo.`);
 
+    if (!SCRIPT_URL) return;
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'actualizarProcesoVale', noVale, proceso: 'Autorizado' }),
+      });
+    } catch {
+      notify('No se pudo guardar la autorización en el servidor.', 'error');
+    }
+  };
+
+  // DISEÑADOR: Subir arte/propuesta. Cuando sube, actualiza el proceso a 'Entregado' (o mantiene Modificación X si viene de ahí)
+  const handleUploadDescargar = (noVale, tipo) => {
+    const valeObj = vales.find(v => v.NoVale === noVale);
+    if (valeObj && esValeOtroVale(valeObj)) {
+      notify('⚠️ No se pueden subir archivos a un vale en estado "Otro Vale".', 'error');
+      return;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '*/*';
+    input.onchange = async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+
+      const key = `${noVale}-${tipo}`;
+      setUploadingKey(key);
+
+      if (!SCRIPT_URL) {
+        setTimeout(() => {
+          setUploadingKey(null);
+          const propName = getUrlPropByTipo(tipo);
+          const updates = { [propName]: URL.createObjectURL(file) };
+          // Al subir arte, si venía de Modificación X se queda en ese estado
+          // Si era inicial (descarga 1) el estado pasa a "Entregado" automáticamente via obtenerEstadoAutomatico
+          if (tipo === 'descarga3') {
+            updates.FechaUltimaModificacion = new Date().toISOString();
+          }
+          setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+          if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+          notify(`Arte "${file.name}" subido. Estado actualizado automáticamente.`);
+        }, 600);
+        return;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        const res = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'subirArchivoVale', datos: { noVale, tipo, base64, mimeType: file.type, fileName: file.name } }),
+        }).then(r => r.json());
+
+        if (res.status === 'success') {
+          notify(res.message);
+          const propName = getUrlPropByTipo(tipo);
+          const updates = { [propName]: res.url };
+          if (tipo === 'descarga3') {
+            updates.FechaUltimaModificacion = new Date().toISOString();
+          }
+          setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+          if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
+        } else {
+          notify('Error al subir el archivo: ' + res.message, 'error');
+        }
+      } catch {
+        notify('No se pudo subir el archivo. Revisa tu conexión con el backend.', 'error');
+      } finally {
+        setUploadingKey(null);
+      }
+    };
+    input.click();
+  };
+
+  // handleProcesoChange solo queda para el modal de edición (campo FechaSalida, etc.)
+  // Ya no cambia el proceso manualmente desde la tabla
+  const handleProcesoChange = (noVale, proceso) => {
+    // Solo permitido internamente (modal de edición)
+    const updates = { Proceso: proceso };
+    setVales(prev => prev.map(v => v.NoVale === noVale ? { ...v, ...updates } : v));
+    if (editingVale && editingVale.NoVale === noVale) setEditingVale(prev => ({ ...prev, ...updates }));
     if (!SCRIPT_URL) return;
     fetch(SCRIPT_URL, {
       method: 'POST',
@@ -369,10 +473,11 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
 
   const handleUpload = (noVale, tipo) => {
     const valeObj = vales.find(v => v.NoVale === noVale);
-    if (valeObj && esValeCongelado(valeObj)) {
-      notify('⚠️ No se pueden subir archivos a un vale congelado tras exceder el plazo y límite de modificaciones.', 'error');
+    if (valeObj && esValeOtroVale(valeObj)) {
+      notify('⚠️ No se pueden subir archivos a un vale en estado "Otro Vale".', 'error');
       return;
     }
+
 
     const input = document.createElement('input');
     input.type = 'file';
@@ -433,9 +538,9 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
   const procesoColor = (proceso, v) => {
     const estadoReal = v ? obtenerEstadoAutomatico(v) : proceso;
     if (estadoReal === 'Autorizado') return { color: '#059669', bg: 'rgba(5,150,105,0.15)', border: '1px solid #059669' };
-    if (estadoReal === 'Congelado') return { color: '#2563eb', bg: 'rgba(37,99,235,0.15)', border: '1px solid #2563eb' };
+    if (estadoReal === 'Otro Vale') return { color: '#1d4ed8', bg: 'rgba(29,78,216,0.12)', border: '1px solid #1d4ed8' };
     if (estadoReal === 'Entregado') return { color: '#16a34a', bg: 'rgba(22,163,74,0.12)', border: '1px solid #16a34a' };
-    if (estadoReal === 'tarde') return { color: '#dc2626', bg: 'rgba(220,38,38,0.12)', border: '1px solid #dc2626' };
+    if (estadoReal === 'Tarde') return { color: '#dc2626', bg: 'rgba(220,38,38,0.12)', border: '1px solid #dc2626' };
     if (String(estadoReal || '').startsWith('Modificación')) return { color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', border: '1px solid #7c3aed' };
     return { color: '#d97706', bg: 'rgba(217,119,6,0.12)', border: '1px solid #d97706' };
   };
@@ -578,47 +683,55 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
               {valesVisibles.map((v, idx) => {
                 const estadoActual = obtenerEstadoAutomatico(v);
                 const pc = procesoColor(estadoActual, v);
-                const congelado = esValeCongelado(v);
+                const esOtroVale = esValeOtroVale(v);
                 const hasAnyDescarga = Boolean(v.ArchivoDescargaUrl || v.ArchivoDescarga2Url || v.ArchivoDescarga3Url);
-                
-                const activeCargaSlot = 'carga';
-                let activeDescargaSlot = 'descarga';
-                if (v.Proceso === 'Modificación 1') { activeDescargaSlot = 'descarga2'; }
-                else if (v.Proceso === 'Modificación 2' || v.Proceso === 'Modificación 3') { activeDescargaSlot = 'descarga3'; }
+                const isStore = !isAdminOrDesign; // tienda / asesor
 
-                const cargandoCarga = uploadingKey === `${v.NoVale}-${activeCargaSlot}`;
+                // Slot activo de descarga para el diseñador
+                let activeDescargaSlot = 'descarga';
+                if (v.Proceso === 'Modificación 1') activeDescargaSlot = 'descarga2';
+                else if (v.Proceso === 'Modificación 2' || v.Proceso === 'Modificación 3') activeDescargaSlot = 'descarga3';
+
+                const cargandoCarga = uploadingKey === `${v.NoVale}-carga`;
                 const cargandoDescarga = uploadingKey === `${v.NoVale}-${activeDescargaSlot}`;
                 const cargandoOrden = uploadingKey === `${v.NoVale}-orden_trabajo`;
 
+                // ¿Cuándo puede el asesor solicitar una modificación?
+                // Solo si el diseñador acaba de subir un arte (estado=Entregado) o ya está en Mod pero el diseñador subió la siguiente propuesta
+                const puedeSolicitarMod1 = estadoActual === 'Entregado' && !['Modificación 1','Modificación 2','Modificación 3'].includes(v.Proceso);
+                const puedeSolicitarMod2 = v.Proceso === 'Modificación 1' && Boolean(v.ArchivoDescarga2Url);
+                const puedeSolicitarMod3 = v.Proceso === 'Modificación 2' && Boolean(v.ArchivoDescarga3Url);
+                const puedeSolicitar = isStore && !esOtroVale && estadoActual !== 'Autorizado' && (puedeSolicitarMod1 || puedeSolicitarMod2 || puedeSolicitarMod3);
+                const numModLabel = puedeSolicitarMod3 ? '3/3' : puedeSolicitarMod2 ? '2/3' : '1/3';
+
+                // ¿El diseñador puede subir descarga ahora?
+                // Puede subir Prop1 siempre (si no está OtroVale/Autorizado)
+                // Puede subir Prop2 solo cuando Proceso=Modificación 1 y aún no hay descarga2
+                // Puede subir Prop3 solo cuando Proceso=Modificación 2 o 3 y aún no hay descarga3
+                const diseñadorPuedeSubir = isAdminOrDesign && !esOtroVale && estadoActual !== 'Autorizado' &&
+                  ((!v.ArchivoDescargaUrl && activeDescargaSlot === 'descarga') ||
+                   (v.Proceso === 'Modificación 1' && !v.ArchivoDescarga2Url && activeDescargaSlot === 'descarga2') ||
+                   ((v.Proceso === 'Modificación 2' || v.Proceso === 'Modificación 3') && !v.ArchivoDescarga3Url && activeDescargaSlot === 'descarga3'));
+
+                const rowBg = esOtroVale ? '#eff6ff' : estadoActual === 'Autorizado' ? '#ecfdf5' : 'transparent';
+
                 return (
-                  <tr key={v.NoVale} style={{ borderTop: '1px solid var(--border-light)', background: congelado ? '#fef2f2' : estadoActual === 'Autorizado' ? '#ecfdf5' : 'transparent' }}>
+                  <tr key={v.NoVale} style={{ borderTop: '1px solid var(--border-light)', background: rowBg }}>
                     <td style={{ padding: '12px 14px', fontSize: '12px' }}>{idx + 1}</td>
                     <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 700, color: '#4f46e5' }}>{v.Tienda}</td>
                     <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 700 }}>{v.NoVale}</td>
                     <td style={{ padding: '12px 14px', fontSize: '12px' }}>{v.Producto}</td>
                     <td style={{ padding: '12px 14px', fontSize: '12px' }}>{v.FechaIngreso}</td>
                     <td style={{ padding: '12px 14px', fontSize: '12px' }}>{v.FechaSalida || '—'}</td>
-                    
+
+                    {/* ESTADO: siempre automático, solo muestra la etiqueta */}
                     <td style={{ padding: '12px 14px' }}>
-                      {isAdminOrDesign && !congelado ? (
-                        <select
-                          value={v.Proceso || 'en tiempo'}
-                          onChange={(e) => handleProcesoChange(v.NoVale, e.target.value)}
-                          style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', border: pc.border, color: pc.color, background: pc.bg }}
-                        >
-                          {PROCESOS.map(p => (
-                            <option key={p} value={p} disabled={p === 'Autorizado' && !hasAnyDescarga}>
-                              {p === 'Autorizado' && !hasAnyDescarga ? 'Autorizado (Falta arte)' : p}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span style={{ fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px', color: pc.color, background: pc.bg, border: pc.border, textTransform: 'uppercase', display: 'inline-block' }}>
-                          {congelado ? '❄️ CONGELADO' : estadoActual}
-                        </span>
-                      )}
+                      <span style={{ fontSize: '10px', fontWeight: 800, padding: '5px 10px', borderRadius: '6px', color: pc.color, background: pc.bg, border: pc.border, textTransform: 'uppercase', display: 'inline-block', whiteSpace: 'nowrap' }}>
+                        {esOtroVale ? '📋 OTRO VALE' : estadoActual}
+                      </span>
                     </td>
 
+                    {/* CARGA: solo 1 archivo, botón Reemplazar solo para tienda/asesor */}
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {v.ArchivoCargaUrl && (
@@ -626,7 +739,8 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                             <i className="fas fa-file"></i> Carga del Vale
                           </a>
                         )}
-                        {!congelado && (
+                        {/* Subir/Reemplazar: disponible para tienda siempre que no sea OtroVale/Autorizado */}
+                        {isStore && !esOtroVale && estadoActual !== 'Autorizado' && (
                           <button
                             onClick={() => handleUpload(v.NoVale, 'carga')}
                             disabled={cargandoCarga}
@@ -636,42 +750,49 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                             {cargandoCarga ? 'Subiendo...' : (v.ArchivoCargaUrl ? '+ Reemplazar' : '+ Subir Carga')}
                           </button>
                         )}
+                        {/* Admin/Diseño solo puede ver, no reemplazar */}
+                        {isAdminOrDesign && !v.ArchivoCargaUrl && (
+                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Sin archivo</span>
+                        )}
                       </div>
                     </td>
 
+                    {/* DESCARGAS: 3 propuestas del diseñador */}
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {v.ArchivoDescargaUrl && (
                           <a href={v.ArchivoDescargaUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>
-                            <i className="fas fa-check"></i> Propuesta 1
+                            <i className="fas fa-check-circle"></i> Arte 1
                           </a>
                         )}
                         {v.ArchivoDescarga2Url && (
                           <a href={v.ArchivoDescarga2Url} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#7c3aed', fontWeight: 700, textDecoration: 'none' }}>
-                            <i className="fas fa-check"></i> Propuesta 2
+                            <i className="fas fa-check-circle"></i> Arte Mod. 1
                           </a>
                         )}
                         {v.ArchivoDescarga3Url && (
                           <a href={v.ArchivoDescarga3Url} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#d97706', fontWeight: 700, textDecoration: 'none' }}>
-                            <i className="fas fa-check"></i> Propuesta 3
+                            <i className="fas fa-check-circle"></i> Arte Mod. 2
                           </a>
                         )}
-                        {isAdminOrDesign && !congelado && (
+                        {/* Botón de subida para diseñador según el slot activo */}
+                        {diseñadorPuedeSubir && (
                           <button
-                            onClick={() => handleUpload(v.NoVale, activeDescargaSlot)}
+                            onClick={() => handleUploadDescargar(v.NoVale, activeDescargaSlot)}
                             disabled={cargandoDescarga}
                             className="topbar-btn btn-outline"
                             style={{ fontSize: '10px', padding: '3px 8px', color: '#16a34a', borderColor: '#16a34a', alignSelf: 'flex-start', marginTop: '2px' }}
                           >
-                            {cargandoDescarga ? 'Subiendo...' : `+ Subir (${activeDescargaSlot === 'descarga3' ? 'Prop. 3' : activeDescargaSlot === 'descarga2' ? 'Prop. 2' : 'Prop. 1'})`}
+                            {cargandoDescarga ? 'Subiendo...' : `+ Subir Arte ${activeDescargaSlot === 'descarga3' ? '3' : activeDescargaSlot === 'descarga2' ? '2' : '1'}`}
                           </button>
                         )}
-                        {!hasAnyDescarga && !isAdminOrDesign && (
+                        {!hasAnyDescarga && isStore && (
                           <span style={{ fontSize: '11px', color: '#94a3b8' }}>En diseño...</span>
                         )}
                       </div>
                     </td>
 
+                    {/* ORDEN DE TRABAJO: solo si Autorizado */}
                     <td style={{ padding: '12px 14px' }}>
                       {estadoActual === 'Autorizado' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -696,6 +817,7 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                       )}
                     </td>
 
+                    {/* ACCIONES */}
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button
@@ -703,16 +825,28 @@ export default function ValesView({ userRole, activeStore, selectedStores, showT
                           className="topbar-btn btn-outline"
                           style={{ fontSize: '11px', padding: '4px 10px', color: '#4f46e5', borderColor: '#4f46e5', display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
-                          <i className="fas fa-folder-open"></i> Detalle / Historial
+                          <i className="fas fa-folder-open"></i> Detalle
                         </button>
 
-                        {!congelado && estadoActual !== 'Autorizado' && hasAnyDescarga && (
+                        {/* Botón Autorizar: solo asesor/tienda, cuando Entregado o en Modificación con arte disponible */}
+                        {isStore && !esOtroVale && hasAnyDescarga && estadoActual !== 'Autorizado' && (
+                          <button
+                            onClick={() => handleAutorizar(v.NoVale)}
+                            className="topbar-btn btn-outline"
+                            style={{ fontSize: '11px', padding: '4px 10px', color: '#059669', borderColor: '#059669', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <i className="fas fa-check"></i> Autorizar
+                          </button>
+                        )}
+
+                        {/* Botón Solicitar Modificación: solo asesor/tienda cuando corresponde */}
+                        {puedeSolicitar && (
                           <button
                             onClick={() => handleSolicitarModificacion(v.NoVale)}
                             className="topbar-btn btn-outline"
                             style={{ fontSize: '11px', padding: '4px 10px', color: '#d97706', borderColor: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}
                           >
-                            <i className="fas fa-edit"></i> Modificar ({v.Proceso === 'Modificación 2' ? '3/3' : v.Proceso === 'Modificación 1' ? '2/3' : '1/3'})
+                            <i className="fas fa-edit"></i> Mod. {numModLabel}
                           </button>
                         )}
                       </div>
