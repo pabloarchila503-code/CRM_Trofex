@@ -186,220 +186,11 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
   const [storeDropOpen, setStoreDropOpen] = useState(false);
   const storeRef = useRef(null);
 
-  // Load events and orders from Sheets on mount
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(`${SCRIPT_URL}?action=getCalendarEvents`).then(r => r.json());
-        if (res.status === 'success' && res.eventos && res.eventos.length > 0) {
-          setEvents(res.eventos);
-          setBackendConnected(true);
-        }
-      } catch { /* use initial data */ }
-
-      try {
-        const resOrd = await fetch(`${SCRIPT_URL}?action=getOrdenes`).then(r => r.json());
-        if (resOrd.status === 'success' && resOrd.ordenes && resOrd.ordenes.length > 0) {
-          setWorkOrders(resOrd.ordenes);
-        }
-      } catch { /* use initial data */ }
-    };
-    load();
-  }, []);
-
-  useEffect(() => {
-    function h(e) { if (storeRef.current && !storeRef.current.contains(e.target)) setStoreDropOpen(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  const toggleAllStores = () => {
-    if (calendarStoreFilter.length === STORES.length) setCalendarStoreFilter([]);
-    else setCalendarStoreFilter(STORES);
-  };
-  const toggleStoreFilter = (s) => {
-    setCalendarStoreFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
-  };
-
-  // ── Event modal states ─────────────────────────────────────────────────────
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [selectedDayForEvent, setSelectedDayForEvent] = useState(null);
-  const [editingEventId, setEditingEventId] = useState(null);
-  const [savingEvent, setSavingEvent] = useState(false);
-
   const defaultStoreForUser = userRole === 'admin'
     ? (selectedStores.length > 0 && selectedStores.length < 14 ? selectedStores[0] : 'CB')
     : (selectedStores[0] || 'CB');
 
-  const [eventForm, setEventForm] = useState({
-    titulo: '', horaInicio: '09:00', horaFin: '10:00',
-    prioridad: 'Media', descripcion: '',
-    tiendas: [defaultStoreForUser], replicarGlobal: false,
-  });
-
-  // ── Calendar grid ──────────────────────────────────────────────────────────
-  const currentMonth = currentDate.getMonth();
-  const currentYear  = currentDate.getFullYear();
-  const daysInMonth  = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const startDayOffset = new Date(currentYear, currentMonth, 1).getDay();
-  const gridDays = [...Array.from({ length: startDayOffset }, () => null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-  const todayISO = new Date().toISOString().slice(0, 10);
-
-  const handlePrevMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const handleNextMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-  const handleGoToday   = () => { setCurrentDate(new Date()); setSelectedDayFilter(todayISO); };
-
-  const handleDayClick = (day) => {
-    if (!day) return;
-    const dateKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-    setSelectedDayFilter(prev => prev === dateKey ? null : dateKey);
-  };
-
-  const handleOpenCreateModal = () => {
-    setSelectedDayForEvent(selectedDayFilter ? new Date(selectedDayFilter + 'T12:00:00') : new Date());
-    setEditingEventId(null);
-    setEventForm({ titulo: '', horaInicio: '09:00', horaFin: '10:00', prioridad: 'Media', descripcion: '', tiendas: [defaultStoreForUser], replicarGlobal: false });
-    setIsEventModalOpen(true);
-  };
-
-  const handleEventClick = (e, evt) => {
-    e.stopPropagation();
-    if (evt.isOrderEvent) {
-      const order = workOrders.find(o => String(o.id) === String(evt.orderId) || String(o.numero) === String(evt.orderNumero));
-      if (order && typeof openEditOrderModal === 'function') {
-        setActiveTab('ordenes');
-        openEditOrderModal(order);
-      }
-      return;
-    }
-    setSelectedDayForEvent(new Date(evt.fecha + 'T12:00:00'));
-    setEditingEventId(evt.id);
-    const tiendas = evt.replicarGlobal || evt.tienda === 'Todos' ? STORES : (Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda || defaultStoreForUser]);
-    setEventForm({
-      titulo: evt.titulo, horaInicio: evt.horaInicio || '09:00', horaFin: evt.horaFin || '',
-      prioridad: evt.prioridad, descripcion: evt.descripcion || '',
-      tiendas, replicarGlobal: evt.replicarGlobal || false,
-    });
-    setIsEventModalOpen(true);
-  };
-
-  const saveEventToSheets = async (eventData) => {
-    try {
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'saveCalendarEvent', datos: { ...eventData, creadoEn: new Date().toISOString() } }),
-      });
-    } catch { /* falla silenciosa */ }
-  };
-
-  const handleSaveEvent = async (e) => {
-    e.preventDefault();
-    if (!eventForm.titulo.trim()) { alert('Por favor, ingresa el título del evento.'); return; }
-    setSavingEvent(true);
-
-    const isoDateStr = selectedDayForEvent.toISOString().slice(0, 10);
-    const isGlobal = (eventForm.replicarGlobal && userRole === 'admin') || eventForm.tiendas.length === STORES.length;
-    const finalTienda = isGlobal ? 'Todos' : eventForm.tiendas.join(', ');
-    const finalTiendas = isGlobal ? STORES : eventForm.tiendas;
-
-    if (editingEventId !== null) {
-      const updated = events.map(evt => evt.id === editingEventId
-        ? { ...evt, titulo: eventForm.titulo, horaInicio: eventForm.horaInicio, horaFin: eventForm.horaFin, prioridad: eventForm.prioridad, descripcion: eventForm.descripcion, tienda: finalTienda, tiendas: finalTiendas, replicarGlobal: isGlobal }
-        : evt
-      );
-      setEvents(updated);
-      await saveEventToSheets(updated.find(e => e.id === editingEventId));
-      notify('event', `📝 Evento actualizado: "${eventForm.titulo}" · ${finalTienda}`);
-    } else {
-      const newEvent = {
-        id: 'ev' + Date.now(), fecha: isoDateStr,
-        titulo: eventForm.titulo, horaInicio: eventForm.horaInicio, horaFin: eventForm.horaFin,
-        prioridad: eventForm.prioridad, descripcion: eventForm.descripcion,
-        tienda: finalTienda, tiendas: finalTiendas,
-        creadoPor: userRole === 'admin' ? 'admin@tuempresa.com' : `${(selectedStores[0] || 'cb').toLowerCase()}@tuempresa.com`,
-        replicarGlobal: isGlobal,
-      };
-      setEvents(prev => [...prev, newEvent]);
-      await saveEventToSheets(newEvent);
-      notify('event', `📅 Nuevo evento: "${eventForm.titulo}" · ${isoDateStr} · ${finalTienda}`);
-    }
-    setSavingEvent(false);
-    setIsEventModalOpen(false);
-    setEditingEventId(null);
-  };
-
-  // ── Combined events (Calendar Events + Work Order Dates) ───────────────────
-  const allCombinedEvents = useMemo(() => {
-    const orderEvts = [];
-    workOrders.forEach(o => {
-      if (o.estado === 'Cancelado') return; // no mostrar cancelados en calendario
-      const fSalida = o.fechaSalidaProduccion || o.fechaSalida;
-      const fEntrega = o.fechaEntregaCliente || o.fechaEntrega;
-      const tdas = Array.isArray(o.tiendas) ? o.tiendas : [o.tienda || 'CB'];
-      const tdaSingle = tdas[0] || 'CB';
-
-      if (fSalida) {
-        orderEvts.push({
-          id: `ord_sal_${o.id || o.numero}`,
-          fecha: fSalida,
-          titulo: `🏭 [Salida] ${o.numero}`,
-          horaInicio: '08:00',
-          horaFin: '10:00',
-          prioridad: 'Alta',
-          descripcion: `Salida de producción para orden ${o.numero}.\nTransporte: ${o.transporte || 'No asignado'}\nEstado: ${o.estado}\nNotas: ${o.notas || ''}`,
-          tienda: tdaSingle,
-          tiendas: tdas,
-          isOrderEvent: true,
-          orderId: o.id || o.numero,
-          orderNumero: o.numero,
-          orderType: 'salida',
-          estado: o.estado
-        });
-      }
-      if (fEntrega && fEntrega !== fSalida) {
-        orderEvts.push({
-          id: `ord_ent_${o.id || o.numero}`,
-          fecha: fEntrega,
-          titulo: `🚚 [Entrega] ${o.numero}`,
-          horaInicio: '14:00',
-          horaFin: '16:00',
-          prioridad: 'Alta',
-          descripcion: `Entrega programada al cliente para orden ${o.numero}.\nTransporte: ${o.transporte || 'No asignado'}\nEstado: ${o.estado}\nNotas: ${o.notas || ''}`,
-          tienda: tdaSingle,
-          tiendas: tdas,
-          isOrderEvent: true,
-          orderId: o.id || o.numero,
-          orderNumero: o.numero,
-          orderType: 'entrega',
-          estado: o.estado
-        });
-      }
-    });
-    return [...events, ...orderEvts];
-  }, [events, workOrders]);
-
-  // ── Filtered events ────────────────────────────────────────────────────────
-  const filteredEvents = useMemo(() => allCombinedEvents.filter(evt => {
-    const storesToCheck = Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda];
-    if (evt.replicarGlobal || evt.tienda === 'Todos') return true;
-    return selectedStores.length === 14 || storesToCheck.some(s => selectedStores.includes(s));
-  }), [allCombinedEvents, selectedStores]);
-
-  // ── Chronogram groups ──────────────────────────────────────────────────────
-  const chronogramGroups = useMemo(() => {
-    const monthStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
-    let evts = filteredEvents.filter(e => e.fecha && e.fecha.startsWith(monthStr));
-    if (selectedDayFilter) evts = evts.filter(e => e.fecha === selectedDayFilter);
-    evts = [...evts].sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.horaInicio || '').localeCompare(b.horaInicio || ''));
-    const grouped = {};
-    evts.forEach(evt => { if (!grouped[evt.fecha]) grouped[evt.fecha] = []; grouped[evt.fecha].push(evt); });
-    return Object.entries(grouped);
-  }, [filteredEvents, currentMonth, currentYear, selectedDayFilter]);
-
-  const formatTime = (horaInicio, horaFin) => (!horaFin ? `${horaInicio} hrs` : `${horaInicio} – ${horaFin} hrs`);
-
-  // ── Work Orders ────────────────────────────────────────────────────────────
+  // ── Work Orders State & Functions (Defined early to prevent Temporal Dead Zone ReferenceError) ──
   const [workOrders, setWorkOrders] = useState(INITIAL_WORK_ORDERS);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState(null);
@@ -573,6 +364,215 @@ export default function CalendarioView({ selectedStores = [], userRole = 'admin'
     if (orderFilter !== 'Todas') list = list.filter(o => o.estado === orderFilter);
     return list.sort((a, b) => new Date(b.creadoEn || 0) - new Date(a.creadoEn || 0));
   }, [workOrders, userRole, selectedStores, orderFilter]);
+
+  // Load events and orders from Sheets on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getCalendarEvents`).then(r => r.json());
+        if (res.status === 'success' && res.eventos && res.eventos.length > 0) {
+          setEvents(res.eventos);
+          setBackendConnected(true);
+        }
+      } catch { /* use initial data */ }
+
+      try {
+        const resOrd = await fetch(`${SCRIPT_URL}?action=getOrdenes`).then(r => r.json());
+        if (resOrd.status === 'success' && resOrd.ordenes && resOrd.ordenes.length > 0) {
+          setWorkOrders(resOrd.ordenes);
+        }
+      } catch { /* use initial data */ }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    function h(e) { if (storeRef.current && !storeRef.current.contains(e.target)) setStoreDropOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const toggleAllStores = () => {
+    if (calendarStoreFilter.length === STORES.length) setCalendarStoreFilter([]);
+    else setCalendarStoreFilter(STORES);
+  };
+  const toggleStoreFilter = (s) => {
+    setCalendarStoreFilter(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+
+  // ── Event modal states ─────────────────────────────────────────────────────
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [selectedDayForEvent, setSelectedDayForEvent] = useState(null);
+  const [editingEventId, setEditingEventId] = useState(null);
+  const [savingEvent, setSavingEvent] = useState(false);
+
+  const [eventForm, setEventForm] = useState({
+    titulo: '', horaInicio: '09:00', horaFin: '10:00',
+    prioridad: 'Media', descripcion: '',
+    tiendas: [defaultStoreForUser], replicarGlobal: false,
+  });
+
+  // ── Calendar grid ──────────────────────────────────────────────────────────
+  const currentMonth = currentDate.getMonth();
+  const currentYear  = currentDate.getFullYear();
+  const daysInMonth  = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const startDayOffset = new Date(currentYear, currentMonth, 1).getDay();
+  const gridDays = [...Array.from({ length: startDayOffset }, () => null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  const handlePrevMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const handleNextMonth = () => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const handleGoToday   = () => { setCurrentDate(new Date()); setSelectedDayFilter(todayISO); };
+
+  const handleDayClick = (day) => {
+    if (!day) return;
+    const dateKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    setSelectedDayFilter(prev => prev === dateKey ? null : dateKey);
+  };
+
+  const handleOpenCreateModal = () => {
+    setSelectedDayForEvent(selectedDayFilter ? new Date(selectedDayFilter + 'T12:00:00') : new Date());
+    setEditingEventId(null);
+    setEventForm({ titulo: '', horaInicio: '09:00', horaFin: '10:00', prioridad: 'Media', descripcion: '', tiendas: [defaultStoreForUser], replicarGlobal: false });
+    setIsEventModalOpen(true);
+  };
+
+  const handleEventClick = (e, evt) => {
+    e.stopPropagation();
+    if (evt.isOrderEvent) {
+      const order = workOrders.find(o => String(o.id) === String(evt.orderId) || String(o.numero) === String(evt.orderNumero));
+      if (order && typeof openEditOrderModal === 'function') {
+        setActiveTab('ordenes');
+        openEditOrderModal(order);
+      }
+      return;
+    }
+    setSelectedDayForEvent(new Date(evt.fecha + 'T12:00:00'));
+    setEditingEventId(evt.id);
+    const tiendas = evt.replicarGlobal || evt.tienda === 'Todos' ? STORES : (Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda || defaultStoreForUser]);
+    setEventForm({
+      titulo: evt.titulo, horaInicio: evt.horaInicio || '09:00', horaFin: evt.horaFin || '',
+      prioridad: evt.prioridad, descripcion: evt.descripcion || '',
+      tiendas, replicarGlobal: evt.replicarGlobal || false,
+    });
+    setIsEventModalOpen(true);
+  };
+
+  const saveEventToSheets = async (eventData) => {
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'saveCalendarEvent', datos: { ...eventData, creadoEn: new Date().toISOString() } }),
+      });
+    } catch { /* falla silenciosa */ }
+  };
+
+  const handleSaveEvent = async (e) => {
+    e.preventDefault();
+    if (!eventForm.titulo.trim()) { alert('Por favor, ingresa el título del evento.'); return; }
+    setSavingEvent(true);
+
+    const isoDateStr = selectedDayForEvent.toISOString().slice(0, 10);
+    const isGlobal = (eventForm.replicarGlobal && userRole === 'admin') || eventForm.tiendas.length === STORES.length;
+    const finalTienda = isGlobal ? 'Todos' : eventForm.tiendas.join(', ');
+    const finalTiendas = isGlobal ? STORES : eventForm.tiendas;
+
+    if (editingEventId !== null) {
+      const updated = events.map(evt => evt.id === editingEventId
+        ? { ...evt, titulo: eventForm.titulo, horaInicio: eventForm.horaInicio, horaFin: eventForm.horaFin, prioridad: eventForm.prioridad, descripcion: eventForm.descripcion, tienda: finalTienda, tiendas: finalTiendas, replicarGlobal: isGlobal }
+        : evt
+      );
+      setEvents(updated);
+      await saveEventToSheets(updated.find(e => e.id === editingEventId));
+      notify('event', `📝 Evento actualizado: "${eventForm.titulo}" · ${finalTienda}`);
+    } else {
+      const newEvent = {
+        id: 'ev' + Date.now(), fecha: isoDateStr,
+        titulo: eventForm.titulo, horaInicio: eventForm.horaInicio, horaFin: eventForm.horaFin,
+        prioridad: eventForm.prioridad, descripcion: eventForm.descripcion,
+        tienda: finalTienda, tiendas: finalTiendas,
+        creadoPor: userRole === 'admin' ? 'admin@tuempresa.com' : `${(selectedStores[0] || 'cb').toLowerCase()}@tuempresa.com`,
+        replicarGlobal: isGlobal,
+      };
+      setEvents(prev => [...prev, newEvent]);
+      await saveEventToSheets(newEvent);
+      notify('event', `📅 Nuevo evento: "${eventForm.titulo}" · ${isoDateStr} · ${finalTienda}`);
+    }
+    setSavingEvent(false);
+    setIsEventModalOpen(false);
+    setEditingEventId(null);
+  };
+
+  // ── Combined events (Calendar Events + Work Order Dates) ───────────────────
+  const allCombinedEvents = useMemo(() => {
+    const orderEvts = [];
+    workOrders.forEach(o => {
+      if (o.estado === 'Cancelado') return; // no mostrar cancelados en calendario
+      const fSalida = o.fechaSalidaProduccion || o.fechaSalida;
+      const fEntrega = o.fechaEntregaCliente || o.fechaEntrega;
+      const tdas = Array.isArray(o.tiendas) ? o.tiendas : [o.tienda || 'CB'];
+      const tdaSingle = tdas[0] || 'CB';
+
+      if (fSalida) {
+        orderEvts.push({
+          id: `ord_sal_${o.id || o.numero}`,
+          fecha: fSalida,
+          titulo: `🏭 [Salida] ${o.numero}`,
+          horaInicio: '08:00',
+          horaFin: '10:00',
+          prioridad: 'Alta',
+          descripcion: `Salida de producción para orden ${o.numero}.\nTransporte: ${o.transporte || 'No asignado'}\nEstado: ${o.estado}\nNotas: ${o.notas || ''}`,
+          tienda: tdaSingle,
+          tiendas: tdas,
+          isOrderEvent: true,
+          orderId: o.id || o.numero,
+          orderNumero: o.numero,
+          orderType: 'salida',
+          estado: o.estado
+        });
+      }
+      if (fEntrega && fEntrega !== fSalida) {
+        orderEvts.push({
+          id: `ord_ent_${o.id || o.numero}`,
+          fecha: fEntrega,
+          titulo: `🚚 [Entrega] ${o.numero}`,
+          horaInicio: '14:00',
+          horaFin: '16:00',
+          prioridad: 'Alta',
+          descripcion: `Entrega programada al cliente para orden ${o.numero}.\nTransporte: ${o.transporte || 'No asignado'}\nEstado: ${o.estado}\nNotas: ${o.notas || ''}`,
+          tienda: tdaSingle,
+          tiendas: tdas,
+          isOrderEvent: true,
+          orderId: o.id || o.numero,
+          orderNumero: o.numero,
+          orderType: 'entrega',
+          estado: o.estado
+        });
+      }
+    });
+    return [...events, ...orderEvts];
+  }, [events, workOrders]);
+
+  // ── Filtered events ────────────────────────────────────────────────────────
+  const filteredEvents = useMemo(() => allCombinedEvents.filter(evt => {
+    const storesToCheck = Array.isArray(evt.tiendas) ? evt.tiendas : [evt.tienda];
+    if (evt.replicarGlobal || evt.tienda === 'Todos') return true;
+    return selectedStores.length === 14 || storesToCheck.some(s => selectedStores.includes(s));
+  }), [allCombinedEvents, selectedStores]);
+
+  // ── Chronogram groups ──────────────────────────────────────────────────────
+  const chronogramGroups = useMemo(() => {
+    const monthStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
+    let evts = filteredEvents.filter(e => e.fecha && e.fecha.startsWith(monthStr));
+    if (selectedDayFilter) evts = evts.filter(e => e.fecha === selectedDayFilter);
+    evts = [...evts].sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.horaInicio || '').localeCompare(b.horaInicio || ''));
+    const grouped = {};
+    evts.forEach(evt => { if (!grouped[evt.fecha]) grouped[evt.fecha] = []; grouped[evt.fecha].push(evt); });
+    return Object.entries(grouped);
+  }, [filteredEvents, currentMonth, currentYear, selectedDayFilter]);
+
+  const formatTime = (horaInicio, horaFin) => (!horaFin ? `${horaInicio} hrs` : `${horaInicio} – ${horaFin} hrs`);
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
