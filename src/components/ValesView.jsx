@@ -6,8 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyrI5mKnFOMo8zf8cixTy_5c8XJbgFNPxOvUbDzngEeFBdSpS6It_U-B0IOCLiefex7/exec';
 
 const PRODUCTOS = ['Medalla Fundida', 'Pin Fundido', 'Plasma Metal', 'Vidrio', 'Fotograbado', 'Producto especial', 'Protextil'];
-// Los procesos son automáticos; solo 'Autorizado' es manual (botón del asesor)
-// 'Otro Vale' reemplaza 'Congelado'
+const PROCESOS = ['en tiempo', 'Tarde', 'Entregado', 'Modificación 1', 'Modificación 2', 'Modificación 3', 'Autorizado', 'Otro Vale'];
 const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 
 const CARPETA_CARGA_URL = 'https://drive.google.com/drive/folders/1biBNC5T018q_2AYMFixiiAdxsYK_g72Z';
