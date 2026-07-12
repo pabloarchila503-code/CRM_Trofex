@@ -3,11 +3,142 @@ import { useState, useEffect, useRef } from 'react';
 const STORES = ['CB', 'CHM', 'CHQ', 'ESC', 'HH', 'JT', 'MZ', 'PT', 'PTB', 'SJ', 'SMA', 'VN', 'XL', 'Z3'];
 const MESES  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// ─────────────────────────────────────────────────────────────────
+// NOTIFICATION BELL — lives in the global topbar
+// ─────────────────────────────────────────────────────────────────
+function NotificationBell({ notifications = [], onClear, onMarkAllRead }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const unread = notifications.filter(n => !n.read).length;
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const iconForType = (type) => {
+    if (type === 'event')  return { icon: 'fa-calendar-plus', color: '#4f46e5', bg: '#ede9fe' };
+    if (type === 'task')   return { icon: 'fa-tasks',         color: '#059669', bg: '#d1fae5' };
+    if (type === 'vale')   return { icon: 'fa-file-invoice',  color: '#d97706', bg: '#fef3c7' };
+    if (type === 'order')  return { icon: 'fa-box',           color: '#2563eb', bg: '#dbeafe' };
+    return { icon: 'fa-bell', color: '#64748b', bg: '#f1f5f9' };
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => { setOpen(o => !o); if (!open && onMarkAllRead) onMarkAllRead(); }}
+        title="Notificaciones"
+        style={{
+          position: 'relative',
+          background: open ? 'rgba(79,70,229,0.1)' : '#f8fafc',
+          border: '1px solid',
+          borderColor: open ? 'rgba(79,70,229,0.3)' : '#e2e8f0',
+          borderRadius: '10px',
+          width: '38px', height: '38px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+          color: open ? '#4f46e5' : '#475569',
+          flexShrink: 0,
+        }}
+      >
+        <i className="fas fa-bell" style={{ fontSize: '15px' }} />
+        {unread > 0 && (
+          <span style={{
+            position: 'absolute', top: '-5px', right: '-5px',
+            background: '#ef4444', color: '#fff',
+            fontSize: '9px', fontWeight: '800',
+            width: '18px', height: '18px', borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #fff',
+            animation: 'notif-pulse 1.5s infinite',
+          }}>
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          background: '#fff', border: '1px solid #e2e8f0',
+          borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          zIndex: 9999, width: '340px', overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: '800', fontSize: '14px', color: '#1e293b' }}>Notificaciones</div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{notifications.length} en total · guardadas en sistema</div>
+            </div>
+            {notifications.length > 0 && (
+              <button
+                onClick={() => { if (onClear) onClear(); setOpen(false); }}
+                style={{ fontSize: '11px', fontWeight: '700', color: '#ef4444', background: '#fee2e2', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer' }}
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                <i className="fas fa-bell-slash" style={{ fontSize: '28px', display: 'block', marginBottom: '10px', opacity: 0.4 }} />
+                <div style={{ fontSize: '13px', fontWeight: '600' }}>Sin notificaciones</div>
+                <div style={{ fontSize: '11px', marginTop: '4px' }}>Aparecerán aquí cuando haya actividad</div>
+              </div>
+            ) : (
+              notifications.map(n => {
+                const cfg = iconForType(n.type);
+                return (
+                  <div key={n.id} style={{
+                    display: 'flex', gap: '12px', padding: '12px 20px',
+                    borderBottom: '1px solid #f8fafc',
+                    background: n.read ? '#fff' : 'rgba(79,70,229,0.02)',
+                  }}>
+                    <div style={{ width: '34px', height: '34px', background: cfg.bg, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className={`fas ${cfg.icon}`} style={{ fontSize: '13px', color: cfg.color }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', lineHeight: 1.4 }}>{n.mensaje}</div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px' }}>{n.hora}</div>
+                    </div>
+                    {!n.read && (
+                      <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4f46e5', flexShrink: 0, marginTop: '6px' }} />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes notif-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TOPBAR
+// ─────────────────────────────────────────────────────────────────
 export default function Topbar({
   title, onExportPDF, userRole, selectedStores = [], setSelectedStores,
   allowedStores = STORES,
-  selectedMonths,  setSelectedMonths,
-  currentView
+  selectedMonths, setSelectedMonths,
+  currentView,
+  notifications = [],
+  onClearNotifications,
+  onMarkAllRead,
 }) {
   const [timeStr, setTimeStr] = useState('--:--:--');
   const [dateStr, setDateStr] = useState('—');
@@ -20,19 +151,18 @@ export default function Topbar({
   const isMultiStore = isAdmin || allowedStores.length > 1;
 
   const toggleStore = (s) => {
-    setSelectedStores(prev => 
+    setSelectedStores(prev =>
       prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
     );
   };
 
   const toggleAllStores = () => {
     if (selectedStores.length === allowedStores.length) {
-      setSelectedStores([]); 
+      setSelectedStores([]);
     } else {
       setSelectedStores([...allowedStores]);
     }
   };
-
 
   // Clock
   useEffect(() => {
@@ -68,7 +198,7 @@ export default function Topbar({
       <h1 className="topbar-title">{title}</h1>
 
       {/* ── FILTROS MULTI-TAG ── */}
-      <div 
+      <div
         className={(currentView === 'calendario' || currentView === 'tareas') ? 'd-none' : ''}
         style={{
           display: (currentView === 'calendario' || currentView === 'tareas') ? 'none' : 'flex',
@@ -145,10 +275,10 @@ export default function Topbar({
         )}
 
         {/* ── FILTRO MESES (todos los usuarios) ── */}
-        <div 
-          ref={monthRef} 
+        <div
+          ref={monthRef}
           className={['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos'].includes(currentView) ? 'd-none' : ''}
-          style={{ 
+          style={{
             position: 'relative',
             display: ['prospecciones', '80-20', 'proyecto', 'carreras', 'tendencias', 'productos'].includes(currentView) ? 'none' : 'block'
           }}
@@ -203,13 +333,12 @@ export default function Topbar({
           )}
         </div>
 
-
         {/* ── TAGS ACTIVOS ── */}
-        <div style={{ 
-          display: ['prospecciones', '80-20', 'proyecto', 'carreras'].includes(currentView) ? 'none' : 'flex', 
-          flexWrap: 'wrap', 
-          gap: '5px', 
-          alignItems: 'center' 
+        <div style={{
+          display: ['prospecciones', '80-20', 'proyecto', 'carreras'].includes(currentView) ? 'none' : 'flex',
+          flexWrap: 'wrap',
+          gap: '5px',
+          alignItems: 'center'
         }}>
           {selectedMonths.map(m => (
             <span key={m} className="filter-tag filter-tag-month">
@@ -222,11 +351,20 @@ export default function Topbar({
 
       </div>
 
+      {/* ── FECHA + HORA ── */}
       <div className="topbar-date">
         <span className="topbar-date-val">{dateStr}</span>
         <span className="topbar-time">{timeStr}</span>
       </div>
 
+      {/* ── CAMPANA DE NOTIFICACIONES (siempre visible en el header) ── */}
+      <NotificationBell
+        notifications={notifications}
+        onClear={onClearNotifications}
+        onMarkAllRead={onMarkAllRead}
+      />
+
+      {/* ── EXPORTAR PDF ── */}
       <button className="topbar-btn btn-outline" onClick={onExportPDF} id="export-pdf-btn">
         <i className="fas fa-file-pdf" style={{ color: '#ef4444', marginRight: '6px' }} /> Exportar PDF
       </button>

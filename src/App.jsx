@@ -66,6 +66,8 @@ const INITIAL_CHECKLIST_TASKS = [
   { id: 7, name: 'Registrar lo Depositado en el Sistema', desc: 'Subir la boleta o captura bancaria al CRM para cerrar la bitácora financiera.', block: 5, icon: '📝', horaInicio: '16:30', horaFin: '17:30' }
 ];
 
+const VALES_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSzOB7Eqz8uxj8maGwSDu_ArLdk6hwbPTJSH_innNtoNzhydvcZBLiETQQzkW3bzrK/exec';
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState(null); // 'admin' or 'store'
@@ -75,7 +77,42 @@ export default function App() {
   const [carrerasManualData, setCarrerasManualData] = useState([]);
   const [analisis8020ManualData, setAnalisis8020ManualData] = useState([]);
   const [tendenciasData, setTendenciasData] = useState([]);
-  
+
+  // ── NOTIFICACIONES GLOBALES (persisten en Google Sheets) ──
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoaded, setNotificationsLoaded] = useState(false);
+
+  // Cargar notificaciones desde Sheets al hacer login
+  useEffect(() => {
+    if (!isLoggedIn || notificationsLoaded) return;
+    const load = async () => {
+      try {
+        const res = await fetch(`${VALES_SCRIPT_URL}?action=getNotifications`).then(r => r.json());
+        if (res.status === 'success' && res.notificaciones) {
+          setNotifications(res.notificaciones);
+        }
+      } catch { /* falla silenciosa — usa estado local */ }
+      setNotificationsLoaded(true);
+    };
+    load();
+  }, [isLoggedIn, notificationsLoaded]);
+
+  const addNotification = (type, mensaje) => {
+    const now = new Date();
+    const hora = `${now.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} · ${now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    const newNotif = { id: 'n' + Date.now(), type, mensaje, hora, read: false };
+    setNotifications(prev => [newNotif, ...prev]);
+    // Persistir en Sheets
+    fetch(VALES_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'saveNotification', datos: newNotif }),
+    }).catch(() => {});
+  };
+
+  const markAllNotificationsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const clearNotifications = () => setNotifications([]);
+
   // Vista activa y tiempo
   const [currentView, setView] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -646,6 +683,9 @@ export default function App() {
           allowedStores={allowedStores}
           selectedMonths={selectedMonths}
           setSelectedMonths={setSelectedMonths}
+          notifications={notifications}
+          onClearNotifications={clearNotifications}
+          onMarkAllRead={markAllNotificationsRead}
         />
 
         <main className="page-content">
@@ -696,6 +736,7 @@ export default function App() {
               setSavedDays={setSavedDays}
               weeklyTasks={weeklyTasks}
               setWeeklyTasks={setWeeklyTasks}
+              addNotification={addNotification}
             />
           )}
 

@@ -85,6 +85,16 @@ function handleRequest(e) {
       result = solicitarModificacion(params.noVale);
     } else if (action === 'subirArchivoVale') {
       result = subirArchivoVale(params.datos);
+    } else if (action === 'saveCalendarEvent') {
+      result = saveCalendarEvent(params.datos);
+    } else if (action === 'getCalendarEvents') {
+      result = getCalendarEvents();
+    } else if (action === 'saveNotification') {
+      result = saveNotification(params.datos);
+    } else if (action === 'getNotifications') {
+      result = getNotifications();
+    } else if (action === 'subirArchivoOrden') {
+      result = subirArchivoOrden(params.datos);
     }
 
     return ContentService.createTextOutput(JSON.stringify(result))
@@ -675,5 +685,190 @@ function solicitarModificacion(noVale) {
     return { status: "error", message: "Vale no encontrado: " + noVale };
   } catch (e) {
     return { status: "error", message: e.toString() };
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MÓDULO: EVENTOS DE CALENDARIO
+// ──────────────────────────────────────────────────────────────────
+function setupCalendarSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('CalendarioEventos');
+  if (!sheet) {
+    sheet = ss.insertSheet('CalendarioEventos');
+    sheet.appendRow(['id', 'fecha', 'titulo', 'horaInicio', 'horaFin', 'prioridad', 'descripcion', 'tienda', 'replicarGlobal', 'creadoPor', 'creadoEn']);
+    sheet.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#4f46e5').setFontColor('#ffffff');
+  }
+  return sheet;
+}
+
+function saveCalendarEvent(datos) {
+  try {
+    const sheet = setupCalendarSheet();
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const colId = headers.indexOf('id');
+    
+    // Check if event with this id already exists (update)
+    let existingRow = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][colId]) === String(datos.id)) {
+        existingRow = i + 1;
+        break;
+      }
+    }
+    
+    const rowData = [
+      datos.id,
+      datos.fecha,
+      datos.titulo,
+      datos.horaInicio || '',
+      datos.horaFin || '',
+      datos.prioridad,
+      datos.descripcion || '',
+      datos.tienda,
+      datos.replicarGlobal ? 'SI' : 'NO',
+      datos.creadoPor || '',
+      datos.creadoEn || new Date().toISOString()
+    ];
+    
+    if (existingRow > 0) {
+      sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+      return { status: 'success', message: 'Evento actualizado: ' + datos.titulo };
+    } else {
+      sheet.appendRow(rowData);
+      return { status: 'success', message: 'Evento guardado: ' + datos.titulo };
+    }
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function getCalendarEvents() {
+  try {
+    const sheet = setupCalendarSheet();
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return { status: 'success', eventos: [] };
+    const headers = data[0];
+    const eventos = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = {};
+      for (let j = 0; j < headers.length; j++) {
+        row[headers[j]] = data[i][j];
+      }
+      row.replicarGlobal = row.replicarGlobal === 'SI';
+      eventos.push(row);
+    }
+    return { status: 'success', eventos };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MÓDULO: NOTIFICACIONES PERSISTENTES
+// ──────────────────────────────────────────────────────────────────
+function setupNotifSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Notificaciones');
+  if (!sheet) {
+    sheet = ss.insertSheet('Notificaciones');
+    sheet.appendRow(['id', 'type', 'mensaje', 'hora', 'read', 'creadoEn']);
+    sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
+  }
+  return sheet;
+}
+
+function saveNotification(datos) {
+  try {
+    const sheet = setupNotifSheet();
+    sheet.appendRow([
+      datos.id,
+      datos.type,
+      datos.mensaje,
+      datos.hora,
+      datos.read ? 'SI' : 'NO',
+      new Date().toISOString()
+    ]);
+    // Keep only last 200 notifications
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 201) {
+      sheet.deleteRows(2, lastRow - 201);
+    }
+    return { status: 'success', message: 'Notificación guardada' };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+function getNotifications() {
+  try {
+    const sheet = setupNotifSheet();
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return { status: 'success', notificaciones: [] };
+    const headers = data[0];
+    const notificaciones = [];
+    for (let i = data.length - 1; i >= 1; i--) {
+      const row = {};
+      for (let j = 0; j < headers.length; j++) {
+        row[headers[j]] = data[i][j];
+      }
+      row.read = row.read === 'SI';
+      notificaciones.push(row);
+    }
+    return { status: 'success', notificaciones };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MÓDULO: ARCHIVOS DE ÓRDENES DE TRABAJO
+// ──────────────────────────────────────────────────────────────────
+const ORDENES_FOLDER_ID = '18_lVSz2vKLXr1p8FXAOW28N4y2ojxq98'; // Same main Drive folder
+
+function subirArchivoOrden(datos) {
+  try {
+    const noOrden = datos.noOrden;
+    const base64Data = datos.base64;
+    const mimeType = datos.mimeType || 'application/octet-stream';
+    const fileName = datos.fileName || ('orden_' + noOrden);
+    
+    if (!base64Data) throw new Error('No se recibió el contenido del archivo.');
+    
+    const mainFolder = DriveApp.getFolderById(ORDENES_FOLDER_ID);
+    
+    // Get or create OrdenesWork folder
+    let ordenesFolder;
+    const ordenesFolders = mainFolder.getFoldersByName('OrdenesWork');
+    if (ordenesFolders.hasNext()) {
+      ordenesFolder = ordenesFolders.next();
+    } else {
+      ordenesFolder = mainFolder.createFolder('OrdenesWork');
+    }
+    
+    // Get or create subfolder for this specific order number
+    const safeOrdenName = noOrden.replace(/\//g, '_');
+    let ordenFolder;
+    const subFolders = ordenesFolder.getFoldersByName(safeOrdenName);
+    if (subFolders.hasNext()) {
+      ordenFolder = subFolders.next();
+    } else {
+      ordenFolder = ordenesFolder.createFolder(safeOrdenName);
+    }
+    
+    const bytes = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(bytes, mimeType, fileName);
+    const file = ordenFolder.createFile(blob);
+    
+    return {
+      status: 'success',
+      message: 'Archivo "' + fileName + '" subido a Orden ' + noOrden,
+      url: file.getUrl(),
+      fileId: file.getId(),
+      fileName: fileName
+    };
+  } catch (e) {
+    return { status: 'error', message: e.toString() };
   }
 }
