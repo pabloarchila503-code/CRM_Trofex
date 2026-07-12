@@ -66,7 +66,7 @@ const INITIAL_CHECKLIST_TASKS = [
   { id: 7, name: 'Registrar lo Depositado en el Sistema', desc: 'Subir la boleta o captura bancaria al CRM para cerrar la bitácora financiera.', block: 5, icon: '📝', horaInicio: '16:30', horaFin: '17:30' }
 ];
 
-const VALES_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSzOB7Eqz8uxj8maGwSDu_ArLdk6hwbPTJSH_innNtoNzhydvcZBLiETQQzkW3bzrK/exec';
+const VALES_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyrI5mKnFOMo8zf8cixTy_5c8XJbgFNPxOvUbDzngEeFBdSpS6It_U-B0IOCLiefex7/exec';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
