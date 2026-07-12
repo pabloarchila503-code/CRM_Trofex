@@ -632,14 +632,21 @@ export default function App() {
           // Normalizar el rol del diseñador
           if (rawRole.includes('diseño') || rawRole.includes('diseñador') || rawRole.includes('diseno')) {
             rawRole = 'diseno';
+          } else if (rawRole.includes('export') || rawRole.includes('logist')) {
+            rawRole = 'exportador';
           } else if (rawRole !== 'admin') {
-            // Cualquier variante que no sea explícitamente 'admin' ni diseño se
+            // Cualquier variante que no sea explícitamente 'admin', diseño o exportador se
             // trata como 'store', para nunca dar acceso total por defecto.
             rawRole = 'store';
           }
           const normalizedRole = rawRole;
           setUserRole(normalizedRole);
           setUserName(user.name ? String(user.name).trim() : '');
+          if (normalizedRole === 'exportador') {
+            setView('calendario');
+          } else {
+            setView('dashboard');
+          }
 
           if (normalizedRole === 'store' && user.store && String(user.store).trim()) {
             const userStores = String(user.store).trim().split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
